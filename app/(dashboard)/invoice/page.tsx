@@ -1,0 +1,419 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
+
+const SERVICES = [
+  { key: "digital-marketing", label: "Digital Marketing" },
+  { key: "ui-ux",             label: "UI/UX Design" },
+  { key: "web-development",   label: "Web Development" },
+  { key: "seo",               label: "SEO" },
+  { key: "social-media",      label: "Social Media" },
+  { key: "branding",          label: "Branding" },
+  { key: "other",             label: "Other" },
+];
+
+const STATUSES = [
+  { key: "unpaid",   label: "Unpaid",   color: "#92400e", bg: "#fef3c7", border: "#fde68a" },
+  { key: "paid",     label: "Paid",     color: "#065f46", bg: "#d1fae5", border: "#a7f3d0" },
+  { key: "overdue",  label: "Overdue",  color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
+];
+
+const EMPTY_FORM = {
+  clientName: "", clientEmail: "", clientPhone: "", clientAddress: "",
+  service: "web-development", status: "unpaid",
+  dueDate: "", notes: "",
+  items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
+};
+
+let invoiceCounter = 1000;
+
+export default function InvoicePage() {
+  const { crmUser } = useAuth();
+  const [invoices, setInvoices]     = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [showModal, setShowModal]   = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [editing, setEditing]       = useState<any | null>(null);
+  const [preview, setPreview]       = useState<any | null>(null);
+  const [form, setForm]             = useState<any>({ ...EMPTY_FORM, items: [{ description: "", qty: 1, rate: 0, amount: 0 }] });
+  const [saving, setSaving]         = useState(false);
+  const [sending, setSending]       = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  if (crmUser?.role !== "admin") {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#fee2e2" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <p className="text-sm font-semibold" style={{ color: "#1a1a2e" }}>Admin Access Only</p>
+        </div>
+      </div>
+    );
+  }
+
+  async function fetchInvoices() {
+    const snap = await getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc")));
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setInvoices(data);
+    invoiceCounter = 1000 + data.length;
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchInvoices(); }, []);
+
+  function calcItem(item: any) { return { ...item, amount: item.qty * item.rate }; }
+  function updateItem(i: number, field: string, value: any) {
+    const items = form.items.map((it: any, idx: number) => idx === i ? calcItem({ ...it, [field]: field === "description" ? value : Number(value) }) : it);
+    setForm({ ...form, items });
+  }
+  function addItem() { setForm({ ...form, items: [...form.items, { description: "", qty: 1, rate: 0, amount: 0 }] }); }
+  function removeItem(i: number) { setForm({ ...form, items: form.items.filter((_: any, idx: number) => idx !== i) }); }
+
+  const subtotal = form.items.reduce((s: number, it: any) => s + it.amount, 0);
+  const tax      = subtotal * 0.05;
+  const total    = subtotal + tax;
+
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, items: [{ description: "", qty: 1, rate: 0, amount: 0 }] }); setShowModal(true); }
+  function openEdit(inv: any) {
+    setEditing(inv);
+    setForm({ clientName: inv.clientName, clientEmail: inv.clientEmail ?? "", clientPhone: inv.clientPhone ?? "", clientAddress: inv.clientAddress ?? "", service: inv.service, status: inv.status, dueDate: inv.dueDate ?? "", notes: inv.notes ?? "", items: inv.items });
+    setShowModal(true);
+  }
+  function openPreview(inv: any) { setPreview(inv); setShowPreview(true); }
+
+  async function handleSave() {
+    if (!form.clientName) return;
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const invoiceNumber = `AM-INV-${++invoiceCounter}`;
+      const data = { ...form, subtotal, tax, total, createdBy: crmUser?.uid };
+      if (editing) {
+        await updateDoc(doc(db, "invoices", editing.id), data);
+      } else {
+        await addDoc(collection(db, "invoices"), { ...data, invoiceNumber, createdAt: now });
+      }
+      setShowModal(false); fetchInvoices();
+    } finally { setSaving(false); }
+  }
+
+  async function deleteInvoice(id: string) {
+    if (!confirm("Delete this invoice?")) return;
+    await deleteDoc(doc(db, "invoices", id)); fetchInvoices();
+  }
+
+  async function updateStatus(inv: any, status: string) {
+    await updateDoc(doc(db, "invoices", inv.id), { status });
+    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status } : i));
+  }
+
+  async function downloadPDF(inv: any) {
+    try {
+      const jsPDF = (await import("jspdf")).default;
+      const html2canvas = (await import("html2canvas")).default;
+
+      // Temporarily show preview for capture
+      setPreview(inv);
+      setShowPreview(true);
+      await new Promise(r => setTimeout(r, 500));
+
+      const element = document.getElementById("invoice-print-area");
+      if (!element) return;
+
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${inv.invoiceNumber || "Invoice"}.pdf`);
+      setShowPreview(false);
+    } catch (err) { console.error(err); setShowPreview(false); }
+  }
+
+  async function sendEmail(inv: any) {
+    if (!inv.clientEmail) { alert("No client email on this invoice!"); return; }
+    setSending(true);
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: inv.clientEmail,
+          subject: `Invoice ${inv.invoiceNumber} from The A&M Internationals`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
+                <h1 style="color:#C9A84C;margin:0;font-size:24px;font-family:Georgia,serif;">A&M</h1>
+                <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
+              </div>
+              <div style="background:white;padding:28px;border:1px solid #e8e8f0;border-top:none;border-radius:0 0 10px 10px;">
+                <p style="color:#1a1a2e;">Dear <strong>${inv.clientName}</strong>,</p>
+                <p style="color:#6b7280;">Please find your invoice details below. Kindly make the payment by the due date.</p>
+                <div style="background:#f8f9fc;border-radius:10px;padding:20px;margin:16px 0;">
+                  <table style="width:100%;font-size:13px;">
+                    <tr><td style="color:#9ca3af;padding:4px 0;">Invoice No.</td><td style="text-align:right;font-weight:600;color:#1a1a2e;">${inv.invoiceNumber}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;">Service</td><td style="text-align:right;color:#1a1a2e;">${SERVICES.find(s=>s.key===inv.service)?.label || inv.service}</td></tr>
+                    ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</td></tr>` : ""}
+                    <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">AED ${inv.subtotal?.toLocaleString()}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">AED ${inv.tax?.toFixed(2)}</td></tr>
+                    <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">AED ${inv.total?.toLocaleString(undefined,{minimumFractionDigits:2})}</td></tr>
+                  </table>
+                </div>
+                <p style="color:#6b7280;font-size:13px;">For any queries, contact us at <a href="mailto:am@theaminternational.com" style="color:#C9A84C;">am@theaminternational.com</a> or WhatsApp <a href="https://wa.me/919025562311" style="color:#C9A84C;">+91 90255 62311</a></p>
+                <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · theaminternational.com</p>
+              </div>
+            </div>
+          `,
+        }),
+      });
+      alert("✅ Invoice email sent successfully!");
+    } catch (err) { alert("Failed to send email."); }
+    finally { setSending(false); }
+  }
+
+  function sendWhatsApp(inv: any) {
+    const phone = inv.clientPhone?.replace(/\D/g, "");
+    if (!phone) { alert("No client phone number on this invoice!"); return; }
+    const msg = encodeURIComponent(`Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: AED ${inv.total?.toLocaleString(undefined,{minimumFractionDigits:2})}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternational.com\n\nThank you!\nThe A&M Internationals FZC`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+  }
+
+  const stInfo = (key: string) => STATUSES.find(s => s.key === key) ?? STATUSES[0];
+
+  return (
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="page-header mb-0">
+          <h1 className="page-title">Invoices</h1>
+          <p className="page-subtitle">{invoices.filter(i=>i.status==="paid").length} paid · {invoices.filter(i=>i.status==="unpaid").length} unpaid</p>
+        </div>
+        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> New Invoice</button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: "Total Invoiced", value: `AED ${invoices.reduce((s,i)=>s+(i.total||0),0).toLocaleString()}`, color: "#0D1B3E" },
+          { label: "Paid",           value: `AED ${invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.total||0),0).toLocaleString()}`, color: "#065f46" },
+          { label: "Outstanding",    value: `AED ${invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+(i.total||0),0).toLocaleString()}`, color: "#ef4444" },
+        ].map(s => (
+          <div key={s.label} className="stat-card">
+            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>{s.label}</p>
+            <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="h-20 rounded-2xl animate-pulse" style={{background:"#f0f2f8"}}/>)}</div>
+      ) : invoices.length === 0 ? (
+        <div className="text-center py-16 crm-card">
+          <p className="text-sm" style={{ color: "#9ca3af" }}>No invoices yet</p>
+          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ New Invoice</button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {invoices.map((inv) => {
+            const st = stInfo(inv.status);
+            return (
+              <div key={inv.id} className="crm-card">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#0D1B3E0d" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1B3E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold" style={{ color: "#1a1a2e" }}>{inv.clientName}</p>
+                        <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>{inv.invoiceNumber}</span>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
+                        {SERVICES.find(s=>s.key===inv.service)?.label} · {new Date(inv.createdAt).toLocaleDateString("en-GB")}
+                        {inv.dueDate && ` · Due ${new Date(inv.dueDate).toLocaleDateString("en-GB")}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-right mr-2">
+                      <p className="text-base font-bold" style={{ color: "#C9A84C" }}>AED {inv.total?.toLocaleString(undefined,{minimumFractionDigits:2})}</p>
+                    </div>
+                    <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
+                    {/* Status change */}
+                    {STATUSES.filter(s=>s.key!==inv.status).map(s=>(
+                      <button key={s.key} onClick={()=>updateStatus(inv,s.key)} className="badge cursor-pointer hover:opacity-80" style={{background:s.bg,color:s.color,border:`1px solid ${s.border}`}}>→ {s.label}</button>
+                    ))}
+                    <button onClick={()=>openPreview(inv)} className="btn-primary" style={{padding:"5px 10px",fontSize:"11px"}}>👁 View</button>
+                    <button onClick={()=>downloadPDF(inv)} className="btn-gold" style={{padding:"5px 10px",fontSize:"11px"}}>⬇ PDF</button>
+                    <button onClick={()=>sendEmail(inv)} disabled={sending} className="btn-primary" style={{padding:"5px 10px",fontSize:"11px",background:"#1d4ed8"}}>✉ Email</button>
+                    <button onClick={()=>sendWhatsApp(inv)} className="btn-primary" style={{padding:"5px 10px",fontSize:"11px",background:"#25d366"}}>💬 WA</button>
+                    <button onClick={()=>openEdit(inv)} className="btn-primary" style={{padding:"5px 10px",fontSize:"11px",background:"#6b7280"}}>✎ Edit</button>
+                    <button onClick={()=>deleteInvoice(inv.id)} className="btn-danger">✕ Delete</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 680 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="modal-title mb-0">{editing ? "Edit Invoice" : "New Invoice"}</h2>
+              <button onClick={()=>setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="form-label">Client Name *</label><input className="form-input" value={form.clientName} onChange={e=>setForm({...form,clientName:e.target.value})} /></div>
+                <div><label className="form-label">Client Email</label><input className="form-input" type="email" value={form.clientEmail} onChange={e=>setForm({...form,clientEmail:e.target.value})} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="form-label">Client Phone (with country code)</label><input className="form-input" value={form.clientPhone} onChange={e=>setForm({...form,clientPhone:e.target.value})} placeholder="+971501234567" /></div>
+                <div><label className="form-label">Client Address</label><input className="form-input" value={form.clientAddress} onChange={e=>setForm({...form,clientAddress:e.target.value})} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label">Service</label>
+                  <select className="form-input" value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
+                    {SERVICES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Status</label>
+                  <select className="form-input" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
+                    {STATUSES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} /></div>
+              </div>
+              {/* Line items */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="form-label mb-0">Line Items</label>
+                  <button onClick={addItem} className="text-xs font-bold" style={{color:"#C9A84C"}}>+ Add Item</button>
+                </div>
+                <div className="rounded-xl border overflow-hidden" style={{borderColor:"#e5e7eb"}}>
+                  <div className="grid text-xs font-bold uppercase tracking-wide px-3 py-2" style={{gridTemplateColumns:"1fr 70px 100px 100px 28px",gap:8,background:"#f8f9fc",color:"#9ca3af"}}>
+                    <span>Description</span><span className="text-center">Qty</span><span className="text-center">Rate (AED)</span><span className="text-right">Amount</span><span></span>
+                  </div>
+                  {form.items.map((item: any, i: number) => (
+                    <div key={i} className="grid items-center px-3 py-2 border-t" style={{gridTemplateColumns:"1fr 70px 100px 100px 28px",gap:8,borderColor:"#f0f0f5"}}>
+                      <input className="form-input py-1.5" value={item.description} onChange={e=>updateItem(i,"description",e.target.value)} placeholder="Service..." />
+                      <input className="form-input py-1.5 text-center" type="number" min="1" value={item.qty} onChange={e=>updateItem(i,"qty",e.target.value)} />
+                      <input className="form-input py-1.5 text-center" type="number" min="0" value={item.rate} onChange={e=>updateItem(i,"rate",e.target.value)} />
+                      <span className="text-sm font-bold text-right" style={{color:"#1a1a2e"}}>AED {item.amount.toLocaleString()}</span>
+                      {form.items.length>1&&<button onClick={()=>removeItem(i)} className="btn-danger" style={{padding:"2px 6px",fontSize:"10px"}}>✕</button>}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 space-y-1 text-sm">
+                  <div className="flex justify-between"><span style={{color:"#6b7280"}}>Subtotal</span><span style={{color:"#1a1a2e"}}>AED {subtotal.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span style={{color:"#6b7280"}}>VAT (5%)</span><span style={{color:"#1a1a2e"}}>AED {tax.toFixed(2)}</span></div>
+                  <div className="flex justify-between font-bold pt-2 border-t text-base" style={{borderColor:"#e5e7eb"}}>
+                    <span style={{color:"#0D1B3E"}}>Total</span>
+                    <span style={{color:"#C9A84C"}}>AED {total.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+                  </div>
+                </div>
+              </div>
+              <div><label className="form-label">Notes / Payment Terms</label><textarea className="form-input resize-none" rows={2} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="50% advance, balance on delivery..." /></div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={()=>setShowModal(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{borderColor:"#e5e7eb",color:"#6b7280"}}>Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 justify-center disabled:opacity-50">{saving?"Saving...":editing?"Update Invoice":"Create Invoice"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Preview */}
+      {showPreview && preview && (
+        <div className="modal-overlay" onClick={()=>setShowPreview(false)}>
+          <div style={{width:"100%",maxWidth:700,maxHeight:"90vh",overflowY:"auto",borderRadius:16}} onClick={e=>e.stopPropagation()}>
+            <div id="invoice-print-area" style={{background:"white",padding:"40px",fontFamily:"Arial,sans-serif"}}>
+              {/* Header */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:32,paddingBottom:24,borderBottom:"2px solid #f0f0f5"}}>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <div style={{width:44,height:44,background:"linear-gradient(135deg,#0D1B3E,#1a3070)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <span style={{color:"#C9A84C",fontWeight:700,fontSize:12,fontFamily:"Georgia,serif",letterSpacing:"-0.5px"}}>A&M</span>
+                    </div>
+                    <div>
+                      <p style={{margin:0,fontWeight:700,fontSize:15,color:"#0D1B3E"}}>The A&M Internationals FZC</p>
+                      <p style={{margin:0,fontSize:10,color:"#9ca3af",letterSpacing:2}}>ELEVATING THE WORLD, ELEGANTLY</p>
+                    </div>
+                  </div>
+                  <p style={{margin:0,fontSize:11,color:"#9ca3af"}}>Ajman Free Zone, UAE</p>
+                  <p style={{margin:0,fontSize:11,color:"#9ca3af"}}>am@theaminternational.com · +91 90255 62311</p>
+                  <p style={{margin:0,fontSize:11,color:"#C9A84C"}}>theaminternational.com</p>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <p style={{margin:0,fontSize:28,fontWeight:800,color:"#0D1B3E",letterSpacing:-1}}>INVOICE</p>
+                  <p style={{margin:"4px 0 0",fontSize:13,fontWeight:700,color:"#C9A84C"}}>{preview.invoiceNumber}</p>
+                  <p style={{margin:"4px 0 0",fontSize:11,color:"#9ca3af"}}>Date: {new Date(preview.createdAt).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</p>
+                  {preview.dueDate&&<p style={{margin:"2px 0 0",fontSize:11,color:"#ef4444",fontWeight:600}}>Due: {new Date(preview.dueDate).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</p>}
+                </div>
+              </div>
+              {/* Bill to */}
+              <div style={{marginBottom:24}}>
+                <p style={{margin:"0 0 6px",fontSize:10,fontWeight:700,color:"#9ca3af",textTransform:"uppercase",letterSpacing:2}}>Bill To</p>
+                <p style={{margin:0,fontSize:15,fontWeight:700,color:"#1a1a2e"}}>{preview.clientName}</p>
+                {preview.clientEmail&&<p style={{margin:"2px 0 0",fontSize:12,color:"#6b7280"}}>{preview.clientEmail}</p>}
+                {preview.clientPhone&&<p style={{margin:"2px 0 0",fontSize:12,color:"#6b7280"}}>{preview.clientPhone}</p>}
+                {preview.clientAddress&&<p style={{margin:"2px 0 0",fontSize:12,color:"#6b7280"}}>{preview.clientAddress}</p>}
+              </div>
+              {/* Items */}
+              <table style={{width:"100%",borderCollapse:"collapse",marginBottom:20}}>
+                <thead>
+                  <tr style={{background:"#0D1B3E"}}>
+                    <th style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:"#C9A84C",letterSpacing:1}}>DESCRIPTION</th>
+                    <th style={{padding:"10px 14px",textAlign:"center",fontSize:11,fontWeight:700,color:"#C9A84C",letterSpacing:1,width:60}}>QTY</th>
+                    <th style={{padding:"10px 14px",textAlign:"center",fontSize:11,fontWeight:700,color:"#C9A84C",letterSpacing:1,width:100}}>RATE (AED)</th>
+                    <th style={{padding:"10px 14px",textAlign:"right",fontSize:11,fontWeight:700,color:"#C9A84C",letterSpacing:1,width:110}}>AMOUNT (AED)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.items.map((item: any,i: number)=>(
+                    <tr key={i} style={{background:i%2===0?"white":"#f8f9fc"}}>
+                      <td style={{padding:"10px 14px",fontSize:12,color:"#374151"}}>{item.description}</td>
+                      <td style={{padding:"10px 14px",fontSize:12,textAlign:"center",color:"#374151"}}>{item.qty}</td>
+                      <td style={{padding:"10px 14px",fontSize:12,textAlign:"center",color:"#374151"}}>{item.rate.toLocaleString()}</td>
+                      <td style={{padding:"10px 14px",fontSize:12,textAlign:"right",fontWeight:600,color:"#1a1a2e"}}>{item.amount.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {/* Totals */}
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:24}}>
+                <div style={{minWidth:240}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f0f0f5"}}><span style={{fontSize:12,color:"#9ca3af"}}>Subtotal</span><span style={{fontSize:12,fontWeight:600,color:"#1a1a2e"}}>AED {preview.subtotal?.toLocaleString()}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f0f0f5"}}><span style={{fontSize:12,color:"#9ca3af"}}>VAT (5%)</span><span style={{fontSize:12,fontWeight:600,color:"#1a1a2e"}}>AED {preview.tax?.toFixed(2)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"#0D1B3E",borderRadius:8,marginTop:8}}><span style={{fontSize:14,fontWeight:700,color:"white"}}>TOTAL</span><span style={{fontSize:16,fontWeight:800,color:"#C9A84C"}}>AED {preview.total?.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>
+                </div>
+              </div>
+              {preview.notes&&<div style={{padding:"14px",background:"#f8f9fc",borderRadius:8,marginBottom:24,borderLeft:"3px solid #C9A84C"}}><p style={{margin:0,fontSize:11,color:"#6b7280",fontWeight:700}}>NOTES</p><p style={{margin:"4px 0 0",fontSize:12,color:"#374151"}}>{preview.notes}</p></div>}
+              {/* Footer */}
+              <div style={{textAlign:"center",paddingTop:20,borderTop:"1px solid #f0f0f5"}}>
+                <p style={{margin:0,fontSize:12,color:"#9ca3af"}}>Thank you for your business!</p>
+                <p style={{margin:"4px 0 0",fontSize:11,color:"#C9A84C"}}>The A&M Internationals FZC · Ajman Free Zone, UAE · theaminternational.com</p>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,padding:16,background:"white",borderTop:"1px solid #f0f0f5",borderRadius:"0 0 16px 16px"}}>
+              <button onClick={()=>setShowPreview(false)} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #e5e7eb",fontWeight:600,fontSize:13,cursor:"pointer",background:"white",color:"#6b7280"}}>Close</button>
+              <button onClick={()=>downloadPDF(preview)} className="btn-gold" style={{flex:1,justifyContent:"center"}}>⬇ Download PDF</button>
+              <button onClick={()=>sendEmail(preview)} className="btn-primary" style={{flex:1,justifyContent:"center",background:"#1d4ed8"}}>✉ Send Email</button>
+              <button onClick={()=>sendWhatsApp(preview)} className="btn-primary" style={{flex:1,justifyContent:"center",background:"#25d366"}}>💬 WhatsApp</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
