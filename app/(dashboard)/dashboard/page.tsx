@@ -2,177 +2,250 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from "recharts";
 
-interface Stats {
-  totalLeads: number;
-  activeClients: number;
-  openProjects: number;
-  pendingTasks: number;
-  wonLeads: number;
-  lostLeads: number;
-}
+const SERVICE_COLORS: Record<string, string> = {
+  "digital-marketing": "#3b82f6",
+  "ui-ux": "#f59e0b",
+  "web-development": "#22c55e",
+  "seo": "#8b5cf6",
+  "social-media": "#ec4899",
+  "branding": "#f97316",
+  "other": "#6b7280",
+};
 
 const SERVICE_LABELS: Record<string, string> = {
-  "digital-marketing": "Digital Marketing",
-  "ui-ux": "UI/UX Design",
-  "web-development": "Web Development",
+  "digital-marketing": "Digital",
+  "ui-ux": "UI/UX",
+  "web-development": "Web Dev",
+  "seo": "SEO",
+  "social-media": "Social",
+  "branding": "Branding",
+  "other": "Other",
 };
 
-const SERVICE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  "digital-marketing": { bg: "#e8f4ff", text: "#1a6bc4", dot: "#1a6bc4" },
-  "ui-ux": { bg: "#fff3e0", text: "#b35a00", dot: "#f59e0b" },
-  "web-development": { bg: "#e8fff3", text: "#0a7a3e", dot: "#22c55e" },
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const PIE_COLORS = ["#0D1B3E","#C9A84C","#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6"];
+
+const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  lead:     { color: "#7e22ce", bg: "#faf5ff", label: "Lead" },
+  meeting:  { color: "#c2410c", bg: "#fff7ed", label: "Meeting" },
+  proposal: { color: "#1d4ed8", bg: "#eff6ff", label: "Proposal" },
+  won:      { color: "#15803d", bg: "#f0fdf4", label: "Won" },
+  lost:     { color: "#b91c1c", bg: "#fef2f2", label: "Lost" },
 };
 
-const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  lead: { bg: "#f3e8ff", text: "#7e22ce" },
-  meeting: { bg: "#fff7ed", text: "#c2410c" },
-  proposal: { bg: "#eff6ff", text: "#1d4ed8" },
-  won: { bg: "#f0fdf4", text: "#15803d" },
-  lost: { bg: "#fef2f2", text: "#b91c1c" },
-};
-
-function StatCard({ label, value, sub, color }: { label: string; value: number | string; sub?: string; color: string }) {
+function StatCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: string }) {
   return (
-    <div className="stat-card">
-      <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color, opacity: 0.7 }} />
-      <p className="text-xs font-medium mb-1 mt-1" style={{ color: "#6b7280" }}>{label}</p>
-      <p className="text-3xl font-bold" style={{ color: "#1a1a2e" }}>{value}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>{sub}</p>}
+    <div className="stat-card group">
+      <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color }} />
+      <div className="flex items-start justify-between mt-1">
+        <div>
+          <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>{label}</p>
+          <p className="text-3xl font-bold leading-tight" style={{ color: "#0D1B3E" }}>{value}</p>
+          {sub && <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>{sub}</p>}
+        </div>
+        <div className="text-2xl opacity-20 group-hover:opacity-40 transition-opacity">{icon}</div>
+      </div>
     </div>
   );
 }
 
 export default function DashboardPage() {
   const { crmUser } = useAuth();
-  const [stats, setStats] = useState<Stats>({ totalLeads: 0, activeClients: 0, openProjects: 0, pendingTasks: 0, wonLeads: 0, lostLeads: 0 });
-  const [recentLeads, setRecentLeads] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
+  const isAdmin = crmUser?.role === "admin";
+
+  const [leads, setLeads]     = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [tasks, setTasks]     = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchAll() {
       try {
-        const [leadsSnap, clientsSnap, projectsSnap, tasksSnap] = await Promise.all([
-          getDocs(collection(db, "leads")),
+        const [lSnap, cSnap, pSnap, tSnap] = await Promise.all([
+          getDocs(query(collection(db, "leads"), orderBy("createdAt", "desc"))),
           getDocs(query(collection(db, "clients"), where("status", "==", "active"))),
-          getDocs(query(collection(db, "projects"), where("status", "in", ["in-progress", "not-started"]))),
+          getDocs(collection(db, "projects")),
           getDocs(query(collection(db, "tasks"), where("done", "==", false))),
         ]);
+        setLeads(lSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setClients(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProjects(pSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setTasks(tSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-        const leads = leadsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const won = leads.filter((l: any) => l.stage === "won").length;
-        const lost = leads.filter((l: any) => l.stage === "lost").length;
-
-        setStats({
-          totalLeads: leads.length,
-          activeClients: clientsSnap.size,
-          openProjects: projectsSnap.size,
-          pendingTasks: tasksSnap.size,
-          wonLeads: won,
-          lostLeads: lost,
-        });
-
-        const sorted = leads.sort((a: any, b: any) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setRecentLeads(sorted.slice(0, 5));
-
-        const allTasks = tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setTasks(allTasks.slice(0, 5));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+        if (isAdmin) {
+          const iSnap = await getDocs(collection(db, "invoices"));
+          setInvoices(iSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
     }
-    fetchData();
-  }, []);
+    fetchAll();
+  }, [isAdmin]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const firstName = crmUser?.name?.split(" ")[0] ?? "there";
 
-  const winRate = stats.totalLeads > 0
-    ? Math.round((stats.wonLeads / stats.totalLeads) * 100)
-    : 0;
+  const wonLeads  = leads.filter(l => l.stage === "won").length;
+  const lostLeads = leads.filter(l => l.stage === "lost").length;
+  const winRate   = leads.length > 0 ? Math.round((wonLeads / leads.length) * 100) : 0;
+
+  // Monthly leads data
+  const year = new Date().getFullYear();
+  const monthlyLeads = MONTHS.map((month, idx) => ({
+    month,
+    Leads: leads.filter(l => new Date(l.createdAt).getMonth() === idx && new Date(l.createdAt).getFullYear() === year).length,
+    Won: leads.filter(l => l.stage === "won" && new Date(l.createdAt).getMonth() === idx && new Date(l.createdAt).getFullYear() === year).length,
+  }));
+
+  // Service breakdown
+  const svcMap: Record<string, number> = {};
+  leads.forEach(l => { svcMap[l.service] = (svcMap[l.service] || 0) + 1; });
+  const serviceData = Object.entries(svcMap).map(([name, value]) => ({ name: SERVICE_LABELS[name] || name, value }));
+
+  // Admin revenue
+  const totalRevenue = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+  const pendingRevenue = invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: "white", border: "1px solid #e8e8f0", borderRadius: 10, padding: "10px 14px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+        <p style={{ fontWeight: 700, color: "#0D1B3E", marginBottom: 4 }}>{label}</p>
+        {payload.map((p: any) => <p key={p.name} style={{ color: p.color, margin: "2px 0" }}>{p.name}: <strong>{p.value}</strong></p>)}
+      </div>
+    );
+  };
 
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium" style={{ color: "#C9A84C" }}>
-              {greeting},
-            </p>
-            <h1 className="text-2xl font-bold mt-0.5" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>
-              {firstName} 👋
-            </h1>
-            <p className="text-sm mt-1" style={{ color: "#6b7280" }}>
-              Here's what's happening with your team today.
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs" style={{ color: "#9ca3af" }}>
-              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-            </p>
-            <div className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-full text-xs font-medium"
-              style={{ background: "#e8fff3", color: "#0a7a3e" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
-              CRM Active
-            </div>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "#C9A84C" }}>{greeting},</p>
+          <h1 className="text-3xl font-bold mt-0.5" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>
+            {firstName} 👋
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
+            Here's what's happening with your team today.
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-medium" style={{ color: "#9ca3af" }}>
+            {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+          <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: "#d1fae5", color: "#065f46" }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+            CRM Active
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Leads" value={stats.totalLeads} sub={`${stats.wonLeads} won · ${stats.lostLeads} lost`} color="#C9A84C" />
-        <StatCard label="Active Clients" value={stats.activeClients} sub="Ongoing relationships" color="#3b82f6" />
-        <StatCard label="Open Projects" value={stats.openProjects} sub="In progress / not started" color="#8b5cf6" />
-        <StatCard label="Pending Tasks" value={stats.pendingTasks} sub="Across all team members" color="#f59e0b" />
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" />
+        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" />
+        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" />
       </div>
 
-      {/* Win rate + pipeline summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        {/* Win rate */}
-        <div className="crm-card flex items-center gap-5">
-          <div className="relative w-20 h-20 flex-shrink-0">
-            <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-              <circle cx="40" cy="40" r="32" fill="none" stroke="#f3f4f6" strokeWidth="8" />
-              <circle
-                cx="40" cy="40" r="32" fill="none"
-                stroke="#C9A84C" strokeWidth="8"
-                strokeDasharray={`${2 * Math.PI * 32}`}
-                strokeDashoffset={`${2 * Math.PI * 32 * (1 - winRate / 100)}`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-base font-bold" style={{ color: "#0D1B3E" }}>{winRate}%</span>
-            </div>
+      {/* Admin Finance Row */}
+      {isAdmin && (
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #0D1B3E, #1a3070)" }}>
+            <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#C9A84C" }} />
+            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Total Revenue (Paid)</p>
+            <p className="text-3xl font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>from {invoices.filter(i => i.status === "paid").length} paid invoices</p>
           </div>
-          <div>
-            <p className="text-xs font-medium" style={{ color: "#6b7280" }}>Win Rate</p>
-            <p className="text-lg font-bold mt-0.5" style={{ color: "#0D1B3E" }}>{stats.wonLeads} Won</p>
-            <p className="text-xs" style={{ color: "#9ca3af" }}>{stats.lostLeads} lost · {stats.totalLeads} total</p>
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #1a1a2e, #2a2a4e)" }}>
+            <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#f59e0b" }} />
+            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(245,158,11,0.8)" }}>Pending Revenue</p>
+            <p className="text-3xl font-bold" style={{ color: "#f59e0b" }}>AED {pendingRevenue.toLocaleString()}</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>{invoices.filter(i => i.status !== "paid").length} unpaid invoices</p>
           </div>
         </div>
+      )}
 
-        {/* Pipeline by stage */}
-        <div className="crm-card col-span-2">
-          <p className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: "#6b7280" }}>Pipeline Stages</p>
-          <div className="flex gap-2">
-            {["lead", "meeting", "proposal", "won", "lost"].map((stage) => {
-              const count = recentLeads.filter((l: any) => l.stage === stage).length;
-              const colors = STAGE_COLORS[stage];
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* Monthly Leads Chart */}
+        <div className="crm-card lg:col-span-2">
+          <h2 className="text-sm font-bold mb-1" style={{ color: "#0D1B3E" }}>Leads This Year</h2>
+          <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>Monthly lead generation & conversions</p>
+          {loading ? (
+            <div className="h-48 animate-pulse rounded-xl" style={{ background: "#f0f2f8" }} />
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={monthlyLeads} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#C9A84C" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#C9A84C" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f5" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="Leads" stroke="#C9A84C" strokeWidth={2} fill="url(#colorLeads)" />
+                <Area type="monotone" dataKey="Won"   stroke="#22c55e" strokeWidth={2} fill="url(#colorWon)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Win Rate + Pipeline */}
+        <div className="crm-card">
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Pipeline Overview</h2>
+          {/* Win rate circle */}
+          <div className="flex items-center gap-4 mb-5">
+            <div className="relative w-16 h-16 flex-shrink-0">
+              <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+                <circle cx="32" cy="32" r="26" fill="none" stroke="#f0f0f5" strokeWidth="7" />
+                <circle cx="32" cy="32" r="26" fill="none" stroke="#C9A84C" strokeWidth="7"
+                  strokeDasharray={`${2 * Math.PI * 26}`}
+                  strokeDashoffset={`${2 * Math.PI * 26 * (1 - winRate / 100)}`}
+                  strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold" style={{ color: "#0D1B3E" }}>{winRate}%</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold" style={{ color: "#9ca3af" }}>Win Rate</p>
+              <p className="text-lg font-bold" style={{ color: "#0D1B3E" }}>{wonLeads} Won</p>
+              <p className="text-xs" style={{ color: "#9ca3af" }}>{lostLeads} lost</p>
+            </div>
+          </div>
+          {/* Pipeline stages */}
+          <div className="space-y-2">
+            {Object.entries(STAGE_CONFIG).map(([key, cfg]) => {
+              const count = leads.filter(l => l.stage === key).length;
+              const pct = leads.length > 0 ? Math.round((count / leads.length) * 100) : 0;
               return (
-                <div key={stage} className="flex-1 text-center p-3 rounded-lg" style={{ background: colors.bg }}>
-                  <p className="text-lg font-bold" style={{ color: colors.text }}>{count}</p>
-                  <p className="text-xs capitalize font-medium mt-0.5" style={{ color: colors.text }}>{stage}</p>
+                <div key={key}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium" style={{ color: cfg.color }}>{cfg.label}</span>
+                    <span className="text-xs font-bold" style={{ color: "#374151" }}>{count}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full" style={{ background: "#f0f0f5" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: cfg.color }} />
+                  </div>
                 </div>
               );
             })}
@@ -180,48 +253,63 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Bottom Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Service breakdown */}
+        <div className="crm-card">
+          <h2 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Leads by Service</h2>
+          {serviceData.length === 0 ? (
+            <div className="text-center py-8"><p className="text-xs" style={{ color: "#9ca3af" }}>No leads yet</p></div>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <PieChart>
+                <Pie data={serviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} innerRadius={35} paddingAngle={3}>
+                  {serviceData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => [v, "Leads"]} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="space-y-1 mt-2">
+            {serviceData.map((s, i) => (
+              <div key={s.name} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                  <span style={{ color: "#374151" }}>{s.name}</span>
+                </div>
+                <span className="font-semibold" style={{ color: "#0D1B3E" }}>{s.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Recent Leads */}
         <div className="crm-card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold" style={{ color: "#0D1B3E" }}>Recent Leads</h2>
-            <a href="/leads" className="text-xs font-medium" style={{ color: "#C9A84C" }}>View all →</a>
+            <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Recent Leads</h2>
+            <a href="/leads" className="text-xs font-semibold" style={{ color: "#C9A84C" }}>View all →</a>
           </div>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: "#f3f4f6" }} />
-              ))}
-            </div>
-          ) : recentLeads.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm" style={{ color: "#9ca3af" }}>No leads yet. Add your first lead!</p>
-              <a href="/leads" className="inline-block mt-3 px-4 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#0D1B3E" }}>
-                + Add Lead
-              </a>
+            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
+          ) : leads.slice(0, 5).length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-xs" style={{ color: "#9ca3af" }}>No leads yet</p>
+              <a href="/leads" className="btn-primary mt-2 mx-auto" style={{ fontSize: 11, padding: "4px 12px" }}>+ Add Lead</a>
             </div>
           ) : (
             <div className="space-y-2">
-              {recentLeads.map((lead: any) => {
-                const svc = SERVICE_COLORS[lead.service] ?? SERVICE_COLORS["web-development"];
-                const stg = STAGE_COLORS[lead.stage] ?? STAGE_COLORS["lead"];
+              {leads.slice(0, 5).map((lead: any) => {
+                const st = STAGE_CONFIG[lead.stage] ?? STAGE_CONFIG.lead;
                 return (
-                  <div key={lead.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0" style={{ background: "#0D1B3E1a", color: "#0D1B3E" }}>
+                  <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: st.bg, color: st.color }}>
                       {lead.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "#1a1a2e" }}>{lead.name}</p>
-                      <p className="text-xs truncate" style={{ color: "#6b7280" }}>{lead.company}</p>
+                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{lead.name}</p>
+                      <p className="text-xs truncate" style={{ color: "#9ca3af" }}>{lead.company}</p>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className="badge" style={{ background: svc.bg, color: svc.text }}>
-                        {SERVICE_LABELS[lead.service]?.split(" ")[0]}
-                      </span>
-                      <span className="badge" style={{ background: stg.bg, color: stg.text, textTransform: "capitalize" }}>
-                        {lead.stage}
-                      </span>
-                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                   </div>
                 );
               })}
@@ -232,42 +320,31 @@ export default function DashboardPage() {
         {/* Pending Tasks */}
         <div className="crm-card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold" style={{ color: "#0D1B3E" }}>Pending Tasks</h2>
-            <a href="/tasks" className="text-xs font-medium" style={{ color: "#C9A84C" }}>View all →</a>
+            <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Pending Tasks</h2>
+            <a href="/tasks" className="text-xs font-semibold" style={{ color: "#C9A84C" }}>View all →</a>
           </div>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 rounded-lg animate-pulse" style={{ background: "#f3f4f6" }} />
-              ))}
-            </div>
+            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
           ) : tasks.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm" style={{ color: "#9ca3af" }}>All tasks are done! 🎉</p>
+            <div className="text-center py-6">
+              <p className="text-xs" style={{ color: "#9ca3af" }}>All tasks done! 🎉</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {tasks.map((task: any) => {
-                const priorityColors: Record<string, string> = {
-                  high: "#ef4444",
-                  medium: "#f59e0b",
-                  low: "#22c55e",
-                };
+              {tasks.slice(0, 5).map((task: any) => {
+                const pColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
+                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
                 return (
-                  <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: priorityColors[task.priority] ?? "#9ca3af" }} />
+                  <div key={task.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "#1a1a2e" }}>{task.title}</p>
-                      {task.dueDate && (
-                        <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
-                          Due {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                        </p>
-                      )}
+                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{task.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {task.clientName && <p className="text-xs truncate" style={{ color: "#9ca3af" }}>🏢 {task.clientName}</p>}
+                        {task.dueDate && <p className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>}
+                      </div>
                     </div>
-                    <span className="text-xs capitalize px-2 py-0.5 rounded-full flex-shrink-0" style={{
-                      background: `${priorityColors[task.priority]}15`,
-                      color: priorityColors[task.priority] ?? "#9ca3af"
-                    }}>
+                    <span className="text-xs px-2 py-0.5 rounded-full capitalize font-semibold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
                       {task.priority}
                     </span>
                   </div>

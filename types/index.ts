@@ -1,6 +1,6 @@
-export type UserRole = "admin" | "manager" | "sales" | "designer";
+export type UserRole = "admin" | "manager" | "sales" | "designer" | "executive";
 
-export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development";
+export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development" | "seo" | "social-media" | "branding" | "other";
 
 export type LeadStage = "lead" | "meeting" | "proposal" | "won" | "lost";
 
@@ -31,6 +31,7 @@ export interface Lead {
   followUpDate?: string;
   notes?: string;
   source?: string;
+  nextAction?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,7 +47,11 @@ export interface Client {
   address?: string;
   website?: string;
   notes?: string;
+  contractDuration?: string;
+  contractStart?: string;
+  contractEnd?: string;
   createdAt: string;
+  fromLeadId?: string;
 }
 
 export interface Project {
@@ -60,8 +65,16 @@ export interface Project {
   assignedTo: string[];
   description?: string;
   budget?: number;
+  tasks?: ProjectTask[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  status: "pending" | "in-progress" | "done";
+  assignedTo?: string;
 }
 
 export interface ProposalItem {
@@ -94,11 +107,15 @@ export interface Task {
   title: string;
   description?: string;
   assignedTo: string;
+  assignedToName?: string;
   assignedBy: string;
+  clientId?: string;
+  clientName?: string;
   relatedTo?: string;
   relatedType?: "lead" | "client" | "project";
   dueDate?: string;
   priority: TaskPriority;
+  status: string;
   done: boolean;
   createdAt: string;
 }
