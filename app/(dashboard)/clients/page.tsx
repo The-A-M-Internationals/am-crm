@@ -1,15 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Client, ServiceTag } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
+import { useRouter } from "next/navigation";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
-  { key: "digital-marketing", label: "Digital Marketing", bg: "#e8f4ff", text: "#1a6bc4" },
-  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fff3e0", text: "#b35a00" },
-  { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
+  { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
+  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fef3c7", text: "#92400e" },
+  { key: "web-development",   label: "Web Development",   bg: "#d1fae5", text: "#065f46" },
+  { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
+  { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
+  { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
+];
+
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
 ];
 
 const EMPTY_FORM = {
@@ -17,6 +31,7 @@ const EMPTY_FORM = {
   services: [] as ServiceTag[],
   status: "active" as "active" | "inactive",
   address: "", website: "", notes: "",
+  currency: "AED",
 };
 
 function Initials({ name }: { name: string }) {
@@ -32,6 +47,7 @@ function Initials({ name }: { name: string }) {
 
 export default function ClientsPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -40,16 +56,18 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [showHiddenClients, setShowHiddenClients] = useState(false);
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
 
-  async function fetchClients() {
-    const snap = await getDocs(query(collection(db, "clients"), orderBy("createdAt", "desc")));
-    setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
-    setLoading(false);
-  }
-
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => {
+    const q = query(collection(db, "clients"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   function openAdd() {
     setEditing(null);
@@ -64,6 +82,7 @@ export default function ClientsPage() {
       phone: client.phone ?? "", services: client.services ?? [],
       status: client.status, address: client.address ?? "",
       website: client.website ?? "", notes: client.notes ?? "",
+      currency: client.currency ?? "AED",
     });
     setShowModal(true);
   }
@@ -79,16 +98,22 @@ export default function ClientsPage() {
 
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
     setSaving(true);
     try {
       const now = new Date().toISOString();
       if (editing) {
         await updateDoc(doc(db, "clients", editing.id), { ...form });
       } else {
-        await addDoc(collection(db, "clients"), { ...form, createdAt: now });
+        await addDoc(collection(db, "clients"), { ...form, createdAt: now, active: true });
       }
       setShowModal(false);
-      fetchClients();
     } finally {
       setSaving(false);
     }
@@ -97,10 +122,30 @@ export default function ClientsPage() {
   async function deleteClient(id: string) {
     if (!confirm("Delete this client?")) return;
     await deleteDoc(doc(db, "clients", id));
-    fetchClients();
+  }
+
+  async function toggleLostStatus(client: Client) {
+    if (client.active === false) {
+      if (!confirm(`Recover ${client.name} back to Active clients?`)) return;
+      // Recover client
+      await updateDoc(doc(db, "clients", client.id), { active: true, status: "active" });
+      
+      // Try to recover associated lead if it exists
+      if (client.email) {
+        const leadQ = query(collection(db, "leads"), where("email", "==", client.email));
+        const leadSnap = await getDocs(leadQ);
+        leadSnap.forEach(d => {
+          updateDoc(doc(db, "leads", d.id), { active: true });
+        });
+      }
+    } else {
+      if (!confirm(`Mark ${client.name} as Lost? They will be moved to the archive.`)) return;
+      await PipelineService.markAsLost(client.id, client.email, "client");
+    }
   }
 
   const filtered = clients
+    .filter(c => c.active !== false)
     .filter((c) => statusFilter === "all" || c.status === statusFilter)
     .filter((c) =>
       !search ||
@@ -115,7 +160,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Clients</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{clients.filter((c) => c.status === "active").length} active clients</p>
+          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{clients.filter((c) => c.active !== false && c.status === "active").length} active clients</p>
         </div>
         {canEdit && (
           <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ background: "#0D1B3E" }}>
@@ -169,7 +214,7 @@ export default function ClientsPage() {
           <table className="w-full">
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #f0f0f5" }}>
-                {["Client", "Email", "Phone", "Services", "Status", ""].map((h) => (
+                {["Client", "Email", "Phone", "Services", "Status", "Actions"].map((h) => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#9ca3af" }}>{h}</th>
                 ))}
               </tr>
@@ -208,16 +253,35 @@ export default function ClientsPage() {
                       {client.status}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5">
-                    {canEdit && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteClient(client.id); }}
-                        className="text-xs opacity-30 hover:opacity-70 transition-opacity"
-                        style={{ color: "#ef4444" }}
+                  <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-3">
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/projects?new=true&clientId=${client.id}&clientName=${encodeURIComponent(client.company || client.name)}`);
+                          }}
+                          className="text-xs font-semibold px-3 py-1 rounded text-white transition-colors"
+                          style={{ background: "#0D1B3E" }}
+                        >
+                          ➕ Create Project
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => toggleLostStatus(client)}
+                        className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors"
                       >
-                        Delete
+                        {client.active === false ? "Recover" : "Archive"}
                       </button>
-                    )}
+                      {canEdit && (
+                        <button
+                          onClick={() => deleteClient(client.id)}
+                          className="btn-danger"
+                        >
+                          🗑 Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -266,12 +330,18 @@ export default function ClientsPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="form-label">Status</label>
                   <select className="form-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Currency</label>
+                  <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </div>
                 <div><label className="form-label">Address</label><input className="form-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>

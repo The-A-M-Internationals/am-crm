@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Proposal, ProposalItem, ServiceTag, ProposalStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
-const SERVICES: { key: ServiceTag; label: string }[] = [
-  { key: "digital-marketing", label: "Digital Marketing" },
-  { key: "ui-ux",             label: "UI/UX Design" },
-  { key: "web-development",   label: "Web Development" },
+const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
+  { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
+  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fef3c7", text: "#92400e" },
+  { key: "web-development",   label: "Web Development",   bg: "#d1fae5", text: "#065f46" },
+  { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
+  { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
+  { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
 const STATUSES: { key: ProposalStatus; label: string; color: string; bg: string; border: string }[] = [
@@ -19,12 +23,21 @@ const STATUSES: { key: ProposalStatus; label: string; color: string; bg: string;
   { key: "rejected", label: "Rejected", color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
 ];
 
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
+];
+
 const EMPTY_ITEM: ProposalItem = { description: "", qty: 1, rate: 0, amount: 0 };
 
 const EMPTY_FORM = {
-  clientName: "", service: "web-development" as ServiceTag,
+  clientName: "", clientEmail: "", service: "web-development" as ServiceTag,
   status: "draft" as ProposalStatus, notes: "", validUntil: "",
   items: [{ ...EMPTY_ITEM }],
+  currency: "AED",
 };
 
 export default function ProposalsPage() {
@@ -33,16 +46,17 @@ export default function ProposalsPage() {
   const [loading, setLoading]     = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]     = useState<Proposal | null>(null);
-  const [form, setForm]           = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
+  const [form, setForm]           = useState({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
   const [saving, setSaving]       = useState(false);
 
-  async function fetchProposals() {
-    const snap = await getDocs(query(collection(db, "proposals"), orderBy("createdAt", "desc")));
-    setProposals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Proposal)));
-    setLoading(false);
-  }
-
-  useEffect(() => { fetchProposals(); }, []);
+  useEffect(() => {
+    const q = query(collection(db, "proposals"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setProposals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Proposal)));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   function calcItem(item: ProposalItem): ProposalItem {
     return { ...item, amount: item.qty * item.rate };
@@ -73,14 +87,24 @@ export default function ProposalsPage() {
   function openEdit(p: Proposal) {
     setEditing(p);
     setForm({
-      clientName: p.clientName, service: p.service, status: p.status,
+      clientName: p.clientName, clientEmail: (p as any).clientEmail || "", service: p.service, status: p.status,
       notes: p.notes ?? "", validUntil: p.validUntil ?? "", items: p.items,
+      currency: p.currency ?? "AED",
     });
     setShowModal(true);
   }
 
   async function handleSave() {
     if (!form.clientName) return;
+
+    if (form.clientEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.clientEmail)) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const now  = new Date().toISOString();
@@ -90,19 +114,17 @@ export default function ProposalsPage() {
       } else {
         await addDoc(collection(db, "proposals"), { ...data, createdAt: now });
       }
-      setShowModal(false); fetchProposals();
+      setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function deleteProposal(id: string) {
     if (!confirm("Are you sure you want to delete this proposal? This cannot be undone.")) return;
     await deleteDoc(doc(db, "proposals", id));
-    fetchProposals();
   }
 
   async function updateStatus(p: Proposal, status: ProposalStatus) {
     await updateDoc(doc(db, "proposals", p.id), { status });
-    setProposals((prev) => prev.map((x) => x.id === p.id ? { ...x, status } : x));
   }
 
   function statusInfo(key: string) {
@@ -175,6 +197,9 @@ export default function ProposalsPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate" style={{ color: "#1a1a2e" }}>{p.clientName}</p>
                       <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
+                        {p.clientEmail} {p.phone && `· ${p.phone}`}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "#c4c7d0" }}>
                         {svc?.label} ·{" "}
                         {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                         {p.validUntil && ` · Valid until ${new Date(p.validUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
@@ -189,7 +214,7 @@ export default function ProposalsPage() {
                   <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
                     <div className="text-right mr-2">
                       <p className="text-base font-bold" style={{ color: "#C9A84C" }}>
-                        AED {p.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {p.currency || "AED"} {p.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs" style={{ color: "#9ca3af" }}>incl. 5% VAT</p>
                     </div>
@@ -260,11 +285,17 @@ export default function ProposalsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="form-label">Status</label>
                   <select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as ProposalStatus })}>
                     {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Currency</label>
+                  <select className="form-input" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </div>
                 <div>
@@ -283,7 +314,7 @@ export default function ProposalsPage() {
                   <div className="grid text-xs font-bold uppercase tracking-wide px-3 py-2.5" style={{ gridTemplateColumns: "1fr 70px 100px 100px 28px", gap: 8, background: "#f8f9fc", color: "#9ca3af" }}>
                     <span>Description</span>
                     <span className="text-center">Qty</span>
-                    <span className="text-center">Rate (AED)</span>
+                    <span className="text-center">Rate ({form.currency})</span>
                     <span className="text-right">Amount</span>
                     <span></span>
                   </div>
@@ -292,7 +323,7 @@ export default function ProposalsPage() {
                       <input className="form-input py-1.5" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Service or item description" />
                       <input className="form-input py-1.5 text-center" type="number" min="1" value={item.qty} onChange={e => updateItem(i, "qty", e.target.value)} />
                       <input className="form-input py-1.5 text-center" type="number" min="0" value={item.rate} onChange={e => updateItem(i, "rate", e.target.value)} />
-                      <span className="text-sm font-bold text-right" style={{ color: "#1a1a2e" }}>AED {item.amount.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-right" style={{ color: "#1a1a2e" }}>{form.currency} {item.amount.toLocaleString()}</span>
                       {form.items.length > 1 && (
                         <button onClick={() => removeItem(i)} className="btn-danger" style={{ padding: "2px 6px", fontSize: "10px" }}>✕</button>
                       )}
@@ -304,15 +335,15 @@ export default function ProposalsPage() {
                 <div className="mt-4 space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span style={{ color: "#6b7280" }}>Subtotal</span>
-                    <span style={{ color: "#1a1a2e" }}>AED {subtotal.toLocaleString()}</span>
+                    <span style={{ color: "#1a1a2e" }}>{form.currency} {subtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span style={{ color: "#6b7280" }}>VAT (5%)</span>
-                    <span style={{ color: "#1a1a2e" }}>AED {tax.toFixed(2)}</span>
+                    <span style={{ color: "#1a1a2e" }}>{form.currency} {tax.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold pt-2.5 border-t text-base" style={{ borderColor: "#e5e7eb" }}>
                     <span style={{ color: "#0D1B3E" }}>Total</span>
-                    <span style={{ color: "#C9A84C" }}>AED {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span style={{ color: "#C9A84C" }}>{form.currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>

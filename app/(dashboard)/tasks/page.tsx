@@ -25,6 +25,7 @@ const EMPTY_FORM = {
   priority: "medium" as TaskPriority,
   status: "not-started",
   relatedTo: "",
+  relatedType: "" as "project" | "lead" | "client" | "",
 };
 
 export default function TasksPage() {
@@ -32,6 +33,7 @@ export default function TasksPage() {
   const [tasks, setTasks]     = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]   = useState<any | null>(null);
@@ -41,14 +43,16 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   async function fetchAll() {
-    const [tasksSnap, membersSnap, clientsSnap] = await Promise.all([
+    const [tasksSnap, membersSnap, clientsSnap, projectsSnap] = await Promise.all([
       getDocs(query(collection(db, "tasks"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "users")),
       getDocs(query(collection(db, "clients"), where("status", "==", "active"))),
+      getDocs(collection(db, "projects")),
     ]);
     setTasks(tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setMembers(membersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setClients(clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setProjects(projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setLoading(false);
   }
 
@@ -57,7 +61,19 @@ export default function TasksPage() {
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
   function openEdit(t: any) {
     setEditing(t);
-    setForm({ title: t.title, description: t.description ?? "", assignedTo: t.assignedTo ?? "", assignedToName: t.assignedToName ?? "", clientId: t.clientId ?? "", clientName: t.clientName ?? "", dueDate: t.dueDate ?? "", priority: t.priority, status: t.status ?? "not-started", relatedTo: t.relatedTo ?? "" });
+    setForm({ 
+      title: t.title, 
+      description: t.description ?? "", 
+      assignedTo: t.assignedTo ?? "", 
+      assignedToName: t.assignedToName ?? "", 
+      clientId: t.clientId ?? "", 
+      clientName: t.clientName ?? "", 
+      dueDate: t.dueDate ?? "", 
+      priority: t.priority, 
+      status: t.status ?? "not-started", 
+      relatedTo: t.relatedTo ?? "",
+      relatedType: t.relatedType ?? ""
+    });
     setShowModal(true);
   }
 
@@ -258,7 +274,13 @@ export default function TasksPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
-                <div><label className="form-label">Related To</label><input className="form-input" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value })} placeholder="Project name..." /></div>
+                <div>
+                  <label className="form-label">Link to Project</label>
+                  <select className="form-input" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
+                    <option value="">No Project</option>
+                    {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                </div>
               </div>
               {form.dueDate && (() => { const due = new Date(form.dueDate); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); return due.toDateString() === tomorrow.toDateString(); })() && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}>

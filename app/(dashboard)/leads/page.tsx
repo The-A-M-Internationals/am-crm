@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Lead, ServiceTag, LeadStage } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
+import { useRouter } from "next/navigation";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
   { key: "lead",     label: "Lead",     color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
@@ -43,6 +45,7 @@ const EMPTY_FORM = {
 
 export default function LeadsPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [loading, setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -53,14 +56,16 @@ export default function LeadsPage() {
   const [filter, setFilter]     = useState<LeadStage | "all">("all");
   const [search, setSearch]     = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showHiddenLeads, setShowHiddenLeads] = useState(false);
 
-  async function fetchLeads() {
-    const snap = await getDocs(query(collection(db, "leads"), orderBy("createdAt", "desc")));
-    setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
-    setLoading(false);
-  }
-
-  useEffect(() => { fetchLeads(); }, []);
+  useEffect(() => {
+    const q = query(collection(db, "leads"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setShowModal(true); }
   function openEdit(lead: Lead) {
@@ -72,56 +77,66 @@ export default function LeadsPage() {
 
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      let leadId = editing?.id;
+
       if (editing) {
         await updateDoc(doc(db, "leads", editing.id), { ...form, updatedAt: now });
-        // If won — auto create client
-        if (form.stage === "won" && editing.stage !== "won") {
-          const existing = await getDocs(query(collection(db, "clients")));
-          const already = existing.docs.find(d => d.data().email === form.email);
-          if (!already) {
-            await addDoc(collection(db, "clients"), {
-              name: form.name, company: form.company, email: form.email,
-              phone: form.phone, services: [form.service], status: "active",
-              fromLeadId: editing.id, createdAt: now,
-            });
-          }
-        }
       } else {
-        await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now });
+        const leadRef = await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now, active: true });
+        leadId = leadRef.id;
       }
-      setShowModal(false); fetchLeads();
+
+      // Chain reactions based on stage
+      const leadData = { ...form, id: leadId } as Lead;
+      if (form.stage === "won") await PipelineService.markAsWon(leadData);
+      else if (form.stage === "lost") await PipelineService.markAsLost(leadId, form.email, "lead");
+      else if (form.stage === "proposal") {
+        await PipelineService.transitionToProposal(leadData, crmUser?.uid ?? "");
+        router.push("/proposals");
+      }
+      else await PipelineService.updateStage(leadData, form.stage);
+
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving lead:", error);
     } finally { setSaving(false); }
   }
 
   async function deleteLead(id: string) {
     if (!confirm("Delete this lead?")) return;
-    await deleteDoc(doc(db, "leads", id)); fetchLeads();
+    await deleteDoc(doc(db, "leads", id));
   }
 
   async function moveStage(lead: Lead, stage: LeadStage) {
-    await updateDoc(doc(db, "leads", lead.id), { stage, updatedAt: new Date().toISOString() });
-    // Auto-create client if won
-    if (stage === "won") {
-      const existing = await getDocs(query(collection(db, "clients")));
-      const already = existing.docs.find(d => d.data().email === lead.email);
-      if (!already) {
-        await addDoc(collection(db, "clients"), {
-          name: lead.name, company: lead.company, email: lead.email,
-          phone: lead.phone, services: [lead.service], status: "active",
-          fromLeadId: lead.id, createdAt: new Date().toISOString(),
-        });
+    try {
+      if (stage === "won") await PipelineService.markAsWon(lead);
+      else if (stage === "lost") await PipelineService.markAsLost(lead.id, lead.email, "lead");
+      else if (stage === "proposal") {
+        await PipelineService.transitionToProposal(lead, crmUser?.uid ?? "");
+        router.push("/proposals");
       }
+      else await PipelineService.updateStage(lead, stage);
+    } catch (error: any) {
+      console.error("Error moving stage:", error);
+      alert("Failed to update stage: " + (error.message || "Unknown error"));
     }
-    fetchLeads();
   }
 
   const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? SERVICES[2];
   const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
 
   const filtered = leads
+    .filter(l => showHiddenLeads ? true : l.active !== false)
     .filter(l => filter === "all" || l.stage === filter)
     .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
@@ -139,10 +154,10 @@ export default function LeadsPage() {
       {/* Stage summary pills */}
       <div className="flex gap-2 mb-5 flex-wrap">
         <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
-          All ({leads.length})
+          All ({leads.filter(l => l.active !== false).length})
         </button>
         {STAGES.map(s => {
-          const count = leads.filter(l => l.stage === s.key).length;
+          const count = leads.filter(l => l.active !== false && l.stage === s.key).length;
           return (
             <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
               {s.label} ({count})
@@ -151,15 +166,26 @@ export default function LeadsPage() {
         })}
       </div>
 
-      {/* Search */}
-      <div className="mb-5">
+      {/* Search and Archive Toggle */}
+      <div className="mb-5 flex items-center justify-between gap-4">
         <input
-          className="form-input"
+          className="form-input flex-1"
           style={{ maxWidth: 360 }}
           placeholder="🔍  Search leads by name or company..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+        <button 
+          onClick={() => setShowHiddenLeads(!showHiddenLeads)}
+          className="text-xs font-semibold px-4 py-2 rounded-xl border transition-all flex items-center gap-2"
+          style={{ 
+            borderColor: showHiddenLeads ? "#b91c1c" : "#e5e7eb",
+            background: showHiddenLeads ? "#fef2f2" : "white",
+            color: showHiddenLeads ? "#b91c1c" : "#6b7280"
+          }}
+        >
+          {showHiddenLeads ? "Showing Archived (Lost) Leads" : "View Archived / Lost Leads"}
+        </button>
       </div>
 
       {/* Leads Table */}
@@ -190,13 +216,17 @@ export default function LeadsPage() {
                 const stg = stgInfo(lead.stage);
                 const isExpanded = expandedId === lead.id;
                 const nextAction = (lead as any).nextAction;
+                const isHidden = lead.active === false;
+
                 return (
-                  <>
+                  <React.Fragment key={lead.id}>
                     <tr
-                      key={lead.id}
                       className="cursor-pointer"
                       onClick={() => setExpandedId(isExpanded ? null : lead.id)}
-                      style={{ background: isExpanded ? "#fafbff" : "white" }}
+                      style={{ 
+                        background: isExpanded ? "#fafbff" : "white",
+                        opacity: isHidden ? 0.6 : 1
+                      }}
                     >
                       <td>
                         <div className="flex items-center gap-3">
@@ -204,7 +234,7 @@ export default function LeadsPage() {
                             {lead.name?.charAt(0)?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-sm" style={{ color: "#1a1a2e" }}>{lead.name}</p>
+                            <p className="font-semibold text-sm" style={{ color: "#1a1a2e" }}>{lead.name} {isHidden && "(Hidden)"}</p>
                             <p className="text-xs" style={{ color: "#9ca3af" }}>{lead.company}</p>
                           </div>
                         </div>
@@ -256,7 +286,7 @@ export default function LeadsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -323,7 +353,7 @@ export default function LeadsPage() {
               <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
             </div>
 
-            {form.stage === "won" && editing && editing.stage !== "won" && (
+            {form.stage === "won" && (
               <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0" }}>
                 ✅ This lead will be automatically added to <strong>Clients</strong> when saved!
               </div>

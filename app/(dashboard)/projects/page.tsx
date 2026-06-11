@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -20,10 +21,18 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
 ];
 
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
+];
+
 const EMPTY_FORM = {
   clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
-  description: "", budget: "",
+  description: "", budget: "", currency: "AED",
 };
 
 function statusInfo(key: string) {
@@ -35,29 +44,89 @@ function serviceInfo(key: string) {
 
 export default function ProjectsPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [form, setForm] = useState({ ...EMPTY_FORM, assignedTo: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
 
+  const searchParams = useSearchParams();
+
   async function fetchProjects() {
-    const snap = await getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc")));
-    setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+    const [pSnap, mSnap] = await Promise.all([
+      getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "users")),
+    ]);
+    setProjects(pSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+    setMembers(mSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setLoading(false);
   }
 
-  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => { 
+    fetchProjects(); 
+    
+    // Handle redirect from Clients page
+    if (searchParams.get("new") === "true") {
+      const clientId = searchParams.get("clientId") || "";
+      const clientName = searchParams.get("clientName") || "";
+      setForm({ ...EMPTY_FORM, clientId, clientName, assignedTo: [] });
+      setEditing(null);
+      setShowModal(true);
+      router.replace("/projects"); // Clean up URL
+    }
+  }, [searchParams, router]);
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setShowModal(true); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: [] }); setShowModal(true); }
   function openEdit(p: Project) {
     setEditing(p);
-    setForm({ clientName: p.clientName, title: p.title, service: p.service, status: p.status, deadline: p.deadline ?? "", description: p.description ?? "", budget: p.budget?.toString() ?? "" });
+    setForm({ 
+      clientName: p.clientName, 
+      title: p.title, 
+      service: p.service, 
+      status: p.status, 
+      deadline: p.deadline ?? "", 
+      description: p.description ?? "", 
+      budget: p.budget?.toString() ?? "",
+      currency: p.currency ?? "AED",
+      assignedTo: p.assignedTo || []
+    });
     setShowModal(true);
+  }
+
+  async function createTasksForProject(projectId: string, projectData: any) {
+    if (!projectData.assignedTo || projectData.assignedTo.length === 0) return;
+    
+    const now = new Date().toISOString();
+    
+    // Check if tasks already exist for this project to avoid duplicates
+    const existingTasksSnap = await getDocs(query(collection(db, "tasks"), where("relatedTo", "==", projectId)));
+    if (!existingTasksSnap.empty) return;
+
+    for (const uid of projectData.assignedTo) {
+      const member = members.find(m => m.uid === uid);
+      await addDoc(collection(db, "tasks"), {
+        title: projectData.title,
+        description: projectData.description || `Task for project: ${projectData.title}`,
+        assignedTo: uid,
+        assignedToName: member?.name || "Team Member",
+        assignedBy: crmUser?.uid || "System",
+        clientId: projectData.clientId || "",
+        clientName: projectData.clientName || "",
+        relatedTo: projectId,
+        relatedType: "project",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: projectData.deadline || now
+      });
+    }
   }
 
   async function handleSave() {
@@ -65,11 +134,23 @@ export default function ProjectsPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const data = { ...form, budget: form.budget ? Number(form.budget) : undefined, assignedTo: [], clientId: "" };
+      const data = { 
+        ...form, 
+        budget: form.budget ? Number(form.budget) : undefined, 
+        clientId: editing?.clientId || "" 
+      };
+      let projectId = editing?.id;
       if (editing) {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
+        if (data.status === "in-progress") {
+          await createTasksForProject(editing.id, data);
+        }
       } else {
-        await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
+        const docRef = await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
+        projectId = docRef.id;
+        if (data.status === "in-progress") {
+          await createTasksForProject(projectId, data);
+        }
       }
       setShowModal(false);
       fetchProjects();
@@ -84,6 +165,11 @@ export default function ProjectsPage() {
 
   async function updateStatus(project: Project, status: ProjectStatus) {
     await updateDoc(doc(db, "projects", project.id), { status, updatedAt: new Date().toISOString() });
+    
+    if (status === "in-progress") {
+      await createTasksForProject(project.id, project);
+    }
+    
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
   }
 
@@ -138,14 +224,21 @@ export default function ProjectsPage() {
             const svc = serviceInfo(project.service);
             const isOverdue = project.deadline && new Date(project.deadline) < new Date() && project.status !== "completed";
             return (
-              <div key={project.id} className="crm-card hover:shadow-md transition-shadow cursor-pointer" onClick={() => canEdit && openEdit(project)}>
+              <div 
+                key={project.id} 
+                className="crm-card hover:shadow-md transition-shadow cursor-pointer" 
+                onClick={() => router.push(`/projects/${project.id}`)}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
                     <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
                   </div>
                   {canEdit && (
-                    <button onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }} className="text-xs opacity-20 hover:opacity-60 ml-2" style={{ color: "#ef4444" }}>✕</button>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => openEdit(project)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#1e40af" }}>✎</button>
+                      <button onClick={() => deleteProject(project.id)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#ef4444" }}>✕</button>
+                    </div>
                   )}
                 </div>
 
@@ -166,7 +259,7 @@ export default function ProjectsPage() {
                   ) : <span />}
                   {project.budget && (
                     <span className="text-xs font-medium" style={{ color: "#C9A84C" }}>
-                      AED {Number(project.budget).toLocaleString()}
+                      {project.currency || "AED"} {Number(project.budget).toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -214,9 +307,42 @@ export default function ProjectsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Deadline</label><input className="form-input" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
-                <div><label className="form-label">Budget (AED)</label><input className="form-input" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="5000" /></div>
+                <div className="flex gap-2">
+                  <div className="w-24">
+                    <label className="form-label">Currency</label>
+                    <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="form-label">Budget</label>
+                    <input className="form-input" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="5000" />
+                  </div>
+                </div>
               </div>
               <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+              
+              <div>
+                <label className="form-label">Assign Team Members</label>
+                <div className="grid grid-cols-2 gap-2 mt-2 p-3 rounded-xl border" style={{ borderColor: "#f0f0f5" }}>
+                  {members.map((m) => (
+                    <label key={m.uid} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-gray-300 text-[#0D1B3E] focus:ring-[#0D1B3E]"
+                        checked={form.assignedTo.includes(m.uid)}
+                        onChange={(e) => {
+                          const newAssigned = e.target.checked 
+                            ? [...form.assignedTo, m.uid]
+                            : form.assignedTo.filter(id => id !== m.uid);
+                          setForm({ ...form, assignedTo: newAssigned });
+                        }}
+                      />
+                      <span className="text-xs font-medium group-hover:text-[#0D1B3E]" style={{ color: "#6b7280" }}>{m.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>

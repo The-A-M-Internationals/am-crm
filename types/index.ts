@@ -32,6 +32,7 @@ export interface Lead {
   notes?: string;
   source?: string;
   nextAction?: string;
+  active?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,9 +45,11 @@ export interface Client {
   phone?: string;
   services: ServiceTag[];
   status: "active" | "inactive";
+  active?: boolean;
   address?: string;
   website?: string;
   notes?: string;
+  currency?: string;
   contractDuration?: string;
   contractStart?: string;
   contractEnd?: string;
@@ -65,6 +68,7 @@ export interface Project {
   assignedTo: string[];
   description?: string;
   budget?: number;
+  currency?: string;
   tasks?: ProjectTask[];
   createdAt: string;
   updatedAt: string;
@@ -88,12 +92,17 @@ export interface Proposal {
   id: string;
   leadId?: string;
   clientId?: string;
+  fromLeadId?: string;
   clientName: string;
+  clientEmail: string;
+  company?: string;
+  phone?: string;
   service: ServiceTag;
   items: ProposalItem[];
   subtotal: number;
   tax: number;
   total: number;
+  currency?: string;
   status: ProposalStatus;
   notes?: string;
   validUntil?: string;

@@ -21,11 +21,20 @@ const STATUSES = [
   { key: "overdue", label: "Overdue", color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
 ];
 
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
+];
+
 const EMPTY_FORM = {
   clientName: "", clientEmail: "", clientPhone: "", clientAddress: "",
   service: "web-development", status: "unpaid",
   dueDate: "", notes: "",
   items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
+  currency: "AED",
 };
 
 let invoiceCounter = 1000;
@@ -91,6 +100,7 @@ export default function InvoicePage() {
       clientPhone: inv.clientPhone ?? "", clientAddress: inv.clientAddress ?? "",
       service: inv.service, status: inv.status,
       dueDate: inv.dueDate ?? "", notes: inv.notes ?? "", items: inv.items,
+      currency: inv.currency ?? "AED",
     });
     setShowModal(true);
   }
@@ -170,9 +180,9 @@ export default function InvoicePage() {
                     <tr><td style="color:#9ca3af;padding:4px 0;">Invoice No.</td><td style="text-align:right;font-weight:600;color:#1a1a2e;">${inv.invoiceNumber}</td></tr>
                     <tr><td style="color:#9ca3af;padding:4px 0;">Service</td><td style="text-align:right;color:#1a1a2e;">${SERVICES.find(s => s.key === inv.service)?.label || inv.service}</td></tr>
                     ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
-                    <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">AED ${inv.subtotal?.toLocaleString()}</td></tr>
-                    <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">AED ${inv.tax?.toFixed(2)}</td></tr>
-                    <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">AED ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">${inv.currency || "AED"} ${inv.subtotal?.toLocaleString()}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">${inv.currency || "AED"} ${inv.tax?.toFixed(2)}</td></tr>
+                    <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">${inv.currency || "AED"} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                   </table>
                 </div>
                 <p style="color:#6b7280;font-size:13px;">For any queries, contact us at <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a> or WhatsApp <a href="https://wa.me/919025562311" style="color:#C9A84C;">+91 90255 62311</a></p>
@@ -202,7 +212,7 @@ export default function InvoicePage() {
   function sendWhatsApp(inv: any) {
     const phone = inv.clientPhone?.replace(/\D/g, "");
     if (!phone) { alert("❌ No client phone number on this invoice!"); return; }
-    const msg = encodeURIComponent(`Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: AED ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternationals.com\n\nThank you!\nThe A&M Internationals FZC`);
+    const msg = encodeURIComponent(`Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: ${inv.currency || "AED"} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternationals.com\n\nThank you!\nThe A&M Internationals FZC`);
     window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
   }
 
@@ -222,9 +232,9 @@ export default function InvoicePage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: "Total Invoiced", value: `AED ${invoices.reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#0D1B3E" },
-          { label: "Paid",           value: `AED ${invoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#065f46" },
-          { label: "Outstanding",    value: `AED ${invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#ef4444" },
+          { label: "Total Invoiced", value: `${invoices.reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#0D1B3E" },
+          { label: "Paid",           value: `${invoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#065f46" },
+          { label: "Outstanding",    value: `${invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`, color: "#ef4444" },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>{s.label}</p>
@@ -269,7 +279,7 @@ export default function InvoicePage() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
                     <div className="text-right mr-2">
-                      <p className="text-base font-bold" style={{ color: "#C9A84C" }}>AED {inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      <p className="text-base font-bold" style={{ color: "#C9A84C" }}>{inv.currency || "AED"} {inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                     <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
                     {STATUSES.filter(s => s.key !== inv.status).map(s => (
@@ -308,7 +318,7 @@ export default function InvoicePage() {
                 <div><label className="form-label">Client Phone (with country code)</label><input className="form-input" value={form.clientPhone} onChange={e => setForm({ ...form, clientPhone: e.target.value })} placeholder="+971501234567" /></div>
                 <div><label className="form-label">Client Address</label><input className="form-input" value={form.clientAddress} onChange={e => setForm({ ...form, clientAddress: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 <div>
                   <label className="form-label">Service</label>
                   <select className="form-input" value={form.service} onChange={e => setForm({ ...form, service: e.target.value })}>
@@ -319,6 +329,12 @@ export default function InvoicePage() {
                   <label className="form-label">Status</label>
                   <select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
                     {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Currency</label>
+                  <select className="form-input" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
+                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </div>
                 <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} /></div>
@@ -332,24 +348,24 @@ export default function InvoicePage() {
                 </div>
                 <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e5e7eb" }}>
                   <div className="grid text-xs font-bold uppercase tracking-wide px-3 py-2" style={{ gridTemplateColumns: "1fr 70px 100px 100px 28px", gap: 8, background: "#f8f9fc", color: "#9ca3af" }}>
-                    <span>Description</span><span className="text-center">Qty</span><span className="text-center">Rate (AED)</span><span className="text-right">Amount</span><span></span>
+                    <span>Description</span><span className="text-center">Qty</span><span className="text-center">Rate ({form.currency})</span><span className="text-right">Amount</span><span></span>
                   </div>
                   {form.items.map((item: any, i: number) => (
                     <div key={i} className="grid items-center px-3 py-2 border-t" style={{ gridTemplateColumns: "1fr 70px 100px 100px 28px", gap: 8, borderColor: "#f0f0f5" }}>
                       <input className="form-input py-1.5" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Service..." />
                       <input className="form-input py-1.5 text-center" type="number" min="1" value={item.qty} onChange={e => updateItem(i, "qty", e.target.value)} />
                       <input className="form-input py-1.5 text-center" type="number" min="0" value={item.rate} onChange={e => updateItem(i, "rate", e.target.value)} />
-                      <span className="text-sm font-bold text-right" style={{ color: "#1a1a2e" }}>AED {item.amount.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-right" style={{ color: "#1a1a2e" }}>{form.currency} {item.amount.toLocaleString()}</span>
                       {form.items.length > 1 && <button onClick={() => removeItem(i)} className="btn-danger" style={{ padding: "2px 6px", fontSize: "10px" }}>✕</button>}
                     </div>
                   ))}
                 </div>
                 <div className="mt-3 space-y-1 text-sm">
-                  <div className="flex justify-between"><span style={{ color: "#6b7280" }}>Subtotal</span><span style={{ color: "#1a1a2e" }}>AED {subtotal.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span style={{ color: "#6b7280" }}>VAT (5%)</span><span style={{ color: "#1a1a2e" }}>AED {tax.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span style={{ color: "#6b7280" }}>Subtotal</span><span style={{ color: "#1a1a2e" }}>{form.currency} {subtotal.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span style={{ color: "#6b7280" }}>VAT (5%)</span><span style={{ color: "#1a1a2e" }}>{form.currency} {tax.toFixed(2)}</span></div>
                   <div className="flex justify-between font-bold pt-2 border-t text-base" style={{ borderColor: "#e5e7eb" }}>
                     <span style={{ color: "#0D1B3E" }}>Total</span>
-                    <span style={{ color: "#C9A84C" }}>AED {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span style={{ color: "#C9A84C" }}>{form.currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -409,8 +425,8 @@ export default function InvoicePage() {
                   <tr style={{ background: "#0D1B3E" }}>
                     <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1 }}>DESCRIPTION</th>
                     <th style={{ padding: "10px 14px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1, width: 60 }}>QTY</th>
-                    <th style={{ padding: "10px 14px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1, width: 100 }}>RATE (AED)</th>
-                    <th style={{ padding: "10px 14px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1, width: 110 }}>AMOUNT (AED)</th>
+                    <th style={{ padding: "10px 14px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1, width: 100 }}>RATE ({preview.currency || "AED"})</th>
+                    <th style={{ padding: "10px 14px", textAlign: "right", fontSize: 11, fontWeight: 700, color: "#C9A84C", letterSpacing: 1, width: 110 }}>AMOUNT ({preview.currency || "AED"})</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -428,11 +444,11 @@ export default function InvoicePage() {
               {/* Totals */}
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
                 <div style={{ minWidth: 240 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f0f0f5" }}><span style={{ fontSize: 12, color: "#9ca3af" }}>Subtotal</span><span style={{ fontSize: 12, fontWeight: 600, color: "#1a1a2e" }}>AED {preview.subtotal?.toLocaleString()}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f0f0f5" }}><span style={{ fontSize: 12, color: "#9ca3af" }}>VAT (5%)</span><span style={{ fontSize: 12, fontWeight: 600, color: "#1a1a2e" }}>AED {preview.tax?.toFixed(2)}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f0f0f5" }}><span style={{ fontSize: 12, color: "#9ca3af" }}>Subtotal</span><span style={{ fontSize: 12, fontWeight: 600, color: "#1a1a2e" }}>{preview.currency || "AED"} {preview.subtotal?.toLocaleString()}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #f0f0f5" }}><span style={{ fontSize: 12, color: "#9ca3af" }}>VAT (5%)</span><span style={{ fontSize: 12, fontWeight: 600, color: "#1a1a2e" }}>{preview.currency || "AED"} {preview.tax?.toFixed(2)}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#0D1B3E", borderRadius: 8, marginTop: 8 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "white" }}>TOTAL</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: "#C9A84C" }}>AED {preview.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: "#C9A84C" }}>{preview.currency || "AED"} {preview.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>

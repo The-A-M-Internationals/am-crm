@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -41,9 +42,9 @@ const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }>
   lost:     { color: "#b91c1c", bg: "#fef2f2", label: "Lost" },
 };
 
-function StatCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: string }) {
+function StatCard({ label, value, sub, color, icon, href }: { label: string; value: string | number; sub?: string; color: string; icon: string; href: string }) {
   return (
-    <div className="stat-card group">
+    <Link href={href} className="stat-card group block relative transition-shadow hover:shadow-md cursor-pointer">
       <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color }} />
       <div className="flex items-start justify-between mt-1">
         <div>
@@ -53,7 +54,7 @@ function StatCard({ label, value, sub, color, icon }: { label: string; value: st
         </div>
         <div className="text-2xl opacity-20 group-hover:opacity-40 transition-opacity">{icon}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -91,6 +92,25 @@ export default function DashboardPage() {
     }
     fetchAll();
   }, [isAdmin]);
+
+  const [triggering, setTriggering] = useState(false);
+
+  async function triggerReminders() {
+    setTriggering(true);
+    try {
+      const res = await fetch("/api/cron/reminders");
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
+      } else {
+        alert(`❌ Error: ${data.error || "Failed to trigger"}`);
+      }
+    } catch (err) {
+      alert("❌ Network error triggering reminders");
+    } finally {
+      setTriggering(false);
+    }
+  }
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -139,6 +159,23 @@ export default function DashboardPage() {
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
             Here's what's happening with your team today.
           </p>
+          <button 
+            onClick={triggerReminders}
+            disabled={triggering}
+            className={`mt-4 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 ${triggering ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0D1B3E] text-white hover:bg-[#1a3070] active:scale-95'}`}
+          >
+            {triggering ? (
+              <>
+                <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                Triggering...
+              </>
+            ) : (
+              <>
+                <span>⏰</span>
+                Trigger Reminders
+              </>
+            )}
+          </button>
         </div>
         <div className="text-right">
           <p className="text-xs font-medium" style={{ color: "#9ca3af" }}>
@@ -153,10 +190,10 @@ export default function DashboardPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" />
-        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" />
-        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" />
-        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" />
+        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" href="/leads" />
+        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" href="/clients" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" href="/projects" />
+        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
       </div>
 
       {/* Admin Finance Row */}
