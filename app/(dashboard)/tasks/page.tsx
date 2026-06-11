@@ -5,6 +5,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy,
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 
 const PRIORITIES = [
   { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
@@ -30,6 +31,7 @@ const EMPTY_FORM = {
 
 export default function TasksPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [tasks, setTasks]     = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -41,6 +43,7 @@ export default function TasksPage() {
   const [saving, setSaving]     = useState(false);
   const [filter, setFilter]     = useState<"all" | "pending" | "completed">("pending");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [creatingProject, setCreatingProject] = useState(false);
 
   async function fetchAll() {
     const [tasksSnap, membersSnap, clientsSnap, projectsSnap] = await Promise.all([
@@ -75,6 +78,37 @@ export default function TasksPage() {
       relatedType: t.relatedType ?? ""
     });
     setShowModal(true);
+  }
+
+  async function quickCreateProject() {
+    if (!form.clientId || !form.title) {
+      alert("Please select a client and give the task a title first.");
+      return;
+    }
+    setCreatingProject(true);
+    try {
+      const now = new Date().toISOString();
+      const docRef = await addDoc(collection(db, "projects"), {
+        title: form.title,
+        clientName: form.clientName,
+        clientId: form.clientId,
+        status: "in-progress",
+        service: "web-development",
+        createdAt: now,
+        updatedAt: now,
+        assignedTo: form.assignedTo ? [form.assignedTo] : []
+      });
+      
+      const newProjId = docRef.id;
+      setForm(f => ({ ...f, relatedTo: newProjId, relatedType: "project" }));
+      await fetchAll();
+      alert("✅ Project created and linked!");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to create project");
+    } finally {
+      setCreatingProject(false);
+    }
   }
 
   async function sendReminderEmail(task: any, memberEmail: string, memberName: string) {
@@ -276,10 +310,25 @@ export default function TasksPage() {
                 <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
                 <div>
                   <label className="form-label">Link to Project</label>
-                  <select className="form-input" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
-                    <option value="">No Project</option>
-                    {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                  </select>
+                  <div className="flex gap-2">
+                    <select className="form-input flex-1" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
+                      <option value="">No Project</option>
+                      {projects
+                        .filter(p => p.status !== "completed")
+                        .map((p) => <option key={p.id} value={p.id}>[{p.clientName}] {p.title}</option>)}
+                    </select>
+                    {form.clientId && !form.relatedTo && (
+                      <button 
+                        onClick={quickCreateProject}
+                        disabled={creatingProject || !form.title}
+                        className="px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap transition-all hover:bg-gray-50 disabled:opacity-30"
+                        style={{ borderColor: "#e5e7eb", color: "#0D1B3E" }}
+                        title="Create a new project from this task"
+                      >
+                        {creatingProject ? "..." : "➕ New Project"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               {form.dueDate && (() => { const due = new Date(form.dueDate); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); return due.toDateString() === tomorrow.toDateString(); })() && (

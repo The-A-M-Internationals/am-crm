@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Client, ServiceTag } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -119,33 +119,47 @@ export default function ClientsPage() {
     }
   }
 
-  async function deleteClient(id: string) {
-    if (!confirm("Delete this client?")) return;
-    await deleteDoc(doc(db, "clients", id));
+  async function archiveClient(id: string) {
+    if (!confirm("Are you sure? This will archive the client and unlink their active tasks/projects.")) return;
+    try {
+      const batch = writeBatch(db);
+      
+      // 1. Archive the client
+      batch.update(doc(db, "clients", id), { active: false, status: "inactive", archivedAt: new Date().toISOString() });
+
+      // 2. Cascade cleanup: Unlink active tasks
+      const taskQ = query(collection(db, "tasks"), where("clientId", "==", id));
+      const taskSnap = await getDocs(taskQ);
+      taskSnap.forEach(t => {
+        batch.update(doc(db, "tasks", t.id), { clientId: "", clientName: "Archived Client" });
+      });
+
+      // 3. Cascade cleanup: Archive projects
+      const projQ = query(collection(db, "projects"), where("clientId", "==", id));
+      const projSnap = await getDocs(projQ);
+      projSnap.forEach(p => {
+        batch.update(doc(db, "projects", p.id), { status: "on-hold", notes: `(Client Archived) ${p.data().notes || ""}` });
+      });
+
+      await batch.commit();
+      console.log("Client and related items processed successfully.");
+    } catch (error) {
+      console.error("Error archiving client:", error);
+      alert("Failed to archive client properly.");
+    }
   }
 
   async function toggleLostStatus(client: Client) {
     if (client.active === false) {
       if (!confirm(`Recover ${client.name} back to Active clients?`)) return;
-      // Recover client
-      await updateDoc(doc(db, "clients", client.id), { active: true, status: "active" });
-      
-      // Try to recover associated lead if it exists
-      if (client.email) {
-        const leadQ = query(collection(db, "leads"), where("email", "==", client.email));
-        const leadSnap = await getDocs(leadQ);
-        leadSnap.forEach(d => {
-          updateDoc(doc(db, "leads", d.id), { active: true });
-        });
-      }
+      await updateDoc(doc(db, "clients", client.id), { active: true, status: "active", archivedAt: null });
     } else {
-      if (!confirm(`Mark ${client.name} as Lost? They will be moved to the archive.`)) return;
-      await PipelineService.markAsLost(client.id, client.email, "client");
+      await archiveClient(client.id);
     }
   }
 
   const filtered = clients
-    .filter(c => c.active !== false)
+    .filter(c => showHiddenClients ? c.active === false : c.active !== false)
     .filter((c) => statusFilter === "all" || c.status === statusFilter)
     .filter((c) =>
       !search ||
@@ -160,13 +174,28 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Clients</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{clients.filter((c) => c.active !== false && c.status === "active").length} active clients</p>
+          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
+            {showHiddenClients ? `${clients.filter(c => c.active === false).length} archived` : `${clients.filter(c => c.active !== false).length} active`} clients
+          </p>
         </div>
-        {canEdit && (
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ background: "#0D1B3E" }}>
-            <span className="text-lg leading-none">+</span> Add Client
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowHiddenClients(!showHiddenClients)}
+            className="text-xs font-semibold px-4 py-2 rounded-lg border transition-all"
+            style={{ 
+              background: showHiddenClients ? "#0D1B3E" : "white", 
+              color: showHiddenClients ? "white" : "#6b7280",
+              borderColor: "#e5e7eb"
+            }}
+          >
+            {showHiddenClients ? "View Active" : "View Archive"}
           </button>
-        )}
+          {canEdit && (
+            <button onClick={openAdd} className="btn-primary">
+              <span className="text-lg leading-none">+</span> Add Client
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
