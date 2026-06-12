@@ -35,7 +35,6 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const PIE_COLORS = ["#0D1B3E","#C9A84C","#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6"];
 
 const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  lead:     { color: "#7e22ce", bg: "#faf5ff", label: "Lead" },
   meeting:  { color: "#c2410c", bg: "#fff7ed", label: "Meeting" },
   proposal: { color: "#1d4ed8", bg: "#eff6ff", label: "Proposal" },
   won:      { color: "#15803d", bg: "#f0fdf4", label: "Won" },

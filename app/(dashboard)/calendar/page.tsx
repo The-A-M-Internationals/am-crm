@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 
@@ -34,17 +34,20 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear]   = useState(new Date().getFullYear());
   const [selectedDay, setSelectedDay]   = useState<number | null>(null);
 
-  async function fetchAll() {
-    const [evSnap, memSnap] = await Promise.all([
-      getDocs(query(collection(db, "calendar_events"), orderBy("date", "asc"))),
-      getDocs(collection(db, "users")),
-    ]);
-    setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setMembers(memSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    setLoading(false);
-  }
+  useEffect(() => {
+    const unsubEvents = onSnapshot(query(collection(db, "calendar_events"), orderBy("date", "asc")), snap => {
+      setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-  useEffect(() => { fetchAll(); }, []);
+    return () => {
+      unsubEvents();
+      unsubUsers();
+    };
+  }, []);
 
   function openAdd(date?: string) {
     setEditing(null);
@@ -127,13 +130,13 @@ export default function CalendarPage() {
         }
       }
 
-      setShowModal(false); fetchAll();
+      setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function deleteEvent(id: string) {
     if (!confirm("Delete this event?")) return;
-    await deleteDoc(doc(db, "calendar_events", id)); fetchAll();
+    await deleteDoc(doc(db, "calendar_events", id));
   }
 
   // Calendar grid
@@ -161,7 +164,6 @@ export default function CalendarPage() {
       const res = await fetch("/api/cron/reminders");
       const data = await res.json();
       alert(`Engine Run Complete!\nEmails Sent: ${data.emailsSent}\nCheck your terminal for detailed logs.`);
-      fetchAll();
     } catch (err) {
       alert("Failed to trigger engine.");
     } finally {

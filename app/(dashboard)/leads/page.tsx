@@ -87,10 +87,11 @@ export default function LeadsPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      let leadId = editing?.id;
+      let leadId: string;
 
       if (editing) {
         await updateDoc(doc(db, "leads", editing.id), { ...form, updatedAt: now });
+        leadId = editing.id;
       } else {
         const leadRef = await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now, active: true });
         leadId = leadRef.id;
@@ -102,7 +103,7 @@ export default function LeadsPage() {
       else if (form.stage === "lost") await PipelineService.markAsLost(leadId, form.email, "lead");
       else if (form.stage === "proposal") {
         await PipelineService.transitionToProposal(leadData, crmUser?.uid ?? "");
-        router.push("/proposals");
+        router.push(`/proposals?editLead=${leadId}`);
       }
       else await PipelineService.updateStage(leadData, form.stage);
 
@@ -123,7 +124,7 @@ export default function LeadsPage() {
       else if (stage === "lost") await PipelineService.markAsLost(lead.id, lead.email, "lead");
       else if (stage === "proposal") {
         await PipelineService.transitionToProposal(lead, crmUser?.uid ?? "");
-        router.push("/proposals");
+        router.push(`/proposals?editLead=${lead.id}`);
       }
       else await PipelineService.updateStage(lead, stage);
     } catch (error: any) {
@@ -135,68 +136,27 @@ export default function LeadsPage() {
   const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? SERVICES[2];
   const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
 
-  const filtered = leads
-    .filter(l => showHiddenLeads ? true : l.active !== false)
+  const activeLeads = leads
+    .filter(l => l.active !== false)
     .filter(l => filter === "all" || l.stage === filter)
     .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
-  return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="page-header mb-0">
-          <h1 className="page-title">Leads</h1>
-          <p className="page-subtitle">{leads.length} total · {leads.filter(l => l.stage === "won").length} won · {leads.filter(l => l.stage === "lost").length} lost</p>
-        </div>
-        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Lead</button>
-      </div>
+  const archivedLeads = leads
+    .filter(l => l.active === false)
+    .filter(l => filter === "all" || l.stage === filter)
+    .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
-      {/* Stage summary pills */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
-          All ({leads.filter(l => l.active !== false).length})
-        </button>
-        {STAGES.map(s => {
-          const count = leads.filter(l => l.active !== false && l.stage === s.key).length;
-          return (
-            <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
-              {s.label} ({count})
-            </button>
-          );
-        })}
-      </div>
+  function LeadTable({ data, title, subtitle }: { data: Lead[], title?: string, subtitle?: string }) {
+    if (data.length === 0 && !title) return null;
 
-      {/* Search and Archive Toggle */}
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <input
-          className="form-input flex-1"
-          style={{ maxWidth: 360 }}
-          placeholder="🔍  Search leads by name or company..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        <button 
-          onClick={() => setShowHiddenLeads(!showHiddenLeads)}
-          className="text-xs font-semibold px-4 py-2 rounded-xl border transition-all flex items-center gap-2"
-          style={{ 
-            borderColor: showHiddenLeads ? "#b91c1c" : "#e5e7eb",
-            background: showHiddenLeads ? "#fef2f2" : "white",
-            color: showHiddenLeads ? "#b91c1c" : "#6b7280"
-          }}
-        >
-          {showHiddenLeads ? "Showing Archived (Lost) Leads" : "View Archived / Lost Leads"}
-        </button>
-      </div>
-
-      {/* Leads Table */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 crm-card">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No leads found</p>
-          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ Add Lead</button>
-        </div>
-      ) : (
+    return (
+      <div className="mb-10">
+        {title && (
+          <div className="mb-4">
+            <h2 className="text-lg font-bold" style={{ color: "#0D1B3E" }}>{title}</h2>
+            {subtitle && <p className="text-xs" style={{ color: "#9ca3af" }}>{subtitle}</p>}
+          </div>
+        )}
         <div className="crm-card p-0 overflow-hidden">
           <table className="crm-table">
             <thead>
@@ -211,7 +171,7 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lead) => {
+              {data.map((lead) => {
                 const svc = svcInfo(lead.service);
                 const stg = stgInfo(lead.stage);
                 const isExpanded = expandedId === lead.id;
@@ -225,7 +185,7 @@ export default function LeadsPage() {
                       onClick={() => setExpandedId(isExpanded ? null : lead.id)}
                       style={{ 
                         background: isExpanded ? "#fafbff" : "white",
-                        opacity: isHidden ? 0.6 : 1
+                        opacity: isHidden ? 0.7 : 1
                       }}
                     >
                       <td>
@@ -234,7 +194,7 @@ export default function LeadsPage() {
                             {lead.name?.charAt(0)?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-sm" style={{ color: "#1a1a2e" }}>{lead.name} {isHidden && "(Hidden)"}</p>
+                            <p className="font-semibold text-sm" style={{ color: "#1a1a2e" }}>{lead.name}</p>
                             <p className="text-xs" style={{ color: "#9ca3af" }}>{lead.company}</p>
                           </div>
                         </div>
@@ -251,7 +211,7 @@ export default function LeadsPage() {
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <div className="flex gap-1 flex-wrap">
-                          {STAGES.filter(s => s.key !== lead.stage).map(s => (
+                          {STAGES.filter(s => s.key !== lead.stage && s.key !== "lead").map(s => (
                             <button key={s.key} onClick={() => moveStage(lead, s.key)} className="text-xs px-2 py-1 rounded-lg font-semibold transition-all hover:opacity-90" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: "10px" }}>
                               {s.label}
                             </button>
@@ -292,6 +252,69 @@ export default function LeadsPage() {
             </tbody>
           </table>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="page-header mb-0">
+          <h1 className="page-title">Leads</h1>
+          <p className="page-subtitle">{leads.length} total · {leads.filter(l => l.stage === "won").length} won · {leads.filter(l => l.stage === "lost").length} lost</p>
+        </div>
+        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Lead</button>
+      </div>
+
+      {/* Stage summary pills */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
+          All ({leads.filter(l => l.active !== false).length})
+        </button>
+        {STAGES.filter(s => s.key !== "lead").map(s => {
+          const count = leads.filter(l => l.active !== false && l.stage === s.key).length;
+          return (
+            <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
+              {s.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <input
+          className="form-input flex-1"
+          style={{ maxWidth: 360 }}
+          placeholder="🔍  Search leads by name or company..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* Leads Table */}
+      {loading ? (
+        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
+      ) : leads.length === 0 ? (
+        <div className="text-center py-16 crm-card">
+          <p className="text-sm" style={{ color: "#9ca3af" }}>No leads found</p>
+          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ Add Lead</button>
+        </div>
+      ) : (
+        <>
+          <LeadTable 
+            data={activeLeads} 
+          />
+
+          {archivedLeads.length > 0 && (
+            <LeadTable 
+              data={archivedLeads} 
+              title="Future Opportunities" 
+              subtitle="Leads marked as 'Lost' but kept for future relationship nurturing"
+            />
+          )}
+        </>
       )}
 
       {/* Modal */}
@@ -321,7 +344,7 @@ export default function LeadsPage() {
                 <div>
                   <label className="form-label">Stage</label>
                   <select className="form-input" value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as LeadStage, nextAction: "" })}>
-                    {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    {STAGES.filter(s => s.key !== "lead" || form.stage === "lead").map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
               </div>

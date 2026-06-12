@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -45,21 +45,28 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [creatingProject, setCreatingProject] = useState(false);
 
-  async function fetchAll() {
-    const [tasksSnap, membersSnap, clientsSnap, projectsSnap] = await Promise.all([
-      getDocs(query(collection(db, "tasks"), orderBy("createdAt", "desc"))),
-      getDocs(collection(db, "users")),
-      getDocs(query(collection(db, "clients"), where("status", "==", "active"))),
-      getDocs(collection(db, "projects")),
-    ]);
-    setTasks(tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setMembers(membersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setClients(clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setProjects(projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setLoading(false);
-  }
+  useEffect(() => {
+    const unsubTasks = onSnapshot(query(collection(db, "tasks"), orderBy("createdAt", "desc")), snap => {
+      setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
+      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsubProjects = onSnapshot(collection(db, "projects"), snap => {
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
 
-  useEffect(() => { fetchAll(); }, []);
+    return () => {
+      unsubTasks();
+      unsubUsers();
+      unsubClients();
+      unsubProjects();
+    };
+  }, []);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
   function openEdit(t: any) {
@@ -101,7 +108,6 @@ export default function TasksPage() {
       
       const newProjId = docRef.id;
       setForm(f => ({ ...f, relatedTo: newProjId, relatedType: "project" }));
-      await fetchAll();
       alert("✅ Project created and linked!");
     } catch (e) {
       console.error(e);
@@ -165,19 +171,18 @@ export default function TasksPage() {
         }
       }
 
-      setShowModal(false); fetchAll();
+      setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function toggleDone(task: any) {
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
     await updateDoc(doc(db, "tasks", task.id), { done: newStatus === "completed", status: newStatus });
-    fetchAll();
   }
 
   async function deleteTask(id: string) {
     if (!confirm("Delete this task?")) return;
-    await deleteDoc(doc(db, "tasks", id)); fetchAll();
+    await deleteDoc(doc(db, "tasks", id));
   }
 
   async function updateStatus(task: any, status: string) {

@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
     console.log("[Cron] Fetching calendar events (via Client SDK)...");
     const eventsSnap = await getDocs(collection(db, "calendar_events"));
-    const events = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const events = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
     console.log(`[Cron] Fetched ${events.length} events`);
 
     const { origin } = new URL(request.url);

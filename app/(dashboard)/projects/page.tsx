@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -30,7 +30,7 @@ const CURRENCIES = [
 ];
 
 const EMPTY_FORM = {
-  clientName: "", title: "", service: "web-development" as ServiceTag,
+  clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
   description: "", budget: "", currency: "AED",
 };
@@ -58,18 +58,15 @@ export default function ProjectsPage() {
 
   const searchParams = useSearchParams();
 
-  async function fetchProjects() {
-    const [pSnap, mSnap] = await Promise.all([
-      getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc"))),
-      getDocs(collection(db, "users")),
-    ]);
-    setProjects(pSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
-    setMembers(mSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setLoading(false);
-  }
-
   useEffect(() => { 
-    fetchProjects(); 
+    const unsubProjects = onSnapshot(query(collection(db, "projects"), orderBy("createdAt", "desc")), snap => {
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+      setLoading(false);
+    });
+
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
     
     // Handle redirect from Clients page
     if (searchParams.get("new") === "true") {
@@ -80,12 +77,18 @@ export default function ProjectsPage() {
       setShowModal(true);
       router.replace("/projects"); // Clean up URL
     }
+
+    return () => {
+      unsubProjects();
+      unsubUsers();
+    };
   }, [searchParams, router]);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: [] }); setShowModal(true); }
   function openEdit(p: Project) {
     setEditing(p);
     setForm({ 
+      clientId: p.clientId,
       clientName: p.clientName, 
       title: p.title, 
       service: p.service, 
@@ -129,6 +132,19 @@ export default function ProjectsPage() {
     }
   }
 
+  async function deleteTasksForProject(projectId: string) {
+    try {
+      const q = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, "tasks", d.id));
+      }
+      console.log(`Deleted ${snap.docs.length} tasks for project ${projectId}`);
+    } catch (error) {
+      console.error("Error deleting tasks for project:", error);
+    }
+  }
+
   async function handleSave() {
     if (!form.clientName || !form.title) return;
     setSaving(true);
@@ -144,6 +160,8 @@ export default function ProjectsPage() {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
         if (data.status === "in-progress") {
           await createTasksForProject(editing.id, data);
+        } else if (data.status === "not-started") {
+          await deleteTasksForProject(editing.id);
         }
       } else {
         const docRef = await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
@@ -153,14 +171,13 @@ export default function ProjectsPage() {
         }
       }
       setShowModal(false);
-      fetchProjects();
     } finally { setSaving(false); }
   }
 
   async function deleteProject(id: string) {
-    if (!confirm("Delete this project?")) return;
+    if (!confirm("Delete this project? This will also remove associated tasks.")) return;
     await deleteDoc(doc(db, "projects", id));
-    fetchProjects();
+    await deleteTasksForProject(id);
   }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
@@ -168,6 +185,8 @@ export default function ProjectsPage() {
     
     if (status === "in-progress") {
       await createTasksForProject(project.id, project);
+    } else if (status === "not-started") {
+      await deleteTasksForProject(project.id);
     }
     
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));

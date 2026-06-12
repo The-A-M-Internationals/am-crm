@@ -158,6 +158,17 @@ export default function ClientsPage() {
     }
   }
 
+  async function deleteClient(id: string) {
+    if (!confirm("PERMANENT DELETE: Are you sure you want to completely remove this client? This cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(db, "clients", id));
+      console.log("Client deleted permanently.");
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      alert("Failed to delete client.");
+    }
+  }
+
   const filtered = clients
     .filter(c => showHiddenClients ? c.active === false : c.active !== false)
     .filter((c) => statusFilter === "all" || c.status === statusFilter)
