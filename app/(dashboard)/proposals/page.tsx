@@ -163,6 +163,7 @@ function ProposalsContent() {
       phone: (p as any).phone || "",
       service: p.service,
       stage: "proposal",
+      assignedTo: p.createdBy || "",
       createdAt: "", updatedAt: ""
     };
     await PipelineService.markAsWon(fakeLead);

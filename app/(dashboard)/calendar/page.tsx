@@ -100,7 +100,7 @@ export default function CalendarPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              to: member.email,
+              to: [member.email, "am@theaminternational.com"],
               subject: `CRM Task Assigned: ${form.title}`,
               html: `<b>Task:</b> ${form.title}<br><b>Type:</b> ${form.type === "other" ? form.customType : typeLabel}<br><b>Platform:</b> ${form.platform}<br><b>Due:</b> ${form.date} ${form.time}`
             })

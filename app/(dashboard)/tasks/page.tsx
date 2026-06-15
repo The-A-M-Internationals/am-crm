@@ -123,7 +123,7 @@ export default function TasksPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: memberEmail,
+          to: [memberEmail, "am@theaminternational.com"],
           subject: `⏰ Task Due Tomorrow: ${task.title}`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f9fc;padding:20px;border-radius:12px;">

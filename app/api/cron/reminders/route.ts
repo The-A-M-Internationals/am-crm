@@ -116,14 +116,25 @@ export async function GET(request: Request) {
         `;
 
         try {
-          // Send to Resend API
-          const res = await fetch(`${baseUrl}/api/send-email`, {
+          // 1. Send to the assigned team member
+          await fetch(`${baseUrl}/api/send-email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               to: member.email,
               subject: `${subjectPrefix}: ${timeRemainingText} left for [${ev.title}]`,
               html
+            })
+          }).catch(e => console.error(`[Cron] ❌ Error sending to member ${member.email}:`, e));
+
+          // 2. Send a copy to the central agency email (Admin)
+          const resAdmin = await fetch(`${baseUrl}/api/send-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: "am@theaminternational.com",
+              subject: `[Admin Copy] ${subjectPrefix}: ${ev.title}`,
+              html: `<p><strong>Admin Notification:</strong> This reminder was also sent to <strong>${member.name}</strong> (${member.email}).</p><hr/>${html}`
             })
           });
 
