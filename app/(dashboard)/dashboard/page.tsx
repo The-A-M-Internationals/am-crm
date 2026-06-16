@@ -335,7 +335,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {leads.slice(0, 5).map((lead: any) => {
-                const st = STAGE_CONFIG[lead.stage] ?? STAGE_CONFIG.lead;
+                const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage?.toUpperCase() || "LEAD" };
                 return (
                   <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: st.bg, color: st.color }}>

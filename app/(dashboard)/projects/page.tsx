@@ -5,6 +5,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy,
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
@@ -181,7 +182,7 @@ export default function ProjectsPage() {
   }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
-    await updateDoc(doc(db, "projects", project.id), { status, updatedAt: new Date().toISOString() });
+    await PipelineService.updateProjectStatus(project.id, status);
     
     if (status === "in-progress") {
       await createTasksForProject(project.id, project);

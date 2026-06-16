@@ -3,6 +3,8 @@ import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   console.log("[Cron] Reminder Engine Started");
   try {
@@ -117,7 +119,7 @@ export async function GET(request: Request) {
 
         try {
           // 1. Send to the assigned team member
-          await fetch(`${baseUrl}/api/send-email`, {
+          const res = await fetch(`${baseUrl}/api/send-email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -125,7 +127,7 @@ export async function GET(request: Request) {
               subject: `${subjectPrefix}: ${timeRemainingText} left for [${ev.title}]`,
               html
             })
-          }).catch(e => console.error(`[Cron] ❌ Error sending to member ${member.email}:`, e));
+          });
 
           // 2. Send a copy to the central agency email (Admin)
           const resAdmin = await fetch(`${baseUrl}/api/send-email`, {

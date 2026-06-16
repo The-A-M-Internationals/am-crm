@@ -8,7 +8,7 @@ export type ProjectStatus = "not-started" | "in-progress" | "review" | "complete
 
 export type TaskPriority = "low" | "medium" | "high";
 
-export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected";
+export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected" | "proposal" | "won" | "lost";
 
 export interface CRMUser {
   uid: string;
@@ -88,6 +88,33 @@ export interface ProposalItem {
   amount: number;
 }
 
+export interface ProposalPackage {
+  name: string;
+  bestFor: string;
+  activeCampaigns: string;
+  adCreatives: string;
+  optimisation: string;
+  abTesting: string;
+  recommendedSpend: number;
+  managementFee: number;
+  reviewCall: string;
+  reporting: string;
+  estimatedLeads: string;
+  estimatedCostPerLead: string;
+  recommended?: boolean;
+}
+
+export interface ProposalTimelinePhase {
+  phase: string;
+  activity: string;
+  duration: string;
+}
+
+export interface ProposalTerm {
+  term: string;
+  description: string;
+}
+
 export interface Proposal {
   id: string;
   leadId?: string;
@@ -98,6 +125,22 @@ export interface Proposal {
   company?: string;
   phone?: string;
   service: ServiceTag;
+  
+  // Rich Document Fields
+  isRichDocument?: boolean;
+  introduction?: string;
+  understanding?: string[];
+  objectives?: string[];
+  approachTitle?: string;
+  approachDescription?: string;
+  approachFeatures?: string[];
+  packages?: ProposalPackage[];
+  addons?: { name: string; deliverables: string; cost: number; period: string }[];
+  timeline?: ProposalTimelinePhase[];
+  exclusions?: string[];
+  terms?: ProposalTerm[];
+  
+  // Standard/Legacy Fields
   items: ProposalItem[];
   subtotal: number;
   tax: number;

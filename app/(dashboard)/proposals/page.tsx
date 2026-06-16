@@ -19,6 +19,7 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
 ];
 
 const STATUSES: { key: ProposalStatus; label: string; color: string; bg: string; border: string }[] = [
+  { key: "proposal", label: "Proposal", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
   { key: "draft",    label: "Draft",    color: "#374151", bg: "#f3f4f6", border: "#e5e7eb" },
   { key: "sent",     label: "Sent",     color: "#1e40af", bg: "#dbeafe", border: "#bfdbfe" },
   { key: "accepted", label: "Accepted", color: "#065f46", bg: "#d1fae5", border: "#a7f3d0" },
@@ -32,6 +33,8 @@ const CURRENCIES = [
   { code: "EUR", label: "EUR (Euro)" },
   { code: "GBP", label: "GBP (Pound)" },
 ];
+
+import { getMasterTemplate } from "@/lib/proposal-templates";
 
 const EMPTY_ITEM: ProposalItem = { description: "", qty: 1, rate: 0, amount: 0 };
 
@@ -49,28 +52,35 @@ function ProposalsContent() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading]     = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm]           = useState({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
+  const [form, setForm]           = useState<any>({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
   const [saving, setSaving]       = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Only listen for click outside if we are adding a new proposal
     function handleClickOutside(event: MouseEvent) {
       if (activeRef.current && !activeRef.current.contains(event.target as Node)) {
         cancelEdit();
       }
     }
-    if (editingId || isAddingNew) {
+    if (isAddingNew) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [editingId, isAddingNew]);
+  }, [isAddingNew]);
 
   useEffect(() => {
     const q = query(collection(db, "proposals"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Proposal));
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as Proposal))
+        // Only valid proposal statuses are shown. 
+        // We do not filter out "won" or "lost" here because those are lead stages,
+        // and a proposal itself is either accepted or rejected.
+        .filter(p => ["draft", "sent", "accepted", "rejected", "proposal"].includes(p.status));
+      
       setProposals(list);
       setLoading(false);
 
@@ -78,21 +88,23 @@ function ProposalsContent() {
       const editLeadId = searchParams.get("editLead");
       if (editLeadId && list.length > 0) {
         const found = list.find(p => p.fromLeadId === editLeadId);
-        if (found && editingId !== found.id) {
-          startEditing(found);
-          router.replace("/proposals", { scroll: false });
+        if (found) {
+          router.replace(`/proposals/${found.id}`, { scroll: false });
         }
       }
+    }, (error) => {
+      console.error("Firestore onSnapshot error:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
-  }, [searchParams, router, editingId]);
+  }, [searchParams, router]);
 
   function calcItem(item: ProposalItem): ProposalItem {
     return { ...item, amount: item.qty * item.rate };
   }
 
   function updateItem(index: number, field: keyof ProposalItem, value: string | number) {
-    const updated = form.items.map((item, i) => {
+    const updated = form.items.map((item: any, i: number) => {
       if (i !== index) return item;
       const next = { ...item, [field]: field === "description" ? value : Number(value) };
       return calcItem(next);
@@ -101,30 +113,23 @@ function ProposalsContent() {
   }
 
   function addItem() { setForm({ ...form, items: [...form.items, { ...EMPTY_ITEM }] }); }
-  function removeItem(i: number) { setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) }); }
+  function removeItem(i: number) { setForm({ ...form, items: form.items.filter((_: any, idx: number) => idx !== i) }); }
 
-  const subtotal = form.items.reduce((sum, it) => sum + it.amount, 0);
+  const subtotal = form.items.reduce((sum: number, it: any) => sum + it.amount, 0);
   const tax      = subtotal * 0.05;
   const total    = subtotal + tax;
 
   function startAdding() {
     setIsAddingNew(true);
-    setEditingId(null);
-    setForm({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
+    const template = getMasterTemplate("web-development", "");
+    setForm({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }], ...template });
   }
 
-  function startEditing(p: Proposal) {
-    setIsAddingNew(false);
-    setEditingId(p.id);
-    setForm({
-      clientName: p.clientName, clientEmail: (p as any).clientEmail || "", service: p.service, status: p.status,
-      notes: p.notes ?? "", validUntil: p.validUntil ?? "", items: p.items || [{ ...EMPTY_ITEM }],
-      currency: p.currency ?? "AED",
-    });
+  function viewProposal(id: string) {
+    router.push(`/proposals/${id}`);
   }
 
   function cancelEdit() {
-    setEditingId(null);
     setIsAddingNew(false);
   }
 
@@ -135,49 +140,32 @@ function ProposalsContent() {
       const now  = new Date().toISOString();
       const data = { ...form, subtotal, tax, total, createdBy: crmUser?.uid ?? "" };
       
-      let propId = editingId;
-      if (editingId) {
-        await updateDoc(doc(db, "proposals", editingId), data);
-      } else {
-        const docRef = await addDoc(collection(db, "proposals"), { ...data, createdAt: now });
-        propId = docRef.id;
+      const docRef = await addDoc(collection(db, "proposals"), { ...data, createdAt: now });
+      const propId = docRef.id;
+      
+      if (form.status === "accepted") {
+        await PipelineService.handleProposalStatusChange({ id: propId, ...data }, "accepted");
       }
 
-      if (form.status === "accepted" && propId) {
-        const p = proposals.find(pr => pr.id === propId) || { ...data, id: propId } as Proposal;
-        await triggerWinFlow(p);
-      }
-
-      setEditingId(null);
       setIsAddingNew(false);
+      
+      // Instantly transport them to the high-fidelity document view!
+      router.push(`/proposals/${propId}`);
     } finally { setSaving(false); }
   }
 
-  async function triggerWinFlow(p: Proposal) {
-    if (!p.fromLeadId) return;
-    const fakeLead: Lead = {
-      id: p.fromLeadId,
-      name: p.clientName,
-      company: (p as any).company || "",
-      email: p.clientEmail,
-      phone: (p as any).phone || "",
-      service: p.service,
-      stage: "proposal",
-      assignedTo: p.createdBy || "",
-      createdAt: "", updatedAt: ""
-    };
-    await PipelineService.markAsWon(fakeLead);
-  }
-
-  async function deleteProposal(id: string) {
+  async function deleteProposal(p: Proposal) {
     if (!confirm("Delete this proposal?")) return;
-    await deleteDoc(doc(db, "proposals", id));
+    await PipelineService.deleteProposal(p);
   }
 
   async function updateStatus(p: Proposal, status: ProposalStatus) {
-    await updateDoc(doc(db, "proposals", p.id), { status });
-    if (status === "accepted") {
-      await triggerWinFlow(p);
+    if (status === "accepted" && p.fromLeadId) {
+      await PipelineService.acceptProposal(p.id, p.fromLeadId);
+    } else if (p.status === "accepted" && status !== "accepted" && p.fromLeadId) {
+      await PipelineService.withdrawProposal(p.id, p.fromLeadId, "proposal");
+    } else {
+      await PipelineService.handleProposalStatusChange(p, status);
     }
   }
 
@@ -223,46 +211,41 @@ function ProposalsContent() {
       ) : (
         <div className="space-y-4">
           {proposals.map((p) => {
-            const isEditing = editingId === p.id;
             const st  = statusInfo(p.status);
             const svc = SERVICES.find((s) => s.key === p.service);
 
             return (
-              <div key={p.id} ref={isEditing ? activeRef : null} className={`crm-card transition-all ${isEditing ? 'border-2 ring-2 ring-opacity-20' : 'hover:shadow-md'}`} style={{ borderColor: isEditing ? "#C9A84C" : "transparent" }}>
-                {isEditing ? (
-                  <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} />
-                ) : (
-                  <div className="flex items-center justify-between flex-wrap gap-3 cursor-pointer" onClick={() => startEditing(p)}>
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#0D1B3E0d" }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1B3E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate" style={{ color: "#1a1a2e" }}>{p.clientName}</p>
-                        <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{p.clientEmail} {p.phone && `· ${p.phone}`}</p>
-                        <p className="text-xs mt-0.5" style={{ color: "#c4c7d0" }}>{svc?.label} · {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
-                      </div>
+              <div key={p.id} className="crm-card transition-all hover:shadow-md border border-transparent hover:border-slate-200">
+                <div className="flex items-center justify-between flex-wrap gap-3 cursor-pointer" onClick={() => viewProposal(p.id)}>
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#0D1B3E0d" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1B3E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                      </svg>
                     </div>
-
-                    <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                      <div className="text-right mr-2">
-                        <p className="text-base font-bold" style={{ color: "#C9A84C" }}>{p.currency || "AED"} {p.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                      </div>
-                      <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
-                      
-                      <div className="flex gap-1">
-                        {STATUSES.filter(s => s.key !== p.status).map(s => (
-                          <button key={s.key} onClick={() => updateStatus(p, s.key)} className="text-[10px] px-2 py-1 rounded-md font-bold transition-all hover:opacity-80" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                      <button onClick={() => deleteProposal(p.id)} className="p-2 text-red-400 hover:text-red-600 transition-colors">🗑</button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: "#1a1a2e" }}>{p.clientName}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{p.clientEmail} {p.phone && `· ${p.phone}`}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#c4c7d0" }}>{svc?.label} · {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
                     </div>
                   </div>
-                )}
+
+                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <div className="text-right mr-2">
+                      <p className="text-base font-bold" style={{ color: "#C9A84C" }}>{p.currency || "AED"} {p.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
+                    
+                    <div className="flex gap-1">
+                      {STATUSES.filter(s => s.key !== p.status).map(s => (
+                        <button key={s.key} onClick={() => updateStatus(p, s.key)} className="text-[10px] px-2 py-1 rounded-md font-bold transition-all hover:opacity-80" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => deleteProposal(p)} className="p-2 text-red-400 hover:text-red-600 transition-colors">🗑</button>
+                  </div>
+                </div>
               </div>
             );
           })}
@@ -279,7 +262,17 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
         <div><label className="form-label">Client Name *</label><input className="form-input" value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} placeholder="Client name" /></div>
         <div>
           <label className="form-label">Service</label>
-          <select className="form-input" value={form.service} onChange={e => setForm({ ...form, service: e.target.value as ServiceTag })}>{SERVICES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
+          <select 
+            className="form-input" 
+            value={form.service} 
+            onChange={e => {
+              const newService = e.target.value as ServiceTag;
+              const template = getMasterTemplate(newService, form.clientName || form.company || "");
+              setForm({ ...form, service: newService, ...template });
+            }}
+          >
+            {SERVICES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">

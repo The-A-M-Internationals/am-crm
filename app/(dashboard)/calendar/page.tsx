@@ -20,6 +20,196 @@ const PLATFORMS = ["Instagram", "Facebook", "LinkedIn", "Twitter/X", "YouTube", 
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+const HOLIDAYS: Record<string, { date: string, label: string }[]> = {
+  IND: [
+    // 2026
+    { date: "2026-06-26", label: "Muharram/Ashura" },
+    { date: "2026-07-16", label: "Rath Yatra" },
+    { date: "2026-08-15", label: "Independence Day" },
+    { date: "2026-08-26", label: "Milad un-Nabi" },
+    { date: "2026-08-26", label: "Onam" },
+    { date: "2026-08-28", label: "Raksha Bandhan" },
+    { date: "2026-09-04", label: "Janmashtami" },
+    { date: "2026-09-14", label: "Ganesh Chaturthi" },
+    { date: "2026-10-02", label: "Mahatma Gandhi Jayanti" },
+    { date: "2026-10-11", label: "Sharad Navratri Start" },
+    { date: "2026-10-17", label: "Durga Puja Start" },
+    { date: "2026-10-18", label: "Maha Saptami" },
+    { date: "2026-10-19", label: "Maha Ashtami" },
+    { date: "2026-10-20", label: "Dussehra" },
+    { date: "2026-10-26", label: "Maharishi Valmiki Jayanti" },
+    { date: "2026-10-29", label: "Karaka Chaturthi" },
+    { date: "2026-11-08", label: "Diwali/Deepavali" },
+    { date: "2026-11-09", label: "Govardhan Puja" },
+    { date: "2026-11-11", label: "Bhai Duj" },
+    { date: "2026-11-15", label: "Chhat Puja" },
+    { date: "2026-11-24", label: "Guru Nanak Jayanti" },
+    { date: "2026-12-23", label: "Hazarat Ali's Birthday" },
+    { date: "2026-12-25", label: "Christmas" },
+    // 2027
+    { date: "2027-01-01", label: "New Year's Day" },
+    { date: "2027-01-15", label: "Makar Sankranti/Pongal" },
+    { date: "2027-01-26", label: "Republic Day" },
+    { date: "2027-02-09", label: "Ramadan Start" },
+    { date: "2027-02-11", label: "Vasant Panchami" },
+    { date: "2027-02-19", label: "Shivaji Jayanti" },
+    { date: "2027-03-06", label: "Maha Shivaratri" },
+    { date: "2027-03-10", label: "Ramzan Id" },
+    { date: "2027-03-22", label: "Holi" },
+    { date: "2027-03-26", label: "Good Friday" },
+    { date: "2027-04-07", label: "Gudi Padwa/Ugadi" },
+    { date: "2027-04-14", label: "Ambedkar Jayanti" },
+    { date: "2027-04-15", label: "Rama Navami" },
+    { date: "2027-05-17", label: "Bakrid" },
+    { date: "2027-06-16", label: "Muharram/Ashura" },
+    { date: "2027-07-05", label: "Rath Yatra" },
+    { date: "2027-08-15", label: "Independence Day" },
+    { date: "2027-08-17", label: "Raksha Bandhan" },
+    { date: "2027-08-25", label: "Janmashtami" },
+    { date: "2027-09-04", label: "Ganesh Chaturthi" },
+    { date: "2027-09-12", label: "Onam" },
+    { date: "2027-09-30", label: "Sharad Navratri Start" },
+    { date: "2027-10-02", label: "Mahatma Gandhi Jayanti" },
+    { date: "2027-10-05", label: "Durga Puja Start" },
+    { date: "2027-10-09", label: "Dussehra" },
+    { date: "2027-10-18", label: "Karaka Chaturthi" },
+    { date: "2027-10-29", label: "Diwali" },
+    { date: "2027-10-31", label: "Bhai Duj" },
+    { date: "2027-11-04", label: "Chhat Puja" },
+    { date: "2027-12-12", label: "Hazarat Ali's Birthday" },
+    { date: "2027-12-25", label: "Christmas" },
+    // 2028
+    { date: "2028-01-01", label: "New Year's Day" },
+    { date: "2028-01-15", label: "Makar Sankranti/Pongal" },
+    { date: "2028-01-26", label: "Republic Day" },
+    { date: "2028-01-29", label: "Ramadan Start" },
+    { date: "2028-01-31", label: "Vasant Panchami" },
+    { date: "2028-02-19", label: "Shivaji Jayanti" },
+    { date: "2028-02-23", label: "Maha Shivaratri" },
+    { date: "2028-02-27", label: "Ramzan Id" },
+    { date: "2028-03-11", label: "Holi" },
+    { date: "2028-03-27", label: "Gudi Padwa/Ugadi" },
+    { date: "2028-04-03", label: "Rama Navami" },
+    { date: "2028-04-14", label: "Good Friday/Ambedkar Jayanti" },
+    { date: "2028-05-06", label: "Bakrid" },
+    { date: "2028-06-04", label: "Muharram/Ashura" },
+    { date: "2028-06-24", label: "Rath Yatra" },
+    { date: "2028-08-05", label: "Raksha Bandhan" },
+    { date: "2028-08-13", label: "Janmashtami" },
+    { date: "2028-08-15", label: "Independence Day" },
+    { date: "2028-08-23", label: "Ganesh Chaturthi" },
+    { date: "2028-09-01", label: "Onam" },
+    { date: "2028-09-19", label: "Sharad Navratri Start" },
+    { date: "2028-09-24", label: "Durga Puja Start" },
+    { date: "2028-09-27", label: "Dussehra" },
+    { date: "2028-10-02", label: "Mahatma Gandhi Jayanti" },
+    { date: "2028-10-07", label: "Karaka Chaturthi" },
+    { date: "2028-10-17", label: "Diwali" },
+    { date: "2028-10-19", label: "Bhai Duj" },
+    { date: "2028-10-23", label: "Chhat Puja" },
+    { date: "2028-12-01", label: "Hazarat Ali's Birthday" },
+    { date: "2028-12-25", label: "Christmas" },
+    // 2029
+    { date: "2029-01-01", label: "New Year's Day" },
+    { date: "2029-01-14", label: "Makar Sankranti/Pongal" },
+    { date: "2029-01-17", label: "Ramadan Start" },
+    { date: "2029-01-19", label: "Vasant Panchami" },
+    { date: "2029-01-26", label: "Republic Day" },
+    { date: "2029-02-11", label: "Maha Shivaratri" },
+    { date: "2029-02-15", label: "Ramzan Id" },
+    { date: "2029-02-19", label: "Shivaji Jayanti" },
+    { date: "2029-03-01", label: "Holi" },
+    { date: "2029-03-30", label: "Good Friday" },
+    { date: "2029-04-14", label: "Gudi Padwa/Ugadi/Ambedkar Jayanti" },
+    { date: "2029-04-22", label: "Rama Navami" },
+    { date: "2029-04-25", label: "Bakrid" },
+    { date: "2029-05-25", label: "Muharram/Ashura" },
+  ],
+  USA: [
+    // 2026
+    { date: "2026-06-14", label: "Flag Day" },
+    { date: "2026-06-19", label: "Juneteenth" },
+    { date: "2026-06-21", label: "Father's Day" },
+    { date: "2026-07-03", label: "Independence Day (Observed)" },
+    { date: "2026-07-04", label: "Independence Day" },
+    { date: "2026-09-07", label: "Labor Day" },
+    { date: "2026-10-12", label: "Columbus Day" },
+    { date: "2026-10-31", label: "Halloween" },
+    { date: "2026-11-03", label: "Election Day" },
+    { date: "2026-11-11", label: "Veterans Day" },
+    { date: "2026-11-26", label: "Thanksgiving Day" },
+    { date: "2026-11-27", label: "Black Friday" },
+    { date: "2026-12-24", label: "Christmas Eve" },
+    { date: "2026-12-25", label: "Christmas Day" },
+    { date: "2026-12-31", label: "New Year's Eve" },
+    // 2027
+    { date: "2027-01-01", label: "New Year's Day" },
+    { date: "2027-01-18", label: "Martin Luther King Jr. Day" },
+    { date: "2027-02-14", label: "Valentine's Day" },
+    { date: "2027-02-15", label: "President's Day" },
+    { date: "2027-03-17", label: "St. Patrick's Day" },
+    { date: "2027-03-28", label: "Easter Sunday" },
+    { date: "2027-04-15", label: "Tax Day" },
+    { date: "2027-05-05", label: "Cinco de Mayo" },
+    { date: "2027-05-09", label: "Mother's Day" },
+    { date: "2027-05-31", label: "Memorial Day" },
+    { date: "2027-06-14", label: "Flag Day" },
+    { date: "2027-06-18", label: "Juneteenth (Observed)" },
+    { date: "2027-06-19", label: "Juneteenth" },
+    { date: "2027-06-20", label: "Father's Day" },
+    { date: "2027-07-04", label: "Independence Day" },
+    { date: "2027-07-05", label: "Independence Day (Observed)" },
+    { date: "2027-09-06", label: "Labor Day" },
+    { date: "2027-10-11", label: "Columbus Day" },
+    { date: "2027-10-31", label: "Halloween" },
+    { date: "2027-11-02", label: "Election Day" },
+    { date: "2027-11-11", label: "Veterans Day" },
+    { date: "2027-11-25", label: "Thanksgiving Day" },
+    { date: "2027-11-26", label: "Black Friday" },
+    { date: "2027-12-24", label: "Christmas Eve/Day (Observed)" },
+    { date: "2027-12-25", label: "Christmas Day" },
+    { date: "2027-12-31", label: "New Year's Day (Observed)" },
+    // 2028
+    { date: "2028-01-01", label: "New Year's Day" },
+    { date: "2028-01-17", label: "Martin Luther King Jr. Day" },
+    { date: "2028-02-14", label: "Valentine's Day" },
+    { date: "2028-02-21", label: "President's Day" },
+    { date: "2028-03-17", label: "St. Patrick's Day" },
+    { date: "2028-04-16", label: "Easter Sunday" },
+    { date: "2028-04-18", label: "Tax Day" },
+    { date: "2028-05-05", label: "Cinco de Mayo" },
+    { date: "2028-05-14", label: "Mother's Day" },
+    { date: "2028-05-29", label: "Memorial Day" },
+    { date: "2028-06-14", label: "Flag Day" },
+    { date: "2028-06-18", label: "Father's Day" },
+    { date: "2028-06-19", label: "Juneteenth" },
+    { date: "2028-07-04", label: "Independence Day" },
+    { date: "2028-09-04", label: "Labor Day" },
+    { date: "2028-10-09", label: "Columbus Day" },
+    { date: "2028-10-31", label: "Halloween" },
+    { date: "2028-11-07", label: "Election Day" },
+    { date: "2028-11-10", label: "Veterans Day (Observed)" },
+    { date: "2028-11-11", label: "Veterans Day" },
+    { date: "2028-11-23", label: "Thanksgiving Day" },
+    { date: "2028-11-24", label: "Black Friday" },
+    { date: "2028-12-24", label: "Christmas Eve" },
+    { date: "2028-12-25", label: "Christmas Day" },
+    { date: "2028-12-31", label: "New Year's Eve" },
+    // 2029
+    { date: "2029-01-01", label: "New Year's Day" },
+    { date: "2029-01-15", label: "Martin Luther King Jr. Day" },
+    { date: "2029-01-20", label: "Inauguration Day" },
+    { date: "2029-02-14", label: "Valentine's Day" },
+    { date: "2029-02-19", label: "President's Day" },
+    { date: "2029-03-17", label: "St. Patrick's Day" },
+    { date: "2029-04-01", label: "Easter Sunday" },
+    { date: "2029-04-17", label: "Tax Day" },
+    { date: "2029-05-05", label: "Cinco de Mayo" },
+    { date: "2029-05-13", label: "Mother's Day" },
+    { date: "2029-05-28", label: "Memorial Day" },
+  ]
+};
+
 const EMPTY_FORM = { title: "", type: "post", date: "", time: "09:00", assignedTo: "", assignedToName: "", platform: "", notes: "", customType: "" };
 
 export default function CalendarPage() {
@@ -35,6 +225,9 @@ export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear]   = useState(new Date().getFullYear());
   const [selectedDay, setSelectedDay]   = useState<number | null>(null);
+
+  const [showIND, setShowIND] = useState(true);
+  const [showUSA, setShowUSA] = useState(true);
 
   // Add a local flag for "Other" platform
   const [isCustomPlatform, setIsCustomPlatform] = useState(false);
@@ -125,10 +318,25 @@ export default function CalendarPage() {
 
   function getEventsForDay(day: number) {
     const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    return events.filter(e => e.date === dateStr);
+    const evs = events.filter(e => e.date === dateStr);
+    
+    if (showIND) {
+      const indHols = HOLIDAYS.IND.filter(h => h.date === dateStr);
+      indHols.forEach(h => evs.push({ id: `ind-${h.date}`, title: h.label, type: "holiday-ind", isHoliday: true }));
+    }
+    if (showUSA) {
+      const usaHols = HOLIDAYS.USA.filter(h => h.date === dateStr);
+      usaHols.forEach(h => evs.push({ id: `usa-${h.date}`, title: h.label, type: "holiday-usa", isHoliday: true }));
+    }
+
+    return evs;
   }
 
-  function typeInfo(key: string) { return EVENT_TYPES.find(t => t.key === key) ?? EVENT_TYPES[6]; }
+  function typeInfo(key: string) { 
+    if (key === "holiday-ind") return { key: "holiday-ind", label: "IND Holiday", color: "#ea580c", bg: "#ffedd5" };
+    if (key === "holiday-usa") return { key: "holiday-usa", label: "USA Holiday", color: "#1e40af", bg: "#dbeafe" };
+    return EVENT_TYPES.find(t => t.key === key) ?? EVENT_TYPES[6]; 
+  }
 
   function prevMonth() { if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y=>y-1); } else setCurrentMonth(m=>m-1); }
   function nextMonth() { if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y=>y+1); } else setCurrentMonth(m=>m+1); }
@@ -153,6 +361,19 @@ export default function CalendarPage() {
           <p className="page-subtitle">Schedule posts, reels, meetings & deadlines</p>
         </div>
         <div className="flex gap-3">
+          {/* Toggles */}
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-[#e8e8f0]">
+             <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={showIND} onChange={e => setShowIND(e.target.checked)} className="w-4 h-4 rounded text-[#ea580c] focus:ring-[#ea580c]" />
+                <span className="text-xs font-semibold" style={{ color: "#4b5563" }}>IND Tracks</span>
+             </label>
+             <div className="w-[1px] h-4 bg-gray-200 mx-1" />
+             <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={showUSA} onChange={e => setShowUSA(e.target.checked)} className="w-4 h-4 rounded text-[#1e40af] focus:ring-[#1e40af]" />
+                <span className="text-xs font-semibold" style={{ color: "#4b5563" }}>USA Tracks</span>
+             </label>
+          </div>
+
           <button onClick={triggerCron} className="btn-secondary text-xs" style={{ borderColor: "#C9A84C", color: "#C9A84C" }}>⚙️ Test Reminder Engine</button>
           <button onClick={() => openAdd()} className="btn-primary"><span className="text-base">+</span> Add Event</button>
         </div>
@@ -178,9 +399,9 @@ export default function CalendarPage() {
               return (
                 <div key={idx} className="border-b border-r min-h-[80px] p-1.5 cursor-pointer" style={{ background: isSelected ? "#f0f4ff" : "white" }} onClick={() => setSelectedDay(day === selectedDay ? null : day)}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${isToday ? "bg-[#0D1B3E] text-white" : ""}`}>{day}</div>
-                  {dayEvents.slice(0, 2).map(ev => {
+                  {dayEvents.slice(0, 3).map(ev => {
                     const t = typeInfo(ev.type);
-                    return <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded-md mb-0.5 truncate font-medium" style={{ background: t.bg, color: t.color }}>{ev.title}</div>;
+                    return <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded-md mb-0.5 truncate font-medium" style={{ background: t.bg, color: t.color }}>{ev.isHoliday ? "🏝️ " : ""}{ev.title}</div>;
                   })}
                 </div>
               );
@@ -197,8 +418,8 @@ export default function CalendarPage() {
                 {selectedEvents.map(ev => {
                   const t = typeInfo(ev.type);
                   return (
-                    <div key={ev.id} className="p-3 rounded-xl border cursor-pointer" style={{ borderColor: t.color + "33", background: t.bg + "55" }} onClick={() => openEdit(ev)}>
-                      <p className="text-sm font-semibold">{ev.title}</p>
+                    <div key={ev.id} className={`p-3 rounded-xl border ${ev.isHoliday ? "" : "cursor-pointer"}`} style={{ borderColor: t.color + "33", background: t.bg + "55" }} onClick={() => !ev.isHoliday && openEdit(ev)}>
+                      <p className="text-sm font-semibold">{ev.isHoliday ? "🏝️ " : ""}{ev.title}</p>
                       <div className="flex gap-2 mt-1">
                         <span className="badge" style={{ background: t.bg, color: t.color, fontSize: "10px" }}>{ev.type === "other" && ev.customType ? ev.customType : t.label}</span>
                         {ev.platform && <span className="text-xs text-gray-400">{ev.platform}</span>}
@@ -206,6 +427,7 @@ export default function CalendarPage() {
                     </div>
                   );
                 })}
+                {selectedEvents.length === 0 && <p className="text-xs text-gray-400">No events for this day.</p>}
               </div>
             </div>
           ) : (
@@ -294,6 +516,11 @@ export default function CalendarPage() {
               <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={2} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></div>
             </div>
             <div className="flex gap-3 mt-6">
+              {editing && (
+                <button onClick={() => { deleteEvent(editing.id); setShowModal(false); }} className="py-2.5 px-4 rounded-xl border text-sm font-semibold text-red-500 border-red-200 hover:bg-red-50 transition-colors" title="Delete Event">
+                  🗑
+                </button>
+              )}
               <button onClick={()=>setShowModal(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold">Cancel</button>
               <button onClick={handleSave} disabled={saving||!form.title||!form.date} className="btn-primary flex-1">{saving?"Saving...":"Save"}</button>
             </div>

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -42,9 +41,17 @@ export default function TeamPage() {
   const isAdmin = crmUser?.role === "admin";
 
   async function fetchMembers() {
-    const snap = await getDocs(collection(db, "users"));
-    setMembers(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as CRMUser)));
-    setLoading(false);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      setMembers(snap.docs.map((d) => {
+        const data = d.data();
+        return { ...data, uid: data.uid || d.id } as CRMUser;
+      }));
+    } catch (err) {
+      console.error("Error fetching members:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchMembers(); }, []);
@@ -53,12 +60,15 @@ export default function TeamPage() {
     if (!form.name || !form.email || !form.password) return;
     setSaving(true); setError("");
     try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      const now = new Date().toISOString();
-      await addDoc(collection(db, "users"), {
-        uid: cred.user.uid, name: form.name, email: form.email,
-        role: form.role, createdAt: now,
+      // Use API route to handle user creation/reactivation via Admin SDK
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
       });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to create/update user.");
 
       // Send welcome email
       try {
@@ -90,21 +100,39 @@ export default function TeamPage() {
             `,
           }),
         });
-      } catch {}
+      } catch (err) {
+        console.warn("Welcome email could not be sent:", err);
+      }
 
-      setShowModal(false); fetchMembers();
+      setShowModal(false); 
+      fetchMembers();
     } catch (err: any) {
       setError(err.message ?? "Failed to create user.");
-    } finally { setSaving(false); }
+    } finally { 
+      setSaving(false); 
+    }
   }
 
   async function deleteMember(uid: string) {
     if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
-    if (!confirm("Remove this team member?")) return;
-    const snap = await getDocs(collection(db, "users"));
-    const docToDelete = snap.docs.find((d) => d.data().uid === uid);
-    if (docToDelete) await deleteDoc(doc(db, "users", docToDelete.id));
-    fetchMembers();
+    if (!confirm("Remove this team member? This will also delete their login access.")) return;
+    
+    try {
+      const res = await fetch("/api/team", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid }),
+      });
+
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(result.error || "Failed to delete user.");
+      }
+
+      fetchMembers();
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   }
 
   return (

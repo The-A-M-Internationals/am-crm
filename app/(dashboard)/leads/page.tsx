@@ -99,6 +99,10 @@ export default function LeadsPage() {
 
       // Chain reactions based on stage
       const leadData = { ...form, id: leadId } as Lead;
+      
+      // Always sync basic profile details to the client record if it exists
+      await PipelineService.syncLeadToClient(leadData);
+
       if (form.stage === "won") await PipelineService.markAsWon(leadData);
       else if (form.stage === "lost") await PipelineService.markAsLost(leadId, form.email, "lead");
       else if (form.stage === "proposal") {
@@ -133,8 +137,8 @@ export default function LeadsPage() {
     }
   }
 
-  const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? SERVICES[2];
-  const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
+  const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? { key: "other", label: key?.toUpperCase() || "OTHER", bg: "#f3f4f6", text: "#374151" };
+  const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? { key: "lead", label: key?.toUpperCase() || "LEAD", color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" };
 
   const activeLeads = leads
     .filter(l => l.active !== false)
@@ -377,8 +381,8 @@ export default function LeadsPage() {
             </div>
 
             {form.stage === "won" && (
-              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0" }}>
-                ✅ This lead will be automatically added to <strong>Clients</strong> when saved!
+              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+                ℹ️ Marking as <strong>Won</strong> tags this as a successful lead. To convert them to an active <strong>Client</strong>, you must generate and accept a Proposal.
               </div>
             )}
 

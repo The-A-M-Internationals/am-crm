@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, order
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
 
 const PRIORITIES = [
@@ -177,7 +178,11 @@ export default function TasksPage() {
 
   async function toggleDone(task: any) {
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
-    await updateDoc(doc(db, "tasks", task.id), { done: newStatus === "completed", status: newStatus });
+    if (newStatus === "completed") {
+      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    } else {
+      await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress" });
+    }
   }
 
   async function deleteTask(id: string) {
@@ -186,13 +191,37 @@ export default function TasksPage() {
   }
 
   async function updateStatus(task: any, status: string) {
-    await updateDoc(doc(db, "tasks", task.id), { status, done: status === "completed" });
+    if (status === "completed") {
+      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    } else {
+      await updateDoc(doc(db, "tasks", task.id), { status, done: false });
+      
+      // Inverse State Synchronization
+      // If a task is set to 'not-started', push that status up to the parent project
+      if (status === "not-started" && task.relatedType === "project" && task.relatedTo) {
+        await updateDoc(doc(db, "projects", task.relatedTo), { 
+          status: "not-started",
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status, done: status === "completed" } : t));
   }
 
   const filtered = tasks
     .filter((t) => filter === "all" ? true : filter === "completed" ? t.status === "completed" : t.status !== "completed")
-    .filter((t) => priorityFilter === "all" || t.priority === priorityFilter);
+    .filter((t) => priorityFilter === "all" || t.priority === priorityFilter)
+    .filter((t) => {
+      // Conditional Task Visibility
+      // Hide tasks immediately if their parent project is 'not-started'
+      if (t.relatedType === "project" && t.relatedTo) {
+        const proj = projects.find(p => p.id === t.relatedTo);
+        if (proj && proj.status === "not-started") {
+          return false;
+        }
+      }
+      return true;
+    });
 
   const pInfo = (key: string) => PRIORITIES.find((p) => p.key === key) ?? PRIORITIES[1];
   const sInfo = (key: string) => TASK_STATUSES.find((s) => s.key === key) ?? TASK_STATUSES[0];
