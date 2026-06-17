@@ -33,7 +33,7 @@ const CURRENCIES = [
 const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
-  description: "", budget: "", currency: "AED",
+  description: "", budget: "", balance: "", due: "", currency: "AED",
 };
 
 function statusInfo(key: string) {
@@ -97,6 +97,8 @@ export default function ProjectsPage() {
       deadline: p.deadline ?? "", 
       description: p.description ?? "", 
       budget: p.budget?.toString() ?? "",
+      balance: p.balance?.toString() ?? "",
+      due: p.due?.toString() ?? "",
       currency: p.currency ?? "AED",
       assignedTo: p.assignedTo || []
     });
@@ -154,6 +156,8 @@ export default function ProjectsPage() {
       const data = { 
         ...form, 
         budget: form.budget ? Number(form.budget) : undefined, 
+        balance: form.balance ? Number(form.balance) : undefined,
+        due: form.due ? Number(form.due) : undefined,
         clientId: editing?.clientId || "" 
       };
       let projectId = editing?.id;
@@ -182,25 +186,29 @@ export default function ProjectsPage() {
   }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
-    await PipelineService.updateProjectStatus(project.id, status);
+    await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
     
+    // Create tasks if moving to in-progress
     if (status === "in-progress") {
       await createTasksForProject(project.id, project);
-    } else if (status === "not-started") {
-      await deleteTasksForProject(project.id);
     }
     
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
   }
 
-  const filtered = statusFilter === "all" ? projects : projects.filter((p) => p.status === statusFilter);
+  const activeProjects = projects.filter(p => p.status !== "completed");
+  const completedProjects = projects.filter(p => p.status === "completed");
+
+  const filteredActive = statusFilter === "all" 
+    ? activeProjects 
+    : statusFilter === "completed" ? [] : activeProjects.filter(p => p.status === statusFilter);
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Projects</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{projects.filter((p) => p.status === "in-progress").length} active projects</p>
+          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{activeProjects.filter((p) => p.status === "in-progress").length} active projects</p>
         </div>
         {canEdit && (
           <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90" style={{ background: "#0D1B3E" }}>
@@ -209,9 +217,9 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Status filter */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {[{ key: "all", label: "All", color: "#6b7280", bg: "#f3f4f6" }, ...STATUSES].map((s) => (
+      {/* Status filter (for active column) */}
+      <div className="flex gap-2 mb-8 flex-wrap">
+        {[{ key: "all", label: "All Active", color: "#6b7280", bg: "#f3f4f6" }, ...STATUSES.filter(s => s.key !== "completed")].map((s) => (
           <button
             key={s.key}
             onClick={() => setStatusFilter(s.key as any)}
@@ -227,76 +235,132 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      {/* Project cards grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl animate-pulse" style={{ background: "#f3f4f6" }} />)}
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No projects found</p>
-          {canEdit && <button onClick={openAdd} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#0D1B3E" }}>+ New Project</button>}
-        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((project) => {
-            const st = statusInfo(project.status);
-            const svc = serviceInfo(project.service);
-            const isOverdue = project.deadline && new Date(project.deadline) < new Date() && project.status !== "completed";
-            return (
-              <div 
-                key={project.id} 
-                className="crm-card hover:shadow-md transition-shadow cursor-pointer" 
-                onClick={() => router.push(`/projects/${project.id}`)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
-                  </div>
-                  {canEdit && (
-                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => openEdit(project)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#1e40af" }}>✎</button>
-                      <button onClick={() => deleteProject(project.id)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#ef4444" }}>✕</button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span>
-                  <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
-                </div>
-
-                {project.description && (
-                  <p className="text-xs mb-3 line-clamp-2" style={{ color: "#9ca3af" }}>{project.description}</p>
-                )}
-
-                <div className="flex items-center justify-between mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
-                  {project.deadline ? (
-                    <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>
-                      {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </span>
-                  ) : <span />}
-                  {project.budget && (
-                    <span className="text-xs font-medium" style={{ color: "#C9A84C" }}>
-                      {project.currency || "AED"} {Number(project.budget).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-
-                {/* Quick status change */}
-                {canEdit && (
-                  <div className="flex gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-                    {STATUSES.filter((s) => s.key !== project.status).map((s) => (
-                      <button key={s.key} onClick={() => updateStatus(project, s.key)} className="text-xs px-1.5 py-0.5 rounded transition-opacity hover:opacity-80" style={{ background: `${s.color}12`, color: s.color, fontSize: "10px" }}>
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          {/* Active Column */}
+          <div className="lg:col-span-2 space-y-6">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+              Active Pipeline ({filteredActive.length})
+            </h2>
+            
+            {filteredActive.length === 0 ? (
+              <div className="text-center py-12 crm-card border-dashed bg-slate-50/50">
+                <p className="text-xs text-slate-400">No active projects found.</p>
               </div>
-            );
-          })}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredActive.map((project) => {
+                  const st = statusInfo(project.status);
+                  const svc = serviceInfo(project.service);
+                  const isOverdue = project.deadline && new Date(project.deadline) < new Date();
+                  return (
+                    <div 
+                      key={project.id} 
+                      className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col" 
+                      onClick={() => router.push(`/projects/${project.id}`)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
+                        </div>
+                        {canEdit && (
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => openEdit(project)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#1e40af" }}>✎</button>
+                            <button onClick={() => deleteProject(project.id)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#ef4444" }}>✕</button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span>
+                        <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                      </div>
+
+                      {project.description && (
+                        <p className="text-xs mb-3 line-clamp-2" style={{ color: "#9ca3af" }}>{project.description}</p>
+                      )}
+
+                      <div className="flex flex-col gap-2 mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
+                        <div className="flex items-center justify-between">
+                          {project.deadline ? (
+                            <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>
+                              {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                            </span>
+                          ) : <span className="text-xs text-slate-400">No deadline</span>}
+                          <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {project.budget?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
+                          <span className="text-slate-500">Balance: <strong className="text-slate-700">{project.currency} {project.balance?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Due: <strong className="text-red-600">{project.currency} {project.due?.toLocaleString() || "0"}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Quick status change */}
+                      {canEdit && (
+                        <div className="flex gap-1 mt-3 pt-2" onClick={(e) => e.stopPropagation()}>
+                          {STATUSES.filter((s) => s.key !== project.status).map((s) => (
+                            <button key={s.key} onClick={() => updateStatus(project, s.key)} className="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all hover:scale-105" style={{ background: `${s.color}12`, color: s.color, border: `1px solid ${s.color}25` }}>
+                              → {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Completed Column */}
+          <div className="space-y-6">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+              Success Archive ({completedProjects.length})
+            </h2>
+
+            <div className="space-y-3">
+              {completedProjects.length === 0 ? (
+                <div className="text-center py-8 rounded-2xl border-2 border-dashed border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No archived projects</p>
+                </div>
+              ) : (
+                completedProjects.map(p => (
+                  <div 
+                    key={p.id} 
+                    className="crm-card bg-slate-50/50 border-slate-100 hover:bg-white hover:border-green-200 transition-all cursor-pointer group"
+                    onClick={() => router.push(`/projects/${p.id}`)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-xs font-bold text-slate-700 group-hover:text-green-700 transition-colors">{p.title}</p>
+                      <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">DONE</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium mb-3">{p.clientName}</p>
+                    <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
+                      <span className="text-slate-400 uppercase">Valued at</span>
+                      <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
+                    </div>
+                    
+                    {/* Revert option */}
+                    {canEdit && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); updateStatus(p, "in-progress"); }}
+                        className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
+                      >
+                        ↩ Revert to Active
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -338,6 +402,16 @@ export default function ProjectsPage() {
                     <label className="form-label">Budget</label>
                     <input className="form-input" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="5000" />
                   </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Balance</label>
+                  <input className="form-input" type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Remaining" />
+                </div>
+                <div>
+                  <label className="form-label">Due</label>
+                  <input className="form-input" type="number" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} placeholder="Amount Due" />
                 </div>
               </div>
               <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>

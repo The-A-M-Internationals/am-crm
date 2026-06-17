@@ -489,114 +489,177 @@ export const PipelineService = {
   },
 
   /**
-   * Project status updates. If marked "completed", all related tasks are completed.
+   * Project status updates.
+   * Handles bi-directional sync: if moving back to in-progress, reactivate tasks.
    */
-  async updateProjectStatus(projectId: string, status: string) {
+  async updateProjectStatus(projectId: string, status: string, userId: string) {
     const batch = writeBatch(db);
+    const now = new Date().toISOString();
+
     batch.update(doc(db, "projects", projectId), { 
       status, 
-      updatedAt: new Date().toISOString() 
+      updatedAt: now 
     });
 
+    // CASCADE: If moving back from completed to in-progress/review, reset tasks
+    if (status === "in-progress" || status === "review" || status === "on-hold") {
+      const tasksQ = query(collection(db, "tasks"), where("relatedTo", "==", projectId), where("status", "==", "completed"));
+      const tasksSnap = await getDocs(tasksQ);
+      tasksSnap.forEach(d => {
+        batch.update(doc(db, "tasks", d.id), { status: "in-progress", done: false, updatedAt: now });
+      });
+    }
+
+    // CASCADE: If manually completing project, complete all tasks
     if (status === "completed") {
       const tasksQ = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
       const tasksSnap = await getDocs(tasksQ);
       tasksSnap.forEach(d => {
-        batch.update(doc(db, "tasks", d.id), { 
-          status: "completed",
-          done: true
-        });
+        batch.update(doc(db, "tasks", d.id), { status: "completed", done: true, updatedAt: now });
       });
+      
+      // Also trigger invoice drafting if manually completed
+      await this.draftInvoiceForProject(projectId, userId, batch);
     }
 
     await batch.commit();
   },
 
   /**
-   * Task completion handoff to Invoice Staging.
-   * Implementation: Data Fusion Logic (Proposal -> Project -> Invoice)
+   * Task completion handoff to Project & Invoice Staging.
+   * Implementation: Absolute Bi-directional Reactivity.
    */
   async handleTaskCompletion(task: any, userId: string) {
     const batch = writeBatch(db);
     const now = new Date().toISOString();
 
-    // 1. Complete Task
+    // 1. Mark task as completed
     batch.update(doc(db, "tasks", task.id), { 
       status: "completed", 
       done: true,
       updatedAt: now
     });
 
-    // 2. Relational Proposal Lookup & Automated Invoice Drafting
+    // 2. Check for Project Completion
     if (task.relatedType === "project" && task.relatedTo) {
-      try {
-        const projRef = doc(db, "projects", task.relatedTo);
-        const projSnap = await getDoc(projRef);
-        
-        if (projSnap.exists()) {
-          const projectData = projSnap.data();
-          
-          // Find the original accepted proposal for this project/client
-          // We query by clientEmail or fromLeadId to find the source financial record
-          let propQ = query(
-            collection(db, "proposals"), 
-            where("status", "in", ["accepted", "won"])
-          );
+      const tasksQ = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+      const tasksSnap = await getDocs(tasksQ);
+      
+      const allOtherTasksCompleted = tasksSnap.docs
+        .filter(d => d.id !== task.id)
+        .every(d => d.data().status === "completed");
 
-          if (projectData.fromLeadId) {
-            propQ = query(propQ, where("fromLeadId", "==", projectData.fromLeadId));
-          } else {
-            propQ = query(propQ, where("clientEmail", "==", projectData.clientEmail || task.clientEmail));
-          }
+      if (allOtherTasksCompleted) {
+        // ALL TASKS DONE -> Auto-Complete Project
+        batch.update(doc(db, "projects", task.relatedTo), { 
+          status: "completed",
+          updatedAt: now
+        });
 
-          const propSnap = await getDocs(propQ);
-
-          if (!propSnap.empty) {
-            const proposal = propSnap.docs[0].data();
-            
-            // Check if a draft invoice already exists for this project to prevent duplicates
-            const existingInvQ = query(
-              collection(db, "invoices"), 
-              where("projectId", "==", task.relatedTo),
-              where("status", "==", "unpaid")
-            );
-            const existingInvSnap = await getDocs(existingInvQ);
-
-            if (existingInvSnap.empty) {
-              const invRef = doc(collection(db, "invoices"));
-              const invoiceNumber = `AM-INV-${Math.floor(Math.random() * 90000) + 10000}`;
-              
-              // 3. Automated Invoice Drafting (Data Fusion)
-              // We pull the exact line items, totals, and currency from the finalized proposal
-              batch.set(invRef, {
-                clientId: projectData.clientId || task.clientId || "",
-                clientName: proposal.clientName || projectData.clientName,
-                clientEmail: proposal.clientEmail || "",
-                clientPhone: proposal.phone || "",
-                projectId: task.relatedTo,
-                projectTitle: projectData.title,
-                proposalId: propSnap.docs[0].id,
-                service: proposal.service || "project-service",
-                items: proposal.items || [], // Fusion of proposal line items
-                subtotal: proposal.subtotal || 0,
-                tax: proposal.tax || 0,
-                total: proposal.total || 0,
-                currency: proposal.currency || "AED",
-                status: "unpaid", // Set as draft/unpaid on dashboard
-                invoiceNumber: invoiceNumber,
-                notes: `Generated automatically upon completion of task: ${task.title}. Financials synced from Proposal #${propSnap.docs[0].id.slice(-6).toUpperCase()}.`,
-                createdBy: userId,
-                createdAt: now,
-                updatedAt: now
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error in Invoice Data Fusion:", err);
+        // 3. Trigger Invoice Data Fusion
+        await this.draftInvoiceForProject(task.relatedTo, userId, batch);
       }
     }
 
     await batch.commit();
+  },
+
+  /**
+   * Internal helper to draft an invoice based on project/proposal financials.
+   */
+  async draftInvoiceForProject(projectId: string, userId: string, batch: any) {
+    try {
+      const projRef = doc(db, "projects", projectId);
+      const projSnap = await getDoc(projRef);
+      if (!projSnap.exists()) return;
+      const projectData = projSnap.data();
+
+      // Ensure we have complete client details
+      let clientEmail = projectData.clientEmail;
+      let clientPhone = projectData.clientPhone;
+      let clientAddress = projectData.clientAddress;
+
+      if (!clientEmail && projectData.clientId) {
+        const clientSnap = await getDoc(doc(db, "clients", projectData.clientId));
+        if (clientSnap.exists()) {
+          const c = clientSnap.data();
+          clientEmail = c.email || "";
+          clientPhone = c.phone || "";
+          clientAddress = c.address || "";
+        }
+      }
+
+      // Trace back to accepted proposal
+      let propQ = null as any;
+      if (projectData.fromLeadId) {
+        propQ = query(collection(db, "proposals"), where("fromLeadId", "==", projectData.fromLeadId), where("status", "in", ["accepted", "won"]));
+      } else if (clientEmail) {
+        propQ = query(collection(db, "proposals"), where("clientEmail", "==", clientEmail), where("status", "in", ["accepted", "won"]));
+      }
+
+      let proposal: any = null;
+      let propId = "";
+      if (propQ) {
+        const pSnap = await getDocs(propQ);
+        if (!pSnap.empty) {
+          proposal = pSnap.docs[0].data();
+          propId = pSnap.docs[0].id;
+        }
+      }
+
+      // Prevent duplicate draft invoices
+      const existingInvQ = query(collection(db, "invoices"), where("projectId", "==", projectId), where("status", "==", "unpaid"));
+      const existingInvSnap = await getDocs(existingInvQ);
+      if (!existingInvSnap.empty) return;
+
+      const invRef = doc(collection(db, "invoices"));
+      const invoiceNumber = `AM-INV-${Math.floor(Math.random() * 90000) + 10000}`;
+      
+      const currency = proposal?.currency || projectData.currency || "AED";
+      
+      // Data Fusion: Use proposal items, OR fallback to Project Budget, OR fallback to empty item.
+      let items = [];
+      if (proposal?.items && proposal.items.length > 0) {
+        items = proposal.items;
+      } else {
+        items = [{
+          description: `Project Execution: ${projectData.title}`,
+          qty: 1,
+          rate: projectData.budget || 0,
+          amount: projectData.budget || 0
+        }];
+      }
+
+      const subtotal = items.reduce((s: number, i: any) => s + (i.amount || 0), 0);
+      const tax = subtotal * 0.05;
+      const total = subtotal + tax;
+
+      batch.set(invRef, {
+        clientId: projectData.clientId || "",
+        clientName: projectData.clientName || proposal?.clientName || "Unknown Client",
+        clientEmail: clientEmail || "",
+        clientPhone: clientPhone || "",
+        clientAddress: clientAddress || "",
+        projectId: projectId || "",
+        projectTitle: projectData.title || "Untitled Project",
+        proposalId: propId || "",
+        service: proposal?.service || projectData.service || "other",
+        items: items || [],
+        subtotal: subtotal || 0,
+        tax: tax || 0,
+        total: total || 0,
+        currency: currency || "AED",
+        status: "unpaid",
+        invoiceNumber: invoiceNumber || "",
+        notes: propId 
+          ? `Auto-generated on project completion. Sync ref: Proposal #${propId.slice(-6).toUpperCase()}` 
+          : `Auto-generated on project completion. Pricing based on project budget.`,
+        createdBy: userId || "system",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Invoice Drafting Error:", err);
+    }
   }
 };

@@ -57,6 +57,15 @@ export interface Client {
   fromLeadId?: string;
 }
 
+export interface PaymentLog {
+  id: string;
+  amount: number;
+  date: string;
+  method: string;
+  notes?: string;
+  loggedBy: string;
+}
+
 export interface Project {
   id: string;
   clientId: string;
@@ -68,8 +77,11 @@ export interface Project {
   assignedTo: string[];
   description?: string;
   budget?: number;
+  balance?: number;
+  due?: number;
   currency?: string;
   tasks?: ProjectTask[];
+  payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
 }

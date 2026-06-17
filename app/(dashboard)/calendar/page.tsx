@@ -375,7 +375,7 @@ export default function CalendarPage() {
           </div>
 
           <button onClick={triggerCron} className="btn-secondary text-xs" style={{ borderColor: "#C9A84C", color: "#C9A84C" }}>⚙️ Test Reminder Engine</button>
-          <button onClick={() => openAdd()} className="btn-primary"><span className="text-base">+</span> Add Event</button>
+          <button onClick={() => openAdd(selectedDateStr || undefined)} className="btn-primary"><span className="text-base">+</span> Add Event</button>
         </div>
       </div>
 
@@ -413,7 +413,10 @@ export default function CalendarPage() {
         <div>
           {selectedDay ? (
             <div className="crm-card">
-              <h3 className="text-sm font-bold mb-4">{selectedDay} {MONTHS_FULL[currentMonth]}</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold">{selectedDay} {MONTHS_FULL[currentMonth]}</h3>
+                <button onClick={() => openAdd(selectedDateStr || undefined)} className="text-xs font-bold text-[#C9A84C] hover:underline">+ Add</button>
+              </div>
               <div className="space-y-2">
                 {selectedEvents.map(ev => {
                   const t = typeInfo(ev.type);
