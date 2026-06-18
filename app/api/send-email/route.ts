@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     // Using Resend for high reliability
     const { data, error } = await resend.emails.send({
-      from: "A&M CRM <onboarding@resend.dev>", // Default for free/test accounts
+      from: "A&M CRM <crm@theaminternational.com>", 
       to: to,
       subject: subject,
       html: html,

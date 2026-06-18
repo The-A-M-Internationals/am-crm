@@ -69,26 +69,22 @@ export async function GET(request: Request) {
 
       const remindersSent = ev.remindersSent || [];
       let alertToSend: string | null = null;
-      let subjectPrefix = "⏰ Reminder";
-      let urgentText = "This is an automated reminder that you have a task due";
-
+      let subjectPrefix = "⏰ Reminder"; // Default
+      // NO urgentText anymore
+      
       // Logic: Send the most urgent reminder that hasn't been sent yet for the CURRENT time window.
       if (diffHours <= 1 && diffHours > 0 && !remindersSent.includes("1h")) {
         alertToSend = "1h";
         subjectPrefix = "🚨 Immediate Reminder";
-        urgentText = "The task is due in under an hour";
       } else if (diffHours <= 2 && diffHours > 1 && !remindersSent.includes("2h")) {
         alertToSend = "2h";
         subjectPrefix = "⚠️ Urgent Reminder";
-        urgentText = "This is your final reminder. The task is due";
       } else if (diffHours <= 4 && diffHours > 2 && !remindersSent.includes("4h")) {
         alertToSend = "4h";
         subjectPrefix = "⚠️ Urgent Reminder";
-        urgentText = "This is your final reminder. Please ensure all content and requirements are ready for the task due";
       } else if (diffHours <= 24 && diffHours > 4 && !remindersSent.includes("24h")) {
         alertToSend = "24h";
         subjectPrefix = "⏰ Reminder";
-        urgentText = "This is an automated reminder that you have a task due";
       }
 
       if (alertToSend) {
@@ -97,22 +93,26 @@ export async function GET(request: Request) {
         const timeRemainingText = alertToSend === "24h" ? "in 24 hours" : `in exactly ${alertToSend.replace("h", " hours")}`;
 
         const html = `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f9fc;padding:20px;border-radius:12px;">
-            <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:24px;border-radius:10px 10px 0 0;text-align:center;">
-              <h1 style="color:#C9A84C;margin:0;font-size:20px;">A&M CRM</h1>
-              <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;">Automated Calendar Alert</p>
-            </div>
-            <div style="background:white;padding:24px;border-radius:0 0 10px 10px;">
-              <p>Hi <strong>${member.name}</strong>,</p>
-              <p style="color:#6b7280;">${urgentText} <strong>${timeRemainingText}</strong>.</p>
-              <div style="background:#f8f9fc;border-left:4px solid ${alertToSend === "24h" ? "#C9A84C" : "#dc2626"};padding:16px;border-radius:0 8px 8px 0;margin:16px 0;">
-                <h3 style="color:#0D1B3E;margin:0 0 6px;">${ev.title}</h3>
-                <p style="color:#6b7280;font-size:13px;margin:0;"><strong>Type:</strong> ${ev.type === "other" && ev.customType ? ev.customType : ev.type}</p>
-                <p style="color:#6b7280;font-size:13px;margin:4px 0 0;"><strong>Deadline:</strong> ${eventDateTime.toLocaleString("en-GB")}</p>
-                ${ev.platform ? `<p style="color:#6b7280;font-size:13px;margin:4px 0 0;"><strong>Platform:</strong> ${ev.platform}</p>` : ""}
-                ${ev.notes ? `<p style="color:#6b7280;font-size:13px;margin:8px 0 0;padding-top:8px;border-top:1px solid #e5e7eb;"><strong>Notes:</strong> ${ev.notes}</p>` : ""}
+          <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+            <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+                <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Automated Calendar Alert</p>
               </div>
-              <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:30px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+              <div style="padding:32px;">
+                <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
+                <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">This is an automated reminder that you have a task due <strong>${timeRemainingText}</strong>.</p>
+
+                <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                  <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${ev.title}</h3>
+                  <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Type:</strong> ${ev.type === "other" && ev.customType ? ev.customType : ev.type}</p>
+                  <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Deadline:</strong> ${eventDateTime.toLocaleString("en-GB")}</p>
+                  ${ev.platform ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Platform:</strong> ${ev.platform}</p>` : ""}
+                  ${ev.notes ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Notes:</strong> ${ev.notes}</p>` : ""}
+                </div>
+                
+                <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+              </div>
             </div>
           </div>
         `;
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 title: String(ev.title),
-                message: `${urgentText} ${timeRemainingText}. Deadline: ${eventDateTime.toLocaleString("en-GB")}`,
+                message: `Reminder: ${timeRemainingText} left for ${ev.title}. Deadline: ${eventDateTime.toLocaleString("en-GB")}`,
                 assignedTo: String(member.name)
               })
             }).catch(e => console.error("[Teams Backup Error]:", e));

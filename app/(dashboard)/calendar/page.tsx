@@ -289,13 +289,45 @@ export default function CalendarPage() {
       if (member?.email) {
         try {
           const typeLabel = EVENT_TYPES.find(t => t.key === form.type)?.label || form.type;
+          const displayType = form.type === "other" ? form.customType : typeLabel;
+          const dueDateTime = `${form.date} ${form.time}`;
+
+          const html = `
+            <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+              <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                  <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
+                </div>
+                <div style="padding:32px;">
+                  <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
+                  <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+
+                  <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                    <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${form.title}</h3>
+                    <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Type:</strong> ${displayType}</p>
+                    <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>
+                    ${form.platform ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Platform:</strong> ${form.platform}</p>` : ""}
+                    ${form.notes ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Notes:</strong> ${form.notes}</p>` : ""}
+                  </div>
+                  
+                  <div style="text-align:center;margin-top:30px;">
+                    <a href="https://crm.theaminternational.com/calendar" style="background:#0D1B3E;color:#C9A84C;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">View in Calendar</a>
+                  </div>
+
+                  <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+                </div>
+              </div>
+            </div>
+          `;
+
           await fetch("/api/send-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               to: [member.email, "am@theaminternational.com"],
               subject: `CRM Task Assigned: ${form.title}`,
-              html: `<b>Task:</b> ${form.title}<br><b>Type:</b> ${form.type === "other" ? form.customType : typeLabel}<br><b>Platform:</b> ${form.platform}<br><b>Due:</b> ${form.date} ${form.time}`
+              html
             })
           });
         } catch (e) { console.error(e); }
@@ -344,15 +376,6 @@ export default function CalendarPage() {
   const selectedDateStr = selectedDay ? `${currentYear}-${String(currentMonth+1).padStart(2,"0")}-${String(selectedDay).padStart(2,"0")}` : null;
   const selectedEvents = selectedDay ? getEventsForDay(selectedDay) : [];
 
-  async function triggerCron() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/cron/reminders");
-      const data = await res.json();
-      alert(`Engine Run Complete! Emails Sent: ${data.emailsSent}`);
-    } catch (err) { alert("Failed to trigger engine."); } finally { setLoading(false); }
-  }
-
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -374,7 +397,6 @@ export default function CalendarPage() {
              </label>
           </div>
 
-          <button onClick={triggerCron} className="btn-secondary text-xs" style={{ borderColor: "#C9A84C", color: "#C9A84C" }}>⚙️ Test Reminder Engine</button>
           <button onClick={() => openAdd(selectedDateStr || undefined)} className="btn-primary"><span className="text-base">+</span> Add Event</button>
         </div>
       </div>
@@ -415,7 +437,6 @@ export default function CalendarPage() {
             <div className="crm-card">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold">{selectedDay} {MONTHS_FULL[currentMonth]}</h3>
-                <button onClick={() => openAdd(selectedDateStr || undefined)} className="text-xs font-bold text-[#C9A84C] hover:underline">+ Add</button>
               </div>
               <div className="space-y-2">
                 {selectedEvents.map(ev => {

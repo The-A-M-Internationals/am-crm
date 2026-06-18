@@ -448,9 +448,6 @@ export default function InvoicePage() {
           <p className="text-sm" style={{ color: "#9ca3af" }}>
             No invoices yet
           </p>
-          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">
-            + New Invoice
-          </button>
         </div>
       ) : (
         <div className="space-y-3">

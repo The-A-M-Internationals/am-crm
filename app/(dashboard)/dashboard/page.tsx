@@ -176,23 +176,6 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening with your team today.
           </p>
           <div className="flex items-center gap-3 mt-4">
-            <button 
-              onClick={triggerReminders}
-              disabled={triggering}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 ${triggering ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0D1B3E] text-white hover:bg-[#1a3070] active:scale-95'}`}
-            >
-              {triggering ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  Triggering...
-                </>
-              ) : (
-                <>
-                  <span>⏰</span>
-                  Trigger Reminders
-                </>
-              )}
-            </button>
             {isAdmin && (
               <>
                 <Link href="/revenue" className="btn-secondary px-4 py-2 text-xs" style={{ borderColor: "#22c55e", color: "#22c55e" }}>

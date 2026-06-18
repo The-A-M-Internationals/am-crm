@@ -120,30 +120,41 @@ export default function TasksPage() {
 
   async function sendReminderEmail(task: any, memberEmail: string, memberName: string) {
     try {
+      const html = `
+        <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+          <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+            <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+              <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+              <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Reminder</p>
+            </div>
+            <div style="padding:32px;">
+              <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${memberName}</strong>,</p>
+              <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">This is a reminder that a task assigned to you is due <strong>tomorrow</strong>.</p>
+
+              <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${task.title}</h3>
+                ${task.description ? `<p style="color:#4b5563;font-size:13px;margin:8px 0;">${task.description}</p>` : ""}
+                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Priority:</strong> ${task.priority}</p>
+                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due Date:</strong> ${new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+              </div>
+              
+              <div style="text-align:center;margin-top:30px;">
+                <a href="https://crm.theaminternational.com/tasks" style="background:#0D1B3E;color:#C9A84C;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">View Task List</a>
+              </div>
+
+              <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+            </div>
+          </div>
+        </div>
+      `;
+
       await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: [memberEmail, "am@theaminternational.com"],
           subject: `⏰ Task Due Tomorrow: ${task.title}`,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f9fc;padding:20px;border-radius:12px;">
-              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:24px;border-radius:10px 10px 0 0;text-align:center;">
-                <h1 style="color:#C9A84C;margin:0;font-size:22px;">A&M CRM</h1>
-                <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:13px;">Task Reminder</p>
-              </div>
-              <div style="background:white;padding:24px;border-radius:0 0 10px 10px;">
-                <p style="color:#1a1a2e;font-size:15px;">Hi <strong>${memberName}</strong>,</p>
-                <p style="color:#6b7280;">This is a reminder that the following task is due <strong style="color:#ef4444;">tomorrow</strong>:</p>
-                <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:16px;border-radius:0 8px 8px 0;margin:16px 0;">
-                  <h3 style="color:#0D1B3E;margin:0 0 8px;">${task.title}</h3>
-                  ${task.description ? `<p style="color:#6b7280;margin:0;font-size:13px;">${task.description}</p>` : ""}
-                  <p style="color:#9ca3af;font-size:12px;margin:8px 0 0;">Priority: <strong style="color:#374151;">${task.priority}</strong> · Due: <strong style="color:#374151;">${new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</strong></p>
-                </div>
-                <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
-              </div>
-            </div>
-          `,
+          html,
         }),
       });
     } catch (err) { console.error("Email error:", err); }
