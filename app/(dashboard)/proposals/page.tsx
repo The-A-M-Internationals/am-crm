@@ -289,8 +289,20 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
           {form.items.map((item: any, i: number) => (
             <div key={i} className="grid items-center px-3 py-1.5 border-t" style={{ gridTemplateColumns: "1fr 60px 100px 100px 30px", gap: 8, borderColor: "#f0f0f5" }}>
               <input className="form-input py-1 text-xs" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Service description" />
-              <input className="form-input py-1 text-center text-xs" type="number" value={item.qty} onChange={e => updateItem(i, "qty", e.target.value)} />
-              <input className="form-input py-1 text-center text-xs" type="number" value={item.rate} onChange={e => updateItem(i, "rate", e.target.value)} />
+              <input
+                className="form-input py-1 text-center text-xs"
+                type="number"
+                value={item.qty === 0 ? "" : item.qty}
+                onChange={(e) => updateItem(i, "qty", e.target.value)}
+                placeholder="0"
+              />
+              <input
+                className="form-input py-1 text-center text-xs"
+                type="number"
+                value={item.rate === 0 ? "" : item.rate}
+                onChange={(e) => updateItem(i, "rate", e.target.value)}
+                placeholder="0"
+              />
               <span className="text-xs font-bold text-right">{form.currency} {item.amount.toLocaleString()}</span>
               {form.items.length > 1 && <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600">✕</button>}
             </div>

@@ -400,18 +400,53 @@ export default function ProjectsPage() {
                   </div>
                   <div className="flex-1">
                     <label className="form-label">Budget</label>
-                    <input className="form-input" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="5000" />
+                    <input
+                      className="form-input"
+                      type="number"
+                      value={form.budget === 0 ? "" : form.budget}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          budget:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                      placeholder="5000"
+                    />
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Balance</label>
-                  <input className="form-input" type="number" value={form.balance} onChange={(e) => setForm({ ...form, balance: e.target.value })} placeholder="Remaining" />
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={form.balance === 0 ? "" : form.balance}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        balance:
+                          e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    placeholder="Remaining"
+                  />
                 </div>
                 <div>
                   <label className="form-label">Due</label>
-                  <input className="form-input" type="number" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} placeholder="Amount Due" />
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={form.due === 0 ? "" : form.due}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        due: e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    placeholder="Amount Due"
+                  />
                 </div>
               </div>
               <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>

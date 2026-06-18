@@ -55,6 +55,7 @@ const EMPTY_FORM = {
   clientAddress: "",
   service: "web-development",
   status: "unpaid",
+  paidAmount: 0,
   dueDate: "",
   notes: "",
   items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
@@ -185,6 +186,7 @@ export default function InvoicePage() {
       clientAddress: inv.clientAddress ?? "",
       service: inv.service,
       status: inv.status,
+      paidAmount: inv.paidAmount ?? 0,
       dueDate: inv.dueDate ?? "",
       notes: inv.notes ?? "",
       items: inv.items,
@@ -223,7 +225,16 @@ export default function InvoicePage() {
     try {
       const now = new Date().toISOString();
       const invoiceNumber = `AM-INV-${++invoiceCounter}`;
-      const data = { ...form, subtotal, tax, total, createdBy: crmUser?.uid };
+      const remainingAmount = total - (Number(form.paidAmount) || 0);
+      const data = {
+        ...form,
+        subtotal,
+        tax,
+        total,
+        paidAmount: Number(form.paidAmount) || 0,
+        remainingAmount: remainingAmount,
+        createdBy: crmUser?.uid,
+      };
       if (editing) {
         await updateDoc(doc(db, "invoices", editing.id), data);
       } else {
@@ -511,6 +522,14 @@ export default function InvoicePage() {
                           minimumFractionDigits: 2,
                         })}
                       </p>
+                      <div className="flex flex-col items-end gap-0.5 mt-1">
+                        <span className="text-[10px] font-bold text-[#22c55e]">
+                          PAID: AED {inv.paidAmount?.toLocaleString() || 0}
+                        </span>
+                        <span className="text-[10px] font-bold text-[#ef4444]">
+                          DUE: AED {((inv.total || 0) - (inv.paidAmount || 0)).toLocaleString()}
+                        </span>
+                      </div>
                     </div>
 
                     <span
@@ -735,6 +754,33 @@ export default function InvoicePage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Paid Amount (AED)</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={form.paidAmount === 0 ? "" : form.paidAmount}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        paidAmount:
+                          e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Remaining Amount (AED)</label>
+                  <input
+                    className="form-input bg-gray-50"
+                    value={(total - (Number(form.paidAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    readOnly
+                  />
+                </div>
+              </div>
+
               {/* Line items */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -788,15 +834,17 @@ export default function InvoicePage() {
                         className="form-input py-1.5 text-center"
                         type="number"
                         min="1"
-                        value={item.qty}
+                        value={item.qty === 0 ? "" : item.qty}
                         onChange={(e) => updateItem(i, "qty", e.target.value)}
+                        placeholder="0"
                       />
                       <input
                         className="form-input py-1.5 text-center"
                         type="number"
                         min="0"
-                        value={item.rate}
+                        value={item.rate === 0 ? "" : item.rate}
                         onChange={(e) => updateItem(i, "rate", e.target.value)}
+                        placeholder="0"
                       />
                       <span
                         className="text-sm font-bold text-right"

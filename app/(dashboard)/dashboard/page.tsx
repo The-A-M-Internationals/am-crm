@@ -11,16 +11,6 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 
-const SERVICE_COLORS: Record<string, string> = {
-  "digital-marketing": "#3b82f6",
-  "ui-ux": "#f59e0b",
-  "web-development": "#22c55e",
-  "seo": "#8b5cf6",
-  "social-media": "#ec4899",
-  "branding": "#f97316",
-  "other": "#6b7280",
-};
-
 const SERVICE_LABELS: Record<string, string> = {
   "digital-marketing": "Digital",
   "ui-ux": "UI/UX",
@@ -66,6 +56,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks]     = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [manualRev, setManualRev] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,8 +74,12 @@ export default function DashboardPage() {
         setTasks(tSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         if (isAdmin) {
-          const iSnap = await getDocs(collection(db, "invoices"));
+          const [iSnap, mSnap] = await Promise.all([
+            getDocs(collection(db, "invoices")),
+            getDocs(collection(db, "manual_revenue")),
+          ]);
           setInvoices(iSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setManualRev(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
@@ -132,9 +127,31 @@ export default function DashboardPage() {
   leads.forEach(l => { svcMap[l.service] = (svcMap[l.service] || 0) + 1; });
   const serviceData = Object.entries(svcMap).map(([name, value]) => ({ name: SERVICE_LABELS[name] || name, value }));
 
-  // Admin revenue
-  const totalRevenue = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
-  const pendingRevenue = invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+  // Admin revenue calculations mirroring Revenue Page
+  const invoiceRevenue = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + paid;
+  }, 0);
+  
+  const completedProjectsValue = projects
+    .filter(p => p.status === "completed")
+    .reduce((s, p) => {
+      const paidForProject = invoices
+        .filter(inv => inv.projectId === p.id)
+        .reduce((sum, inv) => {
+          const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+          return sum + paid;
+        }, 0);
+      return s + Math.max(0, (Number(p.budget) || 0) - paidForProject);
+    }, 0);
+
+  const manualRevenueTotal = manualRev.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const totalRevenue = invoiceRevenue + completedProjectsValue + manualRevenueTotal;
+  const pendingRevenue = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + Math.max(0, (Number(i.total) || 0) - paid);
+  }, 0);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -156,25 +173,37 @@ export default function DashboardPage() {
             {firstName} 👋
           </h1>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-            Here's what's happening with your team today.
+            Here&apos;s what&apos;s happening with your team today.
           </p>
-          <button 
-            onClick={triggerReminders}
-            disabled={triggering}
-            className={`mt-4 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 ${triggering ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0D1B3E] text-white hover:bg-[#1a3070] active:scale-95'}`}
-          >
-            {triggering ? (
+          <div className="flex items-center gap-3 mt-4">
+            <button 
+              onClick={triggerReminders}
+              disabled={triggering}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 ${triggering ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#0D1B3E] text-white hover:bg-[#1a3070] active:scale-95'}`}
+            >
+              {triggering ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  Triggering...
+                </>
+              ) : (
+                <>
+                  <span>⏰</span>
+                  Trigger Reminders
+                </>
+              )}
+            </button>
+            {isAdmin && (
               <>
-                <span className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                Triggering...
-              </>
-            ) : (
-              <>
-                <span>⏰</span>
-                Trigger Reminders
+                <Link href="/revenue" className="btn-secondary px-4 py-2 text-xs" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
+                  <span className="text-sm">+</span> Add Revenue
+                </Link>
+                <Link href="/revenue" className="btn-primary px-4 py-2 text-xs">
+                  <span className="text-sm">+</span> Add Expense
+                </Link>
               </>
             )}
-          </button>
+          </div>
         </div>
         <div className="text-right">
           <p className="text-xs font-medium" style={{ color: "#9ca3af" }}>
@@ -200,9 +229,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #0D1B3E, #1a3070)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#C9A84C" }} />
-            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Total Revenue (Paid)</p>
+            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Realized Revenue</p>
             <p className="text-3xl font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</p>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>from {invoices.filter(i => i.status === "paid").length} paid invoices</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>paid invoices + completed projects + manual</p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #1a1a2e, #2a2a4e)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#f59e0b" }} />

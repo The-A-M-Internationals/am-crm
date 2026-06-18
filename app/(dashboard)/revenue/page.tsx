@@ -15,16 +15,46 @@ const MONTHS     = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 const EXP_CATS   = ["Office","Software","Marketing","Salary","Travel","Equipment","Other"];
 
 const EMPTY_EXP = { description: "", amount: "", category: "", date: "" };
+const EMPTY_REV = { description: "", amount: "", category: "Manual Entry", date: "" };
 
 export default function RevenuePage() {
   const { crmUser } = useAuth();
   const [invoices,    setInvoices]    = useState<any[]>([]);
   const [expenses,    setExpenses]    = useState<any[]>([]);
+  const [manualRev,   setManualRev]   = useState<any[]>([]);
+  const [projects,    setProjects]    = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
+  
   const [showExp,     setShowExp]     = useState(false);
   const [editingExp,  setEditingExp]  = useState<any | null>(null);
   const [expForm,     setExpForm]     = useState({ ...EMPTY_EXP });
+
+  const [showRev,     setShowRev]     = useState(false);
+  const [editingRev,  setEditingRev]  = useState<any | null>(null);
+  const [revForm,     setRevForm]     = useState({ ...EMPTY_REV });
+
   const [saving,      setSaving]      = useState(false);
+
+  async function fetchData() {
+    try {
+      const [invSnap, expSnap, revSnap, projSnap] = await Promise.all([
+        getDocs(collection(db, "invoices")),
+        getDocs(collection(db, "expenses")),
+        getDocs(collection(db, "manual_revenue")),
+        getDocs(collection(db, "projects")),
+      ]);
+      setInvoices(invSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setExpenses(expSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setManualRev(revSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setProjects(projSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("Error fetching revenue data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchData(); }, []);
 
   if (crmUser?.role !== "admin") {
     return (
@@ -39,32 +69,70 @@ export default function RevenuePage() {
     );
   }
 
-  async function fetchData() {
-    try {
-      const [invSnap, expSnap] = await Promise.all([
-        getDocs(collection(db, "invoices")),
-        getDocs(collection(db, "expenses")),
-      ]);
-      setInvoices(invSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setExpenses(expSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } finally { setLoading(false); }
-  }
-
-  useEffect(() => { fetchData(); }, []);
-
   // Calculations
-  const paidInvoices  = invoices.filter(i => i.status === "paid");
-  const totalRevenue  = paidInvoices.reduce((s, i) => s + (Number(i.total) || 0), 0);
-  const totalPending  = invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+  const invoiceRevenue = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + paid;
+  }, 0);
+  
+  // Requirement: Completed projects should add to revenue
+  // We avoid double counting by subtracting what was already paid via invoices
+  const completedProjectsValue = projects
+    .filter(p => p.status === "completed")
+    .reduce((s, p) => {
+      const paidForProject = invoices
+        .filter(inv => inv.projectId === p.id)
+        .reduce((sum, inv) => {
+          const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+          return sum + paid;
+        }, 0);
+      return s + Math.max(0, (Number(p.budget) || 0) - paidForProject);
+    }, 0);
+
+  const manualRevenueTotal = manualRev.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const totalRevenue  = invoiceRevenue + completedProjectsValue + manualRevenueTotal;
+  const totalPending  = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + Math.max(0, (Number(i.total) || 0) - paid);
+  }, 0);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const netProfit     = totalRevenue - totalExpenses;
   const profitMargin  = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
 
+  const paidCount = invoices.filter(i => i.status === "paid").length;
+
   const year = new Date().getFullYear();
   const monthlyData = MONTHS.map((month, idx) => {
-    const rev = paidInvoices
-      .filter(i => { const d = new Date(i.createdAt); return d.getMonth() === idx && d.getFullYear() === year; })
-      .reduce((s, i) => s + (Number(i.total) || 0), 0);
+    const invRev = invoices
+      .filter(i => { 
+        const d = new Date(i.createdAt); 
+        return d.getMonth() === idx && d.getFullYear() === year; 
+      })
+      .reduce((s, i) => {
+        const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+        return s + paid;
+      }, 0);
+    
+    const projRev = projects
+      .filter(p => p.status === "completed")
+      .filter(p => { const d = new Date(p.updatedAt || p.createdAt); return d.getMonth() === idx && d.getFullYear() === year; })
+      .reduce((s, p) => {
+        const paidForProject = invoices
+          .filter(inv => inv.projectId === p.id)
+          .reduce((sum, inv) => {
+            const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+            return sum + paid;
+          }, 0);
+        return s + Math.max(0, (Number(p.budget) || 0) - paidForProject);
+      }, 0);
+
+    const manRev = manualRev
+      .filter(r => { const d = new Date(r.date || r.createdAt); return d.getMonth() === idx && d.getFullYear() === year; })
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+    const rev = invRev + projRev + manRev;
+
     const exp = expenses
       .filter(e => { const d = new Date(e.date || e.createdAt); return d.getMonth() === idx && d.getFullYear() === year; })
       .reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -72,12 +140,42 @@ export default function RevenuePage() {
   });
 
   const clientMap: Record<string, number> = {};
-  paidInvoices.forEach(i => { clientMap[i.clientName] = (clientMap[i.clientName] || 0) + (Number(i.total) || 0); });
+  invoices.forEach(i => { 
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    clientMap[i.clientName] = (clientMap[i.clientName] || 0) + paid; 
+  });
+  // Add completed projects remaining value to client map
+  projects.filter(p => p.status === "completed").forEach(p => {
+    const paidForProject = invoices
+      .filter(inv => inv.projectId === p.id)
+      .reduce((sum, inv) => {
+        const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+        return sum + paid;
+      }, 0);
+    const remaining = Math.max(0, (Number(p.budget) || 0) - paidForProject);
+    clientMap[p.clientName] = (clientMap[p.clientName] || 0) + remaining;
+  });
+  
   const clientData = Object.entries(clientMap).map(([name, value]) => ({ name, value: Math.round(value) })).sort((a, b) => b.value - a.value).slice(0, 8);
 
   const svcLabels: Record<string, string> = { "digital-marketing": "Digital Mktg", "ui-ux": "UI/UX", "web-development": "Web Dev", "seo": "SEO", "social-media": "Social", "branding": "Branding", "other": "Other" };
   const svcMap: Record<string, number> = {};
-  paidInvoices.forEach(i => { const l = svcLabels[i.service] || i.service || "Other"; svcMap[l] = (svcMap[l] || 0) + (Number(i.total) || 0); });
+  invoices.forEach(i => { 
+    const l = svcLabels[i.service] || i.service || "Other"; 
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    svcMap[l] = (svcMap[l] || 0) + paid; 
+  });
+  projects.filter(p => p.status === "completed").forEach(p => {
+    const l = svcLabels[p.service] || p.service || "Other";
+    const paidForProject = invoices
+      .filter(inv => inv.projectId === p.id)
+      .reduce((sum, inv) => {
+        const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+        return sum + paid;
+      }, 0);
+    const remaining = Math.max(0, (Number(p.budget) || 0) - paidForProject);
+    svcMap[l] = (svcMap[l] || 0) + remaining;
+  });
   const serviceData = Object.entries(svcMap).map(([name, value]) => ({ name, value: Math.round(value) }));
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -126,6 +224,42 @@ export default function RevenuePage() {
     fetchData();
   }
 
+  // Revenue modal open
+  function openAddRevenue() {
+    setEditingRev(null);
+    setRevForm({ ...EMPTY_REV });
+    setShowRev(true);
+  }
+
+  function openEditRevenue(r: any) {
+    setEditingRev(r);
+    setRevForm({ description: r.description, amount: String(r.amount), category: r.category ?? "Manual Entry", date: r.date ?? "" });
+    setShowRev(true);
+  }
+
+  async function saveRevenue() {
+    if (!revForm.description || !revForm.amount) return;
+    setSaving(true);
+    try {
+      const payload = { ...revForm, amount: Number(revForm.amount) };
+      if (editingRev) {
+        await updateDoc(doc(db, "manual_revenue", editingRev.id), payload);
+      } else {
+        await addDoc(collection(db, "manual_revenue"), { ...payload, createdAt: new Date().toISOString() });
+      }
+      setShowRev(false);
+      setRevForm({ ...EMPTY_REV });
+      setEditingRev(null);
+      fetchData();
+    } finally { setSaving(false); }
+  }
+
+  async function delRevenue(id: string) {
+    if (!confirm("Delete this revenue entry? This cannot be undone.")) return;
+    await deleteDoc(doc(db, "manual_revenue", id));
+    fetchData();
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -134,15 +268,20 @@ export default function RevenuePage() {
           <h1 className="page-title">Revenue</h1>
           <p className="page-subtitle">Financial overview — Admin only · {year}</p>
         </div>
-        <button onClick={openAddExpense} className="btn-primary">
-          <span className="text-base">+</span> Add Expense
-        </button>
+        <div className="flex gap-3">
+          <button onClick={openAddRevenue} className="btn-secondary" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
+            <span className="text-base">+</span> Add Revenue/Profit
+          </button>
+          <button onClick={openAddExpense} className="btn-primary">
+            <span className="text-base">+</span> Add Expense
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {[
-          { label: "Total Revenue",  value: `AED ${totalRevenue.toLocaleString()}`,  color: "#C9A84C", sub: `${paidInvoices.length} paid invoices` },
+          { label: "Total Revenue",  value: `AED ${totalRevenue.toLocaleString()}`,  color: "#C9A84C", sub: `${paidCount} paid + completed projects` },
           { label: "Pending",        value: `AED ${totalPending.toLocaleString()}`,  color: "#f59e0b", sub: "Awaiting payment" },
           { label: "Total Expenses", value: `AED ${totalExpenses.toLocaleString()}`, color: "#ef4444", sub: `${expenses.length} records` },
           { label: "Net Profit",     value: `AED ${netProfit.toLocaleString()}`,     color: netProfit >= 0 ? "#22c55e" : "#ef4444", sub: "Revenue − Expenses" },
@@ -185,11 +324,10 @@ export default function RevenuePage() {
             {/* By Client */}
             <div className="crm-card">
               <h2 className="text-sm font-bold mb-1" style={{ color: "#0D1B3E" }}>Revenue by Client</h2>
-              <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>From paid invoices only</p>
+              <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>Paid invoices + completed projects</p>
               {clientData.length === 0 ? (
                 <div className="text-center py-10">
-                  <p className="text-sm" style={{ color: "#9ca3af" }}>No paid invoices yet</p>
-                  <p className="text-xs mt-1" style={{ color: "#c4c7d0" }}>Mark invoices as "Paid" in the Invoices tab</p>
+                  <p className="text-sm" style={{ color: "#9ca3af" }}>No revenue recorded yet</p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
@@ -207,10 +345,10 @@ export default function RevenuePage() {
             {/* By Service */}
             <div className="crm-card">
               <h2 className="text-sm font-bold mb-1" style={{ color: "#0D1B3E" }}>Revenue by Service</h2>
-              <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>From paid invoices only</p>
+              <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>Paid invoices + completed projects</p>
               {serviceData.length === 0 ? (
                 <div className="text-center py-10">
-                  <p className="text-sm" style={{ color: "#9ca3af" }}>No paid invoices yet</p>
+                  <p className="text-sm" style={{ color: "#9ca3af" }}>No revenue recorded yet</p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
@@ -226,44 +364,46 @@ export default function RevenuePage() {
             </div>
           </div>
 
-          {/* Client revenue table */}
-          {clientData.length > 0 && (
-            <div className="crm-card mb-6 p-0 overflow-hidden">
-              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "#f0f0f5" }}>
-                <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Revenue per Client</h2>
-                <span className="text-sm font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</span>
+          {/* Revenue entries table */}
+          <div className="crm-card mb-6 p-0 overflow-hidden">
+            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: "#f0f0f5" }}>
+              <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Other Revenue / Manual Profit</h2>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold" style={{ color: "#22c55e" }}>AED {manualRevenueTotal.toLocaleString()}</span>
+                <button onClick={openAddRevenue} className="btn-secondary" style={{ padding: "5px 12px", fontSize: 11, borderColor: "#22c55e", color: "#22c55e" }}>+ Add</button>
               </div>
+            </div>
+            {manualRev.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-sm" style={{ color: "#9ca3af" }}>No manual revenue recorded</p>
+                <button onClick={openAddRevenue} className="btn-secondary mt-3 mx-auto" style={{ fontSize: 12, borderColor: "#22c55e", color: "#22c55e" }}>+ Add Entry</button>
+              </div>
+            ) : (
               <table className="crm-table">
                 <thead>
-                  <tr><th>Client</th><th>Revenue</th><th>% Share</th><th>Invoices</th></tr>
+                  <tr><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                  {clientData.map((c, i) => (
-                    <tr key={c.name}>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                          <span className="font-medium">{c.name}</span>
-                        </div>
-                      </td>
-                      <td className="font-bold" style={{ color: "#C9A84C" }}>AED {c.value.toLocaleString()}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full" style={{ background: "#f0f0f5" }}>
-                            <div className="h-full rounded-full" style={{ width: `${Math.round((c.value / totalRevenue) * 100)}%`, background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                          </div>
-                          <span className="text-xs font-semibold" style={{ color: "#6b7280" }}>{Math.round((c.value / totalRevenue) * 100)}%</span>
-                        </div>
-                      </td>
+                  {manualRev.map(r => (
+                    <tr key={r.id}>
+                      <td className="font-medium">{r.description}</td>
+                      <td><span className="badge" style={{ background: "#f0fdf4", color: "#16a34a" }}>{r.category || "—"}</span></td>
                       <td className="text-xs" style={{ color: "#9ca3af" }}>
-                        {paidInvoices.filter(inv => inv.clientName === c.name).length} paid
+                        {r.date ? new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      </td>
+                      <td className="font-bold" style={{ color: "#22c55e" }}>AED {Number(r.amount).toLocaleString()}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openEditRevenue(r)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style={{ background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>✎ Edit</button>
+                          <button onClick={() => delRevenue(r.id)} className="btn-danger">🗑 Delete</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Expenses table */}
           <div className="crm-card p-0 overflow-hidden">
@@ -334,7 +474,13 @@ export default function RevenuePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Amount (AED) *</label>
-                  <input className="form-input" type="number" value={expForm.amount} onChange={e => setExpForm({ ...expForm, amount: e.target.value })} placeholder="0" />
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={expForm.amount === "0" || expForm.amount === 0 ? "" : expForm.amount}
+                    onChange={e => setExpForm({ ...expForm, amount: e.target.value })}
+                    placeholder="0"
+                  />
                 </div>
                 <div>
                   <label className="form-label">Category</label>
@@ -353,13 +499,54 @@ export default function RevenuePage() {
               <button onClick={() => setShowExp(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>
                 Cancel
               </button>
-              {editingExp && (
-                <button onClick={() => { delExpense(editingExp.id); setShowExp(false); }} className="btn-danger px-4">
-                  🗑 Delete
-                </button>
-              )}
               <button onClick={saveExpense} disabled={saving} className="btn-primary flex-1 justify-center disabled:opacity-50">
                 {saving ? "Saving..." : editingExp ? "Update Expense" : "Add Expense"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Revenue Modal */}
+      {showRev && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 440 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="modal-title mb-0">{editingRev ? "Edit Revenue" : "Add Revenue/Profit"}</h2>
+              <button onClick={() => setShowRev(false)} className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">Description *</label>
+                <input className="form-input" value={revForm.description} onChange={e => setRevForm({ ...revForm, description: e.target.value })} placeholder="Project bonus, Extra consultation, etc." />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Amount (AED) *</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={revForm.amount === "0" || revForm.amount === 0 ? "" : revForm.amount}
+                    onChange={e => setRevForm({ ...revForm, amount: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Category</label>
+                  <input className="form-input" value={revForm.category} onChange={e => setRevForm({ ...revForm, category: e.target.value })} placeholder="Manual Entry" />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Date</label>
+                <input className="form-input" type="date" value={revForm.date} onChange={e => setRevForm({ ...revForm, date: e.target.value })} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowRev(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>
+                Cancel
+              </button>
+              <button onClick={saveRevenue} disabled={saving} className="btn-primary flex-1 justify-center disabled:opacity-50" style={{ background: "#22c55e" }}>
+                {saving ? "Saving..." : editingRev ? "Update Revenue" : "Add Revenue"}
               </button>
             </div>
           </div>

@@ -183,3 +183,25 @@ export interface Task {
   done: boolean;
   createdAt: string;
 }
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  service: ServiceTag;
+  status: "paid" | "unpaid" | "overdue";
+  subtotal: number;
+  tax: number;
+  total: number;
+  paidAmount: number;
+  remainingAmount: number;
+  dueDate?: string;
+  notes?: string;
+  items: { description: string; qty: number; rate: number; amount: number }[];
+  projectId?: string;
+  createdBy: string;
+  createdAt: string;
+}
