@@ -153,13 +153,20 @@ export default function ProjectsPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const data = { 
+      const data: any = { 
         ...form, 
-        budget: form.budget ? Number(form.budget) : undefined, 
-        balance: form.balance ? Number(form.balance) : undefined,
-        due: form.due ? Number(form.due) : undefined,
         clientId: editing?.clientId || "" 
       };
+      
+      if (form.budget) data.budget = Number(form.budget);
+      else delete data.budget;
+
+      if (form.balance) data.balance = Number(form.balance);
+      else delete data.balance;
+
+      if (form.due) data.due = Number(form.due);
+      else delete data.due;
+
       let projectId = editing?.id;
       if (editing) {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
@@ -403,12 +410,11 @@ export default function ProjectsPage() {
                     <input
                       className="form-input"
                       type="number"
-                      value={form.budget === 0 ? "" : form.budget}
+                      value={Number(form.budget) === 0 ? "" : form.budget}
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          budget:
-                            e.target.value === "" ? 0 : Number(e.target.value),
+                          budget: e.target.value
                         })
                       }
                       placeholder="5000"
@@ -422,12 +428,11 @@ export default function ProjectsPage() {
                   <input
                     className="form-input"
                     type="number"
-                    value={form.balance === 0 ? "" : form.balance}
+                    value={Number(form.balance) === 0 ? "" : form.balance}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        balance:
-                          e.target.value === "" ? 0 : Number(e.target.value),
+                        balance: e.target.value
                       })
                     }
                     placeholder="Remaining"
@@ -438,11 +443,11 @@ export default function ProjectsPage() {
                   <input
                     className="form-input"
                     type="number"
-                    value={form.due === 0 ? "" : form.due}
+                    value={Number(form.due) === 0 ? "" : form.due}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        due: e.target.value === "" ? 0 : Number(e.target.value),
+                        due: e.target.value
                       })
                     }
                     placeholder="Amount Due"

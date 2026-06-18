@@ -66,6 +66,7 @@ let invoiceCounter = 1000;
 export default function InvoicePage() {
   const { crmUser } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -82,11 +83,14 @@ export default function InvoicePage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   async function fetchInvoices() {
-    const snap = await getDocs(
-      query(collection(db, "invoices"), orderBy("createdAt", "desc")),
-    );
-    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const [invSnap, cliSnap] = await Promise.all([
+      getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "clients"))
+    ]);
+    
+    const data = invSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     setInvoices(data);
+    setClients(cliSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     invoiceCounter = 1000 + data.length;
     setLoading(false);
   }
@@ -658,6 +662,27 @@ export default function InvoicePage() {
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="form-label">Select Client (Optional - Auto-fills details)</label>
+                <select
+                  className="form-input mb-3"
+                  onChange={(e) => {
+                    const selected = clients.find(c => c.id === e.target.value);
+                    if (selected) {
+                      setForm({
+                        ...form,
+                        clientName: selected.name || "",
+                        clientEmail: selected.email || "",
+                        clientPhone: selected.phone || "",
+                        clientAddress: selected.address || ""
+                      });
+                    }
+                  }}
+                >
+                  <option value="">-- Choose an existing client --</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Client Name *</label>
