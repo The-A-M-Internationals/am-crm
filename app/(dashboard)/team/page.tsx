@@ -10,7 +10,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, secondaryAuth } from "@/lib/firebase";
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -121,7 +121,7 @@ export default function TeamPage() {
     setError("");
     try {
       const cred = await createUserWithEmailAndPassword(
-        auth,
+        secondaryAuth,
         form.email,
         form.password,
       );
@@ -133,7 +133,7 @@ export default function TeamPage() {
         role: form.role,
         createdAt: now,
       });
-
+      await secondaryAuth.signOut();
       // Send welcome email
       try {
         await fetch("/api/send-email", {
@@ -176,12 +176,46 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
-    if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
-    if (!confirm("Remove this team member?")) return;
-    const snap = await getDocs(collection(db, "users"));
-    const docToDelete = snap.docs.find((d) => d.data().uid === uid);
-    if (docToDelete) await deleteDoc(doc(db, "users", docToDelete.id));
-    fetchMembers();
+    if (uid === crmUser?.uid) {
+      return alert("You cannot delete yourself.");
+    }
+
+    if (!confirm("Remove this team member?")) {
+      return;
+    }
+
+    try {
+      // Delete from Firebase Authentication
+      const res = await fetch("/api/delete-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid }),
+      });
+
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete Auth user");
+      }
+
+      // Delete from Firestore
+      const snap = await getDocs(collection(db, "users"));
+
+      const docToDelete = snap.docs.find((d) => d.data().uid === uid);
+
+      if (docToDelete) {
+        await deleteDoc(doc(db, "users", docToDelete.id));
+      }
+
+      fetchMembers();
+
+      alert("Team member deleted successfully");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to delete user");
+    }
   }
   //newlydid edit access
   async function updateMemberRole() {

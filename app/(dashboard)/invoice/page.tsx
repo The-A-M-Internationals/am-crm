@@ -57,6 +57,7 @@ const EMPTY_FORM = {
   status: "unpaid",
   dueDate: "",
   notes: "",
+  currency: "AED",
   items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
 };
 
@@ -183,6 +184,7 @@ export default function InvoicePage() {
       clientAddress: inv.clientAddress ?? "",
       service: inv.service,
       status: inv.status,
+      currency: inv.currency || "AED",
       dueDate: inv.dueDate ?? "",
       notes: inv.notes ?? "",
       items: inv.items,
@@ -237,11 +239,47 @@ export default function InvoicePage() {
       setSaving(false);
     }
   }
-
-  async function deleteInvoice(id: string) {
+  //deletion if invoice with email trigger
+  async function deleteInvoice(inv: any) {
     if (!confirm("Delete this invoice?")) return;
-    await deleteDoc(doc(db, "invoices", id));
-    fetchInvoices();
+
+    try {
+      // Send alert email to admin BEFORE deleting
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: "am@theaminternational.com", // replace with admin email
+          subject: `🚨 Invoice Deleted - ${inv.invoiceNumber}`,
+          html: `
+            <h2>Invoice Deleted</h2>
+
+            <p><strong>Invoice Number:</strong> ${inv.invoiceNumber}</p>
+            <p><strong>Client:</strong> ${inv.clientName}</p>
+            <p><strong>Client Email:</strong> ${inv.clientEmail || "N/A"}</p>
+            <p><strong>Total Amount:</strong> ${inv.currency || "AED"} ${inv.total}</p>
+            <p><strong>Status:</strong> ${inv.status}</p>
+
+            <hr />
+
+            <p><strong>Deleted By:</strong> ${crmUser?.email || "Unknown User"}</p>
+            <p><strong>Deleted At:</strong> ${new Date().toLocaleString()}</p>
+          `,
+        }),
+      });
+
+      // Delete invoice
+      await deleteDoc(doc(db, "invoices", inv.id));
+
+      fetchInvoices();
+
+      alert("Invoice deleted and admin notified.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to delete invoice.");
+    }
   }
 
   async function updateStatus(inv: any, status: string) {
@@ -605,7 +643,7 @@ export default function InvoicePage() {
                         <button
                           className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50"
                           onClick={() => {
-                            deleteInvoice(inv.id);
+                            deleteInvoice(inv);
                             setOpenMenu(null);
                           }}
                         >
@@ -687,7 +725,7 @@ export default function InvoicePage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 <div>
                   <label className="form-label">Service</label>
                   <select
@@ -718,6 +756,25 @@ export default function InvoicePage() {
                         {s.label}
                       </option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Currency</label>
+                  <select
+                    className="form-input"
+                    value={form.currency}
+                    onChange={(e) =>
+                      setForm({ ...form, currency: e.target.value })
+                    }
+                  >
+                    <option value="AED">AED</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="INR">INR</option>
+                    <option value="SAR">SAR</option>
+                    <option value="QAR">QAR</option>
+                    <option value="KWD">KWD</option>
                   </select>
                 </div>
                 <div>

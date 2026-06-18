@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(apiKey);
 
     const { data, error } = await resend.emails.send({
-      from: "A&M CRM <crm@theaminternationals.com>",
+      from: "A&M CRM <crm@theaminternational.com>",
       to,
       subject,
       html,
