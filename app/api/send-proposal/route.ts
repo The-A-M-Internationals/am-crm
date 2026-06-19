@@ -21,7 +21,8 @@ export async function POST(req: Request) {
 
     const productionDomain = "crm.theaminternationals.com";
     const host = req.headers.get("host") || productionDomain;
-    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const protoHeader = req.headers.get("x-forwarded-proto");
+    const protocol = protoHeader || (host.includes("localhost") || host.includes("127.0.0.1") || host.includes("::1") || host.includes(":") ? "http" : "https");
     
     let origin = `${protocol}://${host}`;
     if (process.env.NEXT_PUBLIC_APP_URL) {
