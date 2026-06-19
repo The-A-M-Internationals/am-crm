@@ -26,9 +26,6 @@ export async function POST(req: Request) {
     let origin = `${protocol}://${host}`;
     if (process.env.NEXT_PUBLIC_APP_URL) {
       origin = process.env.NEXT_PUBLIC_APP_URL;
-    } else if (host.includes("localhost") || host.includes("127.0.0.1")) {
-      // If running locally, default email links to production so they are always reachable
-      origin = `https://${productionDomain}`;
     }
 
     const adminDb = getAdminDb();
