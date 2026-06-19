@@ -149,7 +149,7 @@ export default function LoginPage() {
           {/* Bottom */}
           <div>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-              © 2026 The A&M Internationals FZC · theaminternational.com
+              © 2026 The A&M Internationals FZC · theaminternationals.com
             </p>
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function LoginPage() {
               <input
                 type="email" value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@theaminternational.com"
+                placeholder="you@theaminternationals.com"
                 required
                 className="w-full px-4 py-4 rounded-xl text-sm text-white outline-none transition-all duration-200"
                 style={{ background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.1)" }}
@@ -245,7 +245,7 @@ export default function LoginPage() {
               The A&M Internationals FZC — Internal Use Only
             </p>
             <p className="text-xs text-center mt-1" style={{ color: "rgba(201,168,76,0.35)" }}>
-              Ajman Free Zone, UAE · theaminternational.com
+              Ajman Free Zone, UAE · theaminternationals.com
             </p>
           </div>
         </div>

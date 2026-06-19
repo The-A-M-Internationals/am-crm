@@ -334,8 +334,8 @@ export default function InvoicePage() {
                     <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">AED ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
                   </table>
                 </div>
-                <p style="color:#6b7280;font-size:13px;">For any queries, contact us at <a href="mailto:am@theaminternational.com" style="color:#C9A84C;">am@theaminternational.com</a> or WhatsApp <a href="https://wa.me/919025562311" style="color:#C9A84C;">+91 90255 62311</a></p>
-                <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · theaminternational.com</p>
+                <p style="color:#6b7280;font-size:13px;">For any queries, contact us at <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a> or WhatsApp <a href="https://wa.me/919025562311" style="color:#C9A84C;">+91 90255 62311</a></p>
+                <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · theaminternationals.com</p>
               </div>
             </div>
           `,
@@ -369,7 +369,7 @@ export default function InvoicePage() {
       return;
     }
     const msg = encodeURIComponent(
-      `Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: AED ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternational.com\n\nThank you!\nThe A&M Internationals FZC`,
+      `Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: AED ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternationals.com\n\nThank you!\nThe A&M Internationals FZC`,
     );
     window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
   }
@@ -1039,10 +1039,10 @@ export default function InvoicePage() {
                     Ajman Free Zone, UAE
                   </p>
                   <p style={{ margin: 0, fontSize: 11, color: "#9ca3af" }}>
-                    am@theaminternational.com · +91 90255 62311
+                    am@theaminternationals.com · +91 90255 62311
                   </p>
                   <p style={{ margin: 0, fontSize: 11, color: "#C9A84C" }}>
-                    theaminternational.com
+                    theaminternationals.com
                   </p>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -1403,7 +1403,7 @@ export default function InvoicePage() {
                   style={{ margin: "4px 0 0", fontSize: 11, color: "#C9A84C" }}
                 >
                   The A&M Internationals FZC · Ajman Free Zone, UAE ·
-                  theaminternational.com
+                  theaminternationals.com
                 </p>
               </div>
             </div>
