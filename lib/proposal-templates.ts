@@ -974,6 +974,30 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
       { term: "Payment Terms", description: "50% advance, 50% on project completion." },
       { term: "Validity", description: "This quotation is valid for 15 days from the date of issue." },
       { term: "Governing Law", description: "This engagement is governed by the laws of the United Arab Emirates." }
-    ]
+    ],
+    companyHeaderTitle: "THE A&M INTERNATIONALS",
+    companyHeaderSubtitle: "Consulting & Professional Services",
+    documentTypeLabel: "QUOTATION",
+    subject: "Professional Services Proposal",
+    preparedByLabel: "The A&M Internationals (FZC)",
+    validityLabel: "30 days from date of issue",
+    engagementModelLabel: "Project-Based Engagement",
+    tagline: "“ Elevating the World, Elegantly ”",
+    currency: "AED",
+    aboutTitle: "1. About The A&M Internationals",
+    understandingTitle: `2. Our Understanding of ${clientCompany}`,
+    objectivesTitle: "3. Objective of This Engagement",
+    packagesTitle: "5. Packages & Service Options",
+    packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+    addonsTitle: "6. Optional Add-Ons",
+    addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+    timelineTitle: "7. Execution Timeline",
+    exclusionsTitle: "8. What This Quotation Does Not Include",
+    termsTitle: "10. Commercial Terms & Conditions",
+    acceptanceTitle: "11. Acceptance & Sign-off",
+    acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+    providerSignatory: "The A&M Internationals",
+    clientSignatory: clientCompany,
+    footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
   };
 };
