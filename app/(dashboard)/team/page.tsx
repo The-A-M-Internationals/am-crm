@@ -88,12 +88,12 @@ export default function TeamPage() {
                   <h2 style="color:#0D1B3E;margin:0 0 8px;">Welcome, ${form.name}! 👋</h2>
                   <p style="color:#6b7280;">You've been added to the A&M CRM. Here are your login details:</p>
                   <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:20px;border-radius:0 10px 10px 0;margin:20px 0;">
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🌐 CRM URL:</strong> <a href="https://crm.theaminternationals.com" style="color:#C9A84C;">crm.theaminternationals.com</a></p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🌐 CRM URL:</strong> <a href="https://crm.theaminternational.com" style="color:#C9A84C;">crm.theaminternational.com</a></p>
                     <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>📧 Email:</strong> ${form.email}</p>
                     <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🔑 Password:</strong> ${form.password}</p>
                     <p style="margin:0;font-size:13px;color:#374151;"><strong>👤 Role:</strong> ${form.role.charAt(0).toUpperCase() + form.role.slice(1)}</p>
                   </div>
-                  <p style="color:#9ca3af;font-size:12px;">Please change your password after first login. For support contact <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a></p>
+                  <p style="color:#9ca3af;font-size:12px;">Please change your password after first login. For support contact <a href="mailto:am@theaminternational.com" style="color:#C9A84C;">am@theaminternational.com</a></p>
                   <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · Elevating the World, Elegantly</p>
                 </div>
               </div>
@@ -227,7 +227,7 @@ export default function TeamPage() {
             </div>
             <div className="space-y-4">
               <div><label className="form-label">Full Name *</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Jane Doe" /></div>
-              <div><label className="form-label">Email Address *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="jane@theaminternationals.com" /></div>
+              <div><label className="form-label">Email Address *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="jane@theaminternational.com" /></div>
               <div><label className="form-label">Temporary Password *</label><input className="form-input" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min. 6 characters" /></div>
               <div>
                 <label className="form-label">Role</label>

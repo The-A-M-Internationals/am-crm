@@ -19,9 +19,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing proposalId or clientEmail" }, { status: 400 });
     }
 
-    const host = req.headers.get("host") || "crm.theaminternationals.com";
+    const productionDomain = "crm.theaminternational.com";
+    const host = req.headers.get("host") || productionDomain;
     const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-    const origin = `${protocol}://${host}`;
+    
+    let origin = `${protocol}://${host}`;
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      origin = process.env.NEXT_PUBLIC_APP_URL;
+    } else if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      // If running locally, default email links to production so they are always reachable
+      origin = `https://${productionDomain}`;
+    }
 
     const adminDb = getAdminDb();
     const docSnap = await adminDb.collection("proposals").doc(proposalId).get();
