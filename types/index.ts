@@ -1,3 +1,5 @@
+import { ProposalDocument } from "./proposal-doc";
+
 export type UserRole = "admin" | "manager" | "sales" | "designer" | "executive";
 
 export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development" | "seo" | "social-media" | "branding" | "other";
@@ -107,13 +109,14 @@ export interface ProposalPackage {
   adCreatives: string;
   optimisation: string;
   abTesting: string;
-  recommendedSpend: number;
-  managementFee: number;
+  recommendedSpend: number | string;
+  managementFee: number | string;
   reviewCall: string;
   reporting: string;
   estimatedLeads: string;
   estimatedCostPerLead: string;
   recommended?: boolean;
+  totalMonthly?: number | string;
 }
 
 export interface ProposalTimelinePhase {
@@ -127,6 +130,13 @@ export interface ProposalTerm {
   description: string;
 }
 
+export interface ProposalCustomSection {
+  id: string;
+  title: string;
+  content: string;
+  points?: string[];
+}
+
 export interface Proposal {
   id: string;
   leadId?: string;
@@ -138,6 +148,9 @@ export interface Proposal {
   phone?: string;
   service: ServiceTag;
   
+  // New Editable Document Structure (Optional, for gradual migration)
+  documentContent?: ProposalDocument;
+  
   // Rich Document Fields
   isRichDocument?: boolean;
   introduction?: string;
@@ -147,10 +160,59 @@ export interface Proposal {
   approachDescription?: string;
   approachFeatures?: string[];
   packages?: ProposalPackage[];
-  addons?: { name: string; deliverables: string; cost: number; period: string }[];
+  addons?: { name: string; deliverables: string; cost: number | string; period: string }[];
   timeline?: ProposalTimelinePhase[];
   exclusions?: string[];
   terms?: ProposalTerm[];
+  customSections?: ProposalCustomSection[];
+  
+  // Editor-specific Fields
+  aboutTitle?: string;
+  understandingTitle?: string;
+  objectivesTitle?: string;
+  packagesTitle?: string;
+  packagesDescription?: string;
+  addonsTitle?: string;
+  addonsDescription?: string;
+  timelineTitle?: string;
+  exclusionsTitle?: string;
+  termsTitle?: string;
+  acceptanceTitle?: string;
+  acceptanceText?: string;
+  providerSignatory?: string;
+  clientSignatory?: string;
+  footerClosingText?: string;
+  companyHeaderTitle?: string;
+  companyHeaderSubtitle?: string;
+  documentTypeLabel?: string;
+  subject?: string;
+  preparedByLabel?: string;
+  validityLabel?: string;
+  engagementModelLabel?: string;
+  tagline?: string;
+
+  // Custom table row labels
+  packageRowLabels?: {
+    bestFor?: string;
+    activeCampaigns?: string;
+    adCreatives?: string;
+    optimisation?: string;
+    abTesting?: string;
+    recommendedSpend?: string;
+    managementFee?: string;
+    reviewCall?: string;
+    reporting?: string;
+    estimatedLeads?: string;
+    estimatedCostPerLead?: string;
+    totalMonthly?: string;
+  };
+
+  disabledPackageRows?: string[];
+
+  // Commercial Summary Fields
+  commercialSummaryTitle?: string;
+  commercialSummaryDescription?: string;
+  commercialSummaryRows?: { item: string; amount: string }[];
   
   // Standard/Legacy Fields
   items: ProposalItem[];
@@ -163,6 +225,9 @@ export interface Proposal {
   validUntil?: string;
   createdBy: string;
   sentAt?: string;
+  clientSignatureName?: string;
+  clientSignatureTitle?: string;
+  signedAt?: string;
   createdAt: string;
 }
 

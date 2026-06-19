@@ -59,17 +59,16 @@ function ProposalsContent() {
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Only listen for click outside if we are adding a new proposal
     function handleClickOutside(event: MouseEvent) {
       if (activeRef.current && !activeRef.current.contains(event.target as Node)) {
         cancelEdit();
       }
     }
-    if (isAddingNew) {
+    if (isAddingNew || editingId) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isAddingNew]);
+  }, [isAddingNew, editingId]);
 
   useEffect(() => {
     const q = query(collection(db, "proposals"), orderBy("createdAt", "desc"));
@@ -120,9 +119,37 @@ function ProposalsContent() {
   const total    = subtotal + tax;
 
   function startAdding() {
+    setEditingId(null);
     setIsAddingNew(true);
     const template = getMasterTemplate("web-development", "");
     setForm({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }], ...template });
+  }
+
+  function startEditing(p: Proposal) {
+    setIsAddingNew(false);
+    setEditingId(p.id);
+    setForm({
+      clientName: p.clientName || "",
+      clientEmail: p.clientEmail || "",
+      service: p.service || "web-development",
+      status: p.status || "draft",
+      notes: p.notes || "",
+      validUntil: p.validUntil || "",
+      items: p.items || [{ ...EMPTY_ITEM }],
+      currency: p.currency || "AED",
+      isRichDocument: p.isRichDocument ?? false,
+      introduction: p.introduction || "",
+      understanding: p.understanding || [],
+      objectives: p.objectives || [],
+      approachTitle: p.approachTitle || "",
+      approachDescription: p.approachDescription || "",
+      approachFeatures: p.approachFeatures || [],
+      packages: p.packages || [],
+      addons: p.addons || [],
+      timeline: p.timeline || [],
+      exclusions: p.exclusions || [],
+      terms: p.terms || [],
+    });
   }
 
   function viewProposal(id: string) {
@@ -131,6 +158,8 @@ function ProposalsContent() {
 
   function cancelEdit() {
     setIsAddingNew(false);
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
   }
 
   async function handleSave() {
@@ -138,20 +167,38 @@ function ProposalsContent() {
     setSaving(true);
     try {
       const now  = new Date().toISOString();
-      const data = { ...form, subtotal, tax, total, createdBy: crmUser?.uid ?? "" };
+      const data = { ...form, subtotal, tax, total, updatedAt: now };
       
-      const docRef = await addDoc(collection(db, "proposals"), { ...data, createdAt: now });
-      const propId = docRef.id;
-      
-      if (form.status === "accepted") {
-        await PipelineService.handleProposalStatusChange({ id: propId, ...data }, "accepted");
+      if (editingId) {
+        // Update existing proposal
+        const docRef = doc(db, "proposals", editingId);
+        const { id: _, ...saveData } = data;
+        await updateDoc(docRef, saveData);
+        
+        if (form.status === "accepted") {
+          await PipelineService.handleProposalStatusChange({ id: editingId, ...data }, "accepted");
+        }
+        
+        setEditingId(null);
+      } else {
+        // Create new proposal
+        const dataWithCreator = { ...data, createdBy: crmUser?.uid ?? "" };
+        const docRef = await addDoc(collection(db, "proposals"), { ...dataWithCreator, createdAt: now });
+        const propId = docRef.id;
+        
+        if (form.status === "accepted") {
+          await PipelineService.handleProposalStatusChange({ id: propId, ...dataWithCreator }, "accepted");
+        }
+        
+        setIsAddingNew(false);
+        router.push(`/proposals/${propId}`);
       }
-
-      setIsAddingNew(false);
-      
-      // Instantly transport them to the high-fidelity document view!
-      router.push(`/proposals/${propId}`);
-    } finally { setSaving(false); }
+    } catch (err) {
+      console.error("Error saving proposal:", err);
+      alert("Failed to save proposal. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteProposal(p: Proposal) {
@@ -190,11 +237,11 @@ function ProposalsContent() {
         </button>
       </div>
 
-      {/* Inline Editor for New Proposal */}
-      {isAddingNew && (
-        <div ref={activeRef} className="crm-card mb-6 border-2" style={{ borderColor: "#C9A84C" }}>
-          <h2 className="text-lg font-bold mb-4" style={{ color: "#0D1B3E" }}>New Proposal</h2>
-          <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} />
+      {/* Inline Editor for New/Edit Proposal */}
+      {(isAddingNew || editingId) && (
+        <div ref={activeRef} className="crm-card mb-6 border-2 font-sans" style={{ borderColor: "#C9A84C" }}>
+          <h2 className="text-lg font-bold mb-4" style={{ color: "#0D1B3E" }}>{editingId ? "Edit Proposal Details" : "New Proposal"}</h2>
+          <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} isEditing={!!editingId} />
         </div>
       )}
 
@@ -238,11 +285,21 @@ function ProposalsContent() {
                     
                     <div className="flex gap-1">
                       {STATUSES.filter(s => s.key !== p.status).map(s => (
-                        <button key={s.key} onClick={() => updateStatus(p, s.key)} className="text-[10px] px-2 py-1 rounded-md font-bold transition-all hover:opacity-80" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                        <button key={s.key} onClick={() => updateStatus(p, s.key)} className="text-[10px] px-2 py-1 rounded-md font-bold transition-all hover:opacity-80 font-sans" style={{ background: s.bg, color: s.color, border: `1px solid ${st.border}` }}>
                           {s.label}
                         </button>
                       ))}
                     </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(p);
+                      }} 
+                      className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                      title="Edit metadata"
+                    >
+                      ✏️
+                    </button>
                     <button onClick={() => deleteProposal(p)} className="p-2 text-red-400 hover:text-red-600 transition-colors">🗑</button>
                   </div>
                 </div>
@@ -255,7 +312,7 @@ function ProposalsContent() {
   );
 }
 
-function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem, removeItem, handleSave, cancelEdit, saving }: any) {
+function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem, removeItem, handleSave, cancelEdit, saving, isEditing }: any) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -315,7 +372,7 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
         </div>
       </div>
       <div className="flex gap-3 pt-2">
-        <button onClick={handleSave} disabled={saving || !form.clientName} className="btn-primary flex-1 justify-center disabled:opacity-50">{saving ? "Saving..." : "Save Proposal"}</button>
+        <button onClick={handleSave} disabled={saving || !form.clientName} className="btn-primary flex-1 justify-center disabled:opacity-50">{saving ? "Saving..." : (isEditing ? "Update Proposal" : "Save Proposal")}</button>
         <button onClick={cancelEdit} className="px-6 py-2 rounded-xl border text-sm font-semibold" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
       </div>
     </div>

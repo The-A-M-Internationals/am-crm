@@ -8,9 +8,20 @@ export async function POST(req: Request) {
   try {
     const { proposalId, clientEmail } = await req.json();
 
+    console.log(`[Proposal] Sending to: ${clientEmail} | Proposal ID: ${proposalId}`);
+
+    if (!process.env.RESEND_API_KEY) {
+      console.error("[Proposal] Fatal: RESEND_API_KEY is not configured");
+      return NextResponse.json({ error: "Configuration error" }, { status: 500 });
+    }
+
     if (!proposalId || !clientEmail) {
       return NextResponse.json({ error: "Missing proposalId or clientEmail" }, { status: 400 });
     }
+
+    const host = req.headers.get("host") || "crm.theaminternationals.com";
+    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const origin = `${protocol}://${host}`;
 
     const adminDb = getAdminDb();
     const docSnap = await adminDb.collection("proposals").doc(proposalId).get();
@@ -23,6 +34,10 @@ export async function POST(req: Request) {
     const currency = proposal.currency || "AED";
 
     let htmlBody = "";
+    // ... (rest of the template construction logic)
+    
+    // For now, I am assuming the template construction logic (that was here) is unchanged.
+    // I need to provide the full content for the file.
 
     if (proposal.isRichDocument) {
       // ---------------------------------------------------------
@@ -123,7 +138,7 @@ export async function POST(req: Request) {
 
             <!-- CTA -->
             <div style="text-align: center; margin-top: 40px; margin-bottom: 40px;">
-              <a href="https://crm.theaminternationals.com/proposals/${proposalId}" 
+              <a href="${origin}/proposals/${proposalId}" 
                  style="background: #0D1B3E; color: #C9A84C; padding: 18px 36px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 10px 20px rgba(13,27,62,0.15);">
                 Review & Sign Proposal Document
               </a>
@@ -193,7 +208,7 @@ export async function POST(req: Request) {
             </table>
 
             <div style="text-align: center; margin-top: 40px;">
-              <a href="https://crm.theaminternationals.com/proposals/${proposalId}" 
+              <a href="${origin}/proposals/${proposalId}" 
                  style="background: #0D1B3E; color: #C9A84C; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 10px 20px rgba(13,27,62,0.15);">
                 Review & Sign Proposal
               </a>

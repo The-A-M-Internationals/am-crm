@@ -4,126 +4,387 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
   const isRichDocument = true;
 
   // ---------------------------------------------------------
-  // DIGITAL MARKETING, SOCIAL MEDIA, SEO TEMPLATE
+  // DIGITAL MARKETING TEMPLATE
   // ---------------------------------------------------------
-  if (service === "digital-marketing" || service === "social-media" || service === "seo") {
+  if (service === "digital-marketing") {
     return {
       isRichDocument,
-      introduction: `The A&M Internationals is a UAE-based digital agency (Ajman Free Zone, Licence No. 51609) with a hybrid delivery team across India, the USA, and the UAE. Through our digital marketing division The.am.forge, we help education, healthcare and lifestyle brands convert their physical reputation into predictable, measurable digital growth. This proposal is built specifically for ${clientCompany} with the single, focused objective of generating qualified enquiries through Meta-platform advertising (Facebook & Instagram).`,
+      introduction: `The A&M Internationals is a UAE-based digital agency (Ajman Free Zone, Licence No. 51609) with a hybrid delivery team across India, the USA, and the UAE. Through our digital marketing division The.am.forge, we help education, healthcare, lifestyle and corporate brands convert their market reputation into predictable, measurable digital growth. This proposal is built specifically for ${clientCompany} with the objective of generating qualified enquiries and brand awareness through a comprehensive multi-channel digital advertising campaign.`,
       understanding: [
-        `${clientCompany} offers services/products targeting a specific audience demographic.`,
-        `The immediate priority is to increase awareness, drive engagement, and generate qualified leads.`,
-        `The challenge is awareness and reach. The target audience in the catchment area need to discover the brand, see the value proposition, and feel confident enough to take action.`,
-        `Meta Ads (Facebook + Instagram) is the most cost-effective channel for this — it precisely targets the right demographic within a defined geographic radius and delivers measurable cost-per-lead.`
+        `${clientCompany} aims to capture high-intent digital demand and build local awareness.`,
+        `The immediate priority is to increase qualified enquiries, engagement, and conversion rates.`,
+        `A multi-channel marketing campaign (combining paid search and target-rich social ads) is ideal for delivering measurable cost-per-lead and building sustainable brand equity.`
       ],
       objectives: [
-        `Generate qualified enquiries (leads with phone number) through Meta Ads.`,
-        `Build local brand awareness for ${clientCompany} in the target catchment area.`,
-        `Deliver a measurable, transparent cost-per-lead so the management knows exactly what each enquiry costs.`,
+        `Generate qualified enquiries (leads with contact details) across chosen digital advertising channels.`,
+        `Build local brand awareness and engagement for ${clientCompany} in the target catchment area.`,
+        `Optimize campaigns daily to maintain a low and competitive cost-per-lead (CPL).`,
         `Provide a clear monthly performance report so the management can see ROI at a glance.`
       ],
-      approachTitle: "Our Approach — Meta Ads Lead Generation",
-      approachDescription: "This engagement is focused exclusively on Meta-platform advertising (Facebook + Instagram). Meta is the best-performing channel because it allows precise targeting and delivers real-time leads at a measurable cost.",
+      approachTitle: "Our Approach — Multi-Channel Lead Generation",
+      approachDescription: "This engagement focuses on implementing high-converting digital advertising campaigns. We leverage channels with active search intent alongside visual social channels to ensure your brand captures current market demand and creates new awareness.",
       approachFeatures: [
-        "Meta Business Manager & Ads Manager setup (under the client's ownership).",
-        "Audience research and targeting setup (by demographics, interests, pin-code / radius).",
-        "Ad creative design — static creatives (image ads with brand styling, core offers, CTA).",
-        "Lead Form (Meta Instant Form) setup with required fields (Name, Phone, Email, Locality).",
-        "Daily campaign monitoring, audience optimisation, A/B testing of creatives and headlines.",
-        "Budget pacing — ad spend tracked daily so monthly budget is fully utilised and not over-spent.",
-        "WhatsApp delivery of leads as they come in (real-time forwarding to the sales/admission team).",
-        "Monthly performance report — impressions, reach, clicks, leads, cost per lead, top-performing creative."
+        "Ad account configuration and tracking pixel/tag implementation.",
+        "Audience research and target segmentation by demographics, interests, and geolocation.",
+        "Copywriting and creative design for ad creatives (images, copy variations, CTA buttons).",
+        "Landing page or lead form setup optimized for conversions.",
+        "A/B testing of creatives, headlines, and audience segments.",
+        "Monthly performance reports outlining impressions, clicks, leads, and conversion costs."
       ],
       packages: [
         {
           name: "STARTER",
           bestFor: "First-time advertisers",
-          activeCampaigns: "1",
-          adCreatives: "2",
-          optimisation: "Weekly",
-          abTesting: "—",
+          activeCampaigns: "1 Channel / 1 Campaign",
+          adCreatives: "2 Creatives",
+          optimisation: "Weekly Optimization",
+          abTesting: "Basic",
           recommendedSpend: 8000,
           managementFee: 6999,
-          reviewCall: "—",
+          reviewCall: "Email updates",
           reporting: "Monthly",
           estimatedLeads: "15 - 25",
-          estimatedCostPerLead: "₹320 - ₹550",
+          estimatedCostPerLead: "Based on campaign data",
           recommended: false
         },
         {
           name: "GROWTH",
           bestFor: "Established brands",
-          activeCampaigns: "2",
-          adCreatives: "3",
-          optimisation: "Twice weekly",
+          activeCampaigns: "2 Channels / 2 Campaigns",
+          adCreatives: "4 Creatives",
+          optimisation: "Twice Weekly Optimization",
           abTesting: "Yes",
           recommendedSpend: 15000,
           managementFee: 9999,
-          reviewCall: "1 per month",
+          reviewCall: "1 Call / Month",
           reporting: "Monthly",
           estimatedLeads: "30 - 50",
-          estimatedCostPerLead: "₹300 - ₹500",
+          estimatedCostPerLead: "Optimized for lowest CPL",
           recommended: true
         },
         {
           name: "SCALE",
           bestFor: "Aggressive growth drive",
-          activeCampaigns: "2 + retargeting",
-          adCreatives: "5",
-          optimisation: "Daily",
-          abTesting: "Yes (advanced)",
+          activeCampaigns: "Multi-channel / Retargeting",
+          adCreatives: "6+ Creatives",
+          optimisation: "Daily Optimization",
+          abTesting: "Advanced (A/B + Multivariate)",
           recommendedSpend: 25000,
           managementFee: 14999,
-          reviewCall: "2 per month",
-          reporting: "Bi-weekly + Monthly",
+          reviewCall: "2 Calls / Month",
+          reporting: "Bi-weekly & Monthly",
           estimatedLeads: "60 - 95",
-          estimatedCostPerLead: "₹280 - ₹450",
+          estimatedCostPerLead: "Advanced optimization",
           recommended: false
         }
       ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Campaign Scope",
+        adCreatives: "Ad Creatives / Month",
+        optimisation: "Optimization Frequency",
+        abTesting: "A/B Testing",
+        recommendedSpend: "Recommended Ad Spend",
+        managementFee: "Management Fee",
+        reviewCall: "Strategy/Review Calls",
+        reporting: "Reporting Frequency",
+        estimatedLeads: "Est. Lead Range",
+        estimatedCostPerLead: "Target CPL Range",
+        totalMonthly: "TOTAL MONTHLY Retainer"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is a Multi-Channel Digital Marketing campaign for lead generation. Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M Management Fee — Growth Package (recommended)", amount: "AED 9,999" },
+        { item: "Recommended Ad Spend (paid directly to networks)", amount: "AED 15,000" },
+        { item: "TOTAL MONTHLY OUTLAY", amount: "AED 24,999" }
+      ],
       addons: [
         {
-          name: "VIDEO – BASIC",
-          deliverables: "1 Reel / Short Video per month (edit only) • Client staff records the raw footage on a phone • Background music, captions, branding • 1 revision included",
-          cost: 2499,
+          name: "VIDEO REELS ADD-ON",
+          deliverables: "Professional video editing of raw footage provided by client, incorporating subtitles, brand elements, and engaging hooks.",
+          cost: 2999,
           period: "month"
         },
         {
-          name: "VIDEO – STANDARD",
-          deliverables: "3 Reels / Short Videos per month (edit only) • Client staff records the raw footage on a phone • Professional editing, music, captions, branding • Posting on Instagram, Facebook, YouTube Shorts • 1 revision per video included",
-          cost: 6999,
-          period: "month"
-        },
-        {
-          name: "VIDEO – PREMIUM",
-          deliverables: "3 Reels + 1 on-site shoot day per month • Professional videographer at the premises • Cinematic edit, music, captions, branding, colour grade • Posting on Instagram, Facebook, YouTube Shorts • 2 revisions per video included • Travel within city limits included",
-          cost: 17999,
-          period: "month"
+          name: "LANDING PAGE OPTIMIZATION",
+          deliverables: "Design and creation of a high-converting, mobile-responsive landing page specifically for the advertising campaigns.",
+          cost: 4999,
+          period: "one-time"
         }
       ],
       timeline: [
-        { phase: "Phase 1", activity: "Kick-off · Meta Business Manager setup · Pixel installation · Lead Form build", duration: "Days 1 – 3" },
-        { phase: "Phase 2", activity: "Campaign goes live · Daily monitoring · Audience optimisation", duration: "Day 4 onwards" },
-        { phase: "Phase 3", activity: "Performance review · Creative refresh · Audience refinement", duration: "Ongoing" }
+        { phase: "Phase 1: Setup", activity: "Kick-off, channel planning, tag installation, audience mapping, and ad creatives approval.", duration: "Days 1 – 5" },
+        { phase: "Phase 2: Launch", activity: "Campaigns go live, tracking validation, and initial budget calibration.", duration: "Day 6 onwards" },
+        { phase: "Phase 3: Scale", activity: "Ongoing optimization, creative refreshes, and performance audits.", duration: "Ongoing" }
       ],
       exclusions: [
-        "Meta ad spend (paid directly to Meta — shown transparently as a separate budget line; not part of A&M's fee).",
-        "Website design and development (available as a separate scope if required).",
-        "Google Ads, YouTube Ads, or any platform outside Meta (Facebook & Instagram) unless specified.",
-        "Influencer marketing or paid PR activities.",
-        "Printing of physical materials (brochures, banners, flyers).",
-        "Any work outside the chosen package — will be quoted separately as an add-on or a change order."
+        "Ad spend (paid directly to advertising platforms — shown transparently as a separate line; not part of A&M's fee).",
+        "Website core design and code development (available as a separate scope if required).",
+        "Influencer booking fees and product samples.",
+        "Professional on-site shoots unless explicitly contracted."
       ],
       terms: [
-        { term: "Engagement Term", description: "Month-to-month retainer. Either party may terminate with 15 days written notice. No long-term lock-in." },
-        { term: "Invoicing", description: "Monthly, in advance. Each invoice covers the upcoming month's management fee + ad-spend top-up (if routed through A&M)." },
-        { term: "Ad Spend", description: `Recommended ad spend is paid by ${clientCompany}. The client may pay Meta directly via card, or route it through A&M (no markup — fully transparent).` },
-        { term: "Payment Terms", description: "Net 7 from invoice date. Campaign goes live on receipt of the first month's payment." },
-        { term: "Reporting", description: "Monthly performance report (PDF) delivered by the 5th of every month for the previous month." },
-        { term: "Account Ownership", description: `All ad accounts, Pixel, Lead Forms, and campaign assets are created under ${clientCompany}'s ownership. The client retains full ownership at all times.` },
-        { term: "Lead Ownership", description: `All leads belong exclusively to ${clientCompany} and are delivered in real time. No leads are shared with any other party.` },
-        { term: "Performance Estimates", description: "Lead and CPL estimates are based on industry benchmarks. Actual results depend on ad spend, creative quality, audience size, seasonality, and competition. A&M does not guarantee a fixed number of leads." },
-        { term: "Governing Law", description: "This engagement is governed by the laws of the United Arab Emirates. Disputes shall be resolved by mutual agreement in the first instance." }
+        { term: "Engagement Term", description: "Month-to-month retainer. Either party may terminate with 15 days written notice." },
+        { term: "Ad Spend", description: `Recommended ad spend is paid by ${clientCompany} directly to the ad network or via pre-funded account.` },
+        { term: "Payment Terms", description: "Monthly in advance. Campaign goes live on receipt of payment." },
+        { term: "Reporting", description: "Monthly performance report delivered by the 5th of the following month." }
+      ]
+    };
+  }
+
+  // ---------------------------------------------------------
+  // SOCIAL MEDIA TEMPLATE
+  // ---------------------------------------------------------
+  if (service === "social-media") {
+    return {
+      isRichDocument,
+      introduction: `At The A&M Internationals, we build social-first brands. In today's digital landscape, your social media presence is your digital handshake. This proposal details our social media management strategy, crafted specifically for ${clientCompany} to build an active, engaged community, tell your brand story, and drive customer loyalty.`,
+      understanding: [
+        `${clientCompany} needs a consistent, high-quality, and aesthetic presence across major social channels.`,
+        `The primary challenge is creating unique, engaging content regularly that appeals to your target demographic and aligns with platform algorithms.`,
+        `A successful social strategy requires a mix of storytelling, custom graphic design, and short-form video content.`
+      ],
+      objectives: [
+        `Establish a cohesive visual grid and unified brand tone of voice.`,
+        `Grow organic reach, profile visits, and engagement (comments, shares, saves).`,
+        `Create high-performing short-form videos (Reels/Shorts) to leverage organic algorithms.`,
+        `Maintain a reliable content calendar and manage community comments and enquiries.`
+      ],
+      approachTitle: "Our Approach — Social Media Management",
+      approachDescription: "We design social media calendars that blend aesthetic branding with high-value messaging. Our content is planned in monthly sprints, allowing for review, revision, and timely scheduling.",
+      approachFeatures: [
+        "Social media channel audit and profile optimization (bio, highlights, linkages).",
+        "Monthly content calendar development (post design, copywriting, and hashtags).",
+        "Custom graphic design for static posts, carousel slides, and stories.",
+        "Short-form video editing (Reels, TikTok, or YouTube Shorts).",
+        "Scheduling, caption optimization, and basic community comment response.",
+        "Monthly analytics reports tracking follower growth, reach, and top content."
+      ],
+      packages: [
+        {
+          name: "STARTER SOCIAL",
+          bestFor: "Maintaining active profiles",
+          activeCampaigns: "3 Posts per Week",
+          adCreatives: "Custom Graphics",
+          optimisation: "2 Reels / Month Included",
+          abTesting: "Instagram + Facebook",
+          recommendedSpend: 0,
+          managementFee: 4999,
+          reviewCall: "Email Review",
+          reporting: "Monthly Report",
+          estimatedLeads: "Consistently Active Grid",
+          estimatedCostPerLead: "Basic Profile Support",
+          recommended: false
+        },
+        {
+          name: "GROWTH SOCIAL",
+          bestFor: "Active audience building",
+          activeCampaigns: "5 Posts per Week",
+          adCreatives: "Graphics & Carousels",
+          optimisation: "4 Reels / Month Included",
+          abTesting: "IG, FB + LinkedIn",
+          recommendedSpend: 1500,
+          managementFee: 7999,
+          reviewCall: "1 Planning Call / Month",
+          reporting: "Monthly + Competitor Review",
+          estimatedLeads: "Active Community Growth",
+          estimatedCostPerLead: "Engagement Focus",
+          recommended: true
+        },
+        {
+          name: "ELITE SOCIAL",
+          bestFor: "Video-first scaling",
+          activeCampaigns: "Daily Content / Story Updates",
+          adCreatives: "High-End Visual Identity",
+          optimisation: "8 Reels / Month Included",
+          abTesting: "All Major Platforms",
+          recommendedSpend: 3000,
+          managementFee: 11999,
+          reviewCall: "2 Calls / Month",
+          reporting: "Detailed Analytics + Insights",
+          estimatedLeads: "Rapid Organic + Paid Reach",
+          estimatedCostPerLead: "Full Service Social",
+          recommended: false
+        }
+      ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Posting Frequency",
+        adCreatives: "Content Format",
+        optimisation: "Video / Reel Count",
+        abTesting: "Platforms Covered",
+        recommendedSpend: "Ad Boost Budget",
+        managementFee: "Retainer Fee",
+        reviewCall: "Review Meetings",
+        reporting: "Analytics Reporting",
+        estimatedLeads: "Expected Outcome",
+        estimatedCostPerLead: "Community Support",
+        totalMonthly: "TOTAL MONTHLY Retainer"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is Social Media Management. Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M Social Media Management — Growth Retainer (recommended)", amount: "AED 7,999" },
+        { item: "Recommended Ad Boost Budget (optional)", amount: "AED 1,500" },
+        { item: "TOTAL MONTHLY RETENTION OUTLAY", amount: "AED 9,499" }
+      ],
+      addons: [
+        {
+          name: "ON-SITE SHOOT DAY",
+          deliverables: "A videographer visits your location for a half-day shoot to capture raw brand footage and product b-roll for Reels/Shorts.",
+          cost: 3500,
+          period: "day"
+        },
+        {
+          name: "INFLUENCER OUTREACH PACK",
+          deliverables: "Identification, vetting, and coordination with 5 local micro-influencers for product exchanges or sponsored posts.",
+          cost: 2500,
+          period: "campaign"
+        }
+      ],
+      timeline: [
+        { phase: "Phase 1: Discovery & Strategy", activity: "Brand guidelines review, profile optimization, visual style definition, and first content pillar brainstorm.", duration: "Week 1" },
+        { phase: "Phase 2: Asset Creation", activity: "Copywriting, graphic design, video editing, and content calendar assembly for approval.", duration: "Week 2" },
+        { phase: "Phase 3: Go-Live & Management", activity: "Scheduling posts, daily community check-ins, and performance tracking.", duration: "Ongoing" }
+      ],
+      exclusions: [
+        "Advertising budgets paid to social networks (optional paid boosts).",
+        "Handling customer service complaints (we direct queries to your support team).",
+        "Sourcing paid stock images or custom copyright fonts (unless provided by client)."
+      ],
+      terms: [
+        { term: "Retainer Period", description: "Month-to-month contract. 15 days cancellation notice." },
+        { term: "Approval Window", description: "Client agrees to review and approve content calendars within 3 business days of receipt." },
+        { term: "Payment Details", description: "Paid monthly in advance before content creation begins." }
+      ]
+    };
+  }
+
+  // ---------------------------------------------------------
+  // SEO TEMPLATE
+  // ---------------------------------------------------------
+  if (service === "seo") {
+    return {
+      isRichDocument,
+      introduction: `The A&M Internationals specializes in organic search acquisition. Search Engine Optimization (SEO) is the highest-yielding digital asset because it captures users who are actively searching for your solutions. This proposal outlines our data-driven SEO strategy for ${clientCompany} designed to fix technical site issues, achieve high keyword rankings, drive organic traffic, and secure inbound leads without ongoing ad spend.`,
+      understanding: [
+        `${clientCompany} wants to build sustainable, compounding organic web traffic.`,
+        `Competing for high-commercial-value terms requires a balanced strategy of technical optimization, keyword alignment, and domain authority building.`,
+        `SEO is a long-term asset — once high rankings are achieved, the inbound traffic is free and highly qualified.`
+      ],
+      objectives: [
+        `Audit and resolve website crawlability, layout, and speed issues.`,
+        `Rank on the first page of Google for primary services and commercial keywords.`,
+        `Optimize metadata, structure, and site copy to improve keyword relevance.`,
+        `Build domain authority through strategic backlink acquisition and content marketing.`
+      ],
+      approachTitle: "Our Three-Pillar SEO Framework",
+      approachDescription: "Our search strategy targets Technical health (crawlability and site speed), On-Page relevance (content, titles, headings), and Off-Page authority (link profile). This holistic approach ensures long-term rankings.",
+      approachFeatures: [
+        "Technical site speed audit, indexing validation, and schema markup setup.",
+        "Keyword research, search intent mapping, and competitor rank analysis.",
+        "Meta titles, page descriptions, and header hierarchy optimization.",
+        "Creating new, search-optimized content (blog articles or service landing pages).",
+        "Ethical, white-hat link building and directory authority citations.",
+        "Google Search Console tracking and monthly organic keyword reports."
+      ],
+      packages: [
+        {
+          name: "LOCAL SEO FORGE",
+          bestFor: "Local service companies",
+          activeCampaigns: "Up to 10 Target Keywords",
+          adCreatives: "Google Map Pack Focus",
+          optimisation: "Technical Health Check",
+          abTesting: "On-Page Optimization",
+          recommendedSpend: 0,
+          managementFee: 4999,
+          reviewCall: "Quarterly Review Call",
+          reporting: "Monthly Rank Report",
+          estimatedLeads: "Improved Google Map Visibility",
+          estimatedCostPerLead: "Local Authority",
+          recommended: false
+        },
+        {
+          name: "ORGANIC GROWTH",
+          bestFor: "National brands / B2B",
+          activeCampaigns: "Up to 25 Target Keywords",
+          adCreatives: "2 Blog Articles / Month Included",
+          optimisation: "Advanced Technical Audit",
+          abTesting: "Complete On-Page Optimization",
+          recommendedSpend: 0,
+          managementFee: 8999,
+          reviewCall: "Monthly Progress Call",
+          reporting: "Rankings + Traffic Report",
+          estimatedLeads: "First Page Keyword Rankings",
+          estimatedCostPerLead: "compounding traffic",
+          recommended: true
+        },
+        {
+          name: "SEO DOMINANCE",
+          bestFor: "Competitive sectors / E-commerce",
+          activeCampaigns: "50+ Target Keywords",
+          adCreatives: "4 Blog Articles / Month Included",
+          optimisation: "Weekly Health Monitoring",
+          abTesting: "Schema & Landing Page Build",
+          recommendedSpend: 2000,
+          managementFee: 14999,
+          reviewCall: "Bi-weekly Calls",
+          reporting: "Advanced ROI Analytics",
+          estimatedLeads: "Market Leadership",
+          estimatedCostPerLead: "Enterprise Link Building",
+          recommended: false
+        }
+      ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Keyword Target",
+        adCreatives: "Articles / Content",
+        optimisation: "Technical Review",
+        abTesting: "On-Page Strategy",
+        recommendedSpend: "Link Building Spend",
+        managementFee: "Monthly SEO Fee",
+        reviewCall: "Strategy Calls",
+        reporting: "Reporting Type",
+        estimatedLeads: "Growth Objective",
+        estimatedCostPerLead: "Authority Support",
+        totalMonthly: "TOTAL MONTHLY SEO Retainer"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is Search Engine Optimization (SEO). Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M On-Page & Technical SEO — Growth Package (recommended)", amount: "AED 8,999" },
+        { item: "Link Building Spend (included)", amount: "AED 0" },
+        { item: "TOTAL MONTHLY Retainer Outlay", amount: "AED 8,999" }
+      ],
+      addons: [
+        {
+          name: "TECHNICAL SPEED BOOSTER",
+          deliverables: "One-time technical code-level site speed optimization to improve Google Core Web Vitals score to 90+.",
+          cost: 3900,
+          period: "one-time"
+        },
+        {
+          name: "SEO COPYWRITING PACK",
+          deliverables: "4 additional high-quality, keyword-optimized articles written by our specialized copywriters.",
+          cost: 2400,
+          period: "pack"
+        }
+      ],
+      timeline: [
+        { phase: "Month 1: Technical & Foundation", activity: "Site speed fixes, schema updates, crawling audit, and deep competitor keyword analysis.", duration: "Weeks 1 – 4" },
+        { phase: "Month 2: On-Page Forge", activity: "Optimizing metadata, title tag tuning, image compressed alt tags, and structural content rewrites.", duration: "Weeks 5 – 8" },
+        { phase: "Month 3 & Beyond: Authority & Scaling", activity: "Organic link outreach, content posting, rank monitoring, and conversion layout optimization.", duration: "Ongoing" }
+      ],
+      exclusions: [
+        "Third-party CMS or hosting fees.",
+        "Major website redesigns or migrating site frameworks (quoted separately if required).",
+        "Writing core legal terms or privacy policy pages."
+      ],
+      terms: [
+        { term: "Minimum Term", description: "3-month recommended term to see indexable results. 30 days notice applies thereafter." },
+        { term: "Rankings Disclaimer", description: "We follow search engine guidelines strictly. We cannot guarantee specific rank positions as search algorithms update frequently." },
+        { term: "Payment Details", description: "Monthly in advance." }
       ]
     };
   }
@@ -201,6 +462,27 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
           estimatedCostPerLead: "Enterprise Grade",
           recommended: false
         }
+      ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Scope / Pages",
+        adCreatives: "UI Design / Features",
+        optimisation: "SEO & Optimization",
+        abTesting: "Integrations / Database",
+        recommendedSpend: "Hosting / Setup",
+        managementFee: "Development Fee",
+        reviewCall: "Revision Rounds",
+        reporting: "Handoff / Support",
+        estimatedLeads: "Performance",
+        estimatedCostPerLead: "Security Grade",
+        totalMonthly: "TOTAL PROJECT FEE"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is Custom Web Development. Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M Web Development — Corporate Website (recommended)", amount: "AED 15,000" },
+        { item: "Cloud Hosting & Deployment Setup (included)", amount: "AED 0" },
+        { item: "TOTAL PROJECT FEE (50% upfront, 50% on launch)", amount: "AED 15,000" }
       ],
       addons: [
         { name: "MAINTENANCE - BASIC", deliverables: "Monthly security patches, uptime monitoring, and minor text updates.", cost: 1500, period: "month" },
@@ -298,6 +580,27 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
           recommended: false
         }
       ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Number of Screens",
+        adCreatives: "Visual Style",
+        optimisation: "Research / Audit",
+        abTesting: "Prototyping",
+        recommendedSpend: "Design System",
+        managementFee: "Design Fee",
+        reviewCall: "Revision Rounds",
+        reporting: "Handoff Format",
+        estimatedLeads: "User Testing",
+        estimatedCostPerLead: "Conversion Focus",
+        totalMonthly: "TOTAL DESIGN FEE"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is UI/UX Product Design. Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M UI/UX Design — App Redesign Package (recommended)", amount: "AED 18,000" },
+        { item: "Interactive Prototype & Handoff (included)", amount: "AED 0" },
+        { item: "TOTAL DESIGN FEE (50% upfront, 50% on signoff)", amount: "AED 18,000" }
+      ],
       addons: [
         { name: "BRANDING PACK", deliverables: "Logo design, color palette, typography selection, and brand guidelines document.", cost: 7500, period: "project" },
         { name: "CUSTOM ILLUSTRATIONS", deliverables: "Set of 10 bespoke vector illustrations tailored to the brand style.", cost: 3500, period: "project" }
@@ -394,6 +697,27 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
           recommended: false
         }
       ],
+      packageRowLabels: {
+        bestFor: "Best For",
+        activeCampaigns: "Logo Concepts",
+        adCreatives: "Visual Identity System",
+        optimisation: "Stationery / Collateral",
+        abTesting: "Social Media Kit",
+        recommendedSpend: "Brand Strategy",
+        managementFee: "Branding Fee",
+        reviewCall: "Revision Rounds",
+        reporting: "Deliverables Format",
+        estimatedLeads: "Brand Book",
+        estimatedCostPerLead: "Market Focus",
+        totalMonthly: "TOTAL BRANDING FEE"
+      },
+      commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+      commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is Strategic Brand Forge & Identity Design. Based on this, the following is the recommended commercial structure:`,
+      commercialSummaryRows: [
+        { item: "A&M Brand Design — Core Identity Package (recommended)", amount: "AED 14,000" },
+        { item: "Full Brand Book & Style Guidelines (included)", amount: "AED 0" },
+        { item: "TOTAL BRANDING FEE (50% upfront, 50% on delivery)", amount: "AED 14,000" }
+      ],
       addons: [
         { name: "PITCH DECK DESIGN", deliverables: "Custom 15-slide PowerPoint/Keynote pitch deck aligned with the new brand.", cost: 4000, period: "project" },
         { name: "PACKAGING DESIGN", deliverables: "Custom box, label, and unboxing experience design for one core product line.", cost: 6500, period: "project" }
@@ -471,6 +795,26 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         estimatedCostPerLead: "Best Value",
         recommended: true
       }
+    ],
+    packageRowLabels: {
+      bestFor: "Best For",
+      activeCampaigns: "Scope",
+      adCreatives: "Deliverables",
+      optimisation: "Technical Scope",
+      abTesting: "Integrations",
+      recommendedSpend: "Third-Party Cost",
+      managementFee: "Management Fee",
+      reviewCall: "Review/Meetings",
+      reporting: "Reporting Type",
+      estimatedLeads: "Target Goal",
+      estimatedCostPerLead: "Service Quality",
+      totalMonthly: "TOTAL ENGAGEMENT FEE"
+    },
+    commercialSummaryTitle: "9. Commercial Summary — Current Ask",
+    commercialSummaryDescription: `${clientCompany} has confirmed the immediate requirement is Professional Services. Based on this, the following is the recommended commercial structure:`,
+    commercialSummaryRows: [
+      { item: "Professional Service Fee — Premium Engagement (recommended)", amount: "AED 12,000" },
+      { item: "TOTAL ENGAGEMENT FEE", amount: "AED 12,000" }
     ],
     addons: [],
     timeline: [

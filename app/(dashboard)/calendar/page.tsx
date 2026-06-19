@@ -311,10 +311,6 @@ export default function CalendarPage() {
                     ${form.notes ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Notes:</strong> ${form.notes}</p>` : ""}
                   </div>
                   
-                  <div style="text-align:center;margin-top:30px;">
-                    <a href="https://crm.theaminternational.com/calendar" style="background:#0D1B3E;color:#C9A84C;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">View in Calendar</a>
-                  </div>
-
                   <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
                 </div>
               </div>

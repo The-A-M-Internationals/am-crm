@@ -1,0 +1,659 @@
+"use client";
+
+import React, { useEffect, useState, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Proposal, ProposalStatus, ProposalPackage, ProposalCustomSection } from "@/types";
+import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import Sidebar from "@/components/sidebar";
+import { getMasterTemplate } from "@/lib/proposal-templates";
+import DynamicTemplate from "@/components/dynamic-template";
+
+const STATUSES: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  proposal: { label: "Proposal", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+  draft:    { label: "Draft",    color: "#374151", bg: "#f3f4f6", border: "#e5e7eb" },
+  sent:     { label: "Sent",     color: "#1e40af", bg: "#dbeafe", border: "#bfdbfe" },
+  accepted: { label: "Accepted", color: "#065f46", bg: "#d1fae5", border: "#a7f3d0" },
+  rejected: { label: "Rejected", color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
+  won:      { label: "Won",      color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+  lost:     { label: "Lost",     color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
+};
+
+
+
+export default function ProposalDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+  
+  const { user } = useAuth();
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [sending, setSending]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
+
+  // Undo/Redo History Stack
+  const [history, setHistory] = useState<Proposal[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Client signature modal state
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [signingName, setSigningName] = useState("");
+  const [signingTitle, setSigningTitle] = useState("");
+  const [isAgreed, setIsAgreed] = useState(false);
+  const [submittingSign, setSubmittingSign] = useState(false);
+
+  useEffect(() => {
+    async function fetchProposal() {
+      if (!id) return;
+      try {
+        const res = await fetch(`/api/proposals/${id}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError("Proposal not found.");
+          } else {
+            throw new Error("Failed to fetch proposal details");
+          }
+          return;
+        }
+        const data = await res.json();
+        setProposal(data as Proposal);
+      } catch (err) {
+        console.error("Error fetching proposal:", err);
+        setError("Failed to load proposal details.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProposal();
+  }, [id]);
+
+  useEffect(() => {
+    if (user) {
+      setIsEditing(true);
+    } else {
+      setIsEditing(false);
+    }
+  }, [user]);
+
+  // Initial history load
+  useEffect(() => {
+    if (proposal && history.length === 0) {
+      setHistory([proposal]);
+      setHistoryIndex(0);
+    }
+  }, [proposal, history]);
+
+  const updateProposalState = (updated: Proposal) => {
+    setProposal(updated);
+    setHistory(prev => {
+      const clean = prev.slice(0, historyIndex + 1);
+      const next = [...clean, updated];
+      setHistoryIndex(next.length - 1);
+      return next;
+    });
+  };
+
+  // Keyboard shortcut listener for Ctrl+Z and Ctrl+Y / Ctrl+Shift+Z
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isEditing) return;
+
+      const isZ = e.key.toLowerCase() === 'z';
+      const isY = e.key.toLowerCase() === 'y';
+
+      if ((e.ctrlKey || e.metaKey) && isZ) {
+        if (e.shiftKey) {
+          // Redo via Ctrl+Shift+Z
+          if (historyIndex < history.length - 1) {
+            e.preventDefault();
+            const nextIdx = historyIndex + 1;
+            setHistoryIndex(nextIdx);
+            setProposal(history[nextIdx]);
+          }
+        } else {
+          // Undo via Ctrl+Z
+          if (historyIndex > 0) {
+            e.preventDefault();
+            const prevIdx = historyIndex - 1;
+            setHistoryIndex(prevIdx);
+            setProposal(history[prevIdx]);
+          }
+        }
+      } else if ((e.ctrlKey || e.metaKey) && isY) {
+        // Redo via Ctrl+Y
+        if (historyIndex < history.length - 1) {
+          e.preventDefault();
+          const nextIdx = historyIndex + 1;
+          setHistoryIndex(nextIdx);
+          setProposal(history[nextIdx]);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [history, historyIndex, isEditing]);
+
+  const handleSingleLineKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
+
+  async function handleSaveChanges() {
+    if (!proposal || !id) return;
+    setSavingChanges(true);
+    try {
+      const docRef = doc(db, "proposals", id);
+      const cleanedProposal = JSON.parse(JSON.stringify(proposal));
+      delete cleanedProposal.id;
+      
+      await updateDoc(docRef, cleanedProposal);
+      alert("Changes saved successfully!");
+    } catch (err) {
+      console.error("Error saving proposal changes:", err);
+      alert("Failed to save changes. Please try again.");
+    } finally {
+      setSavingChanges(false);
+    }
+  }
+
+  async function downloadPDF() {
+    try {
+      const jsPDF = (await import("jspdf")).default;
+      const html2canvas = (await import("html2canvas")).default;
+      const element = document.getElementById("proposal-document-area");
+      if (!element) return;
+      
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Quotation_${proposal?.clientName || "Document"}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate PDF");
+    }
+  }
+
+  async function handleSendProposal() {
+    if (!proposal) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/send-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: proposal.id,
+          clientEmail: proposal.clientEmail,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to send proposal");
+      alert("Proposal sent successfully to " + proposal.clientEmail);
+    } catch (err) {
+      console.error("Error sending proposal:", err);
+      alert("Error sending proposal. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleSignProposal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !signingName || !signingTitle || !isAgreed) return;
+
+    setSubmittingSign(true);
+    try {
+      const res = await fetch("/api/accept-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: id,
+          clientSignatureName: signingName,
+          clientSignatureTitle: signingTitle,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to sign proposal");
+
+      if (!proposal) throw new Error("Proposal not loaded");
+
+      // Update local state so changes render immediately
+      const acceptedState: Proposal = {
+        ...proposal,
+        status: "accepted" as ProposalStatus,
+        clientSignatureName: signingName,
+        clientSignatureTitle: signingTitle,
+        signedAt: new Date().toISOString(),
+      };
+      
+      setProposal(acceptedState);
+      setHistory(prev => [...prev.slice(0, historyIndex + 1), acceptedState]);
+      setHistoryIndex(prev => prev + 1);
+
+      setShowSignModal(false);
+      alert("Proposal signed and accepted successfully!");
+    } catch (err) {
+      console.error("Error signing proposal:", err);
+      alert("Error signing proposal. Please try again.");
+    } finally {
+      setSubmittingSign(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-8 animate-pulse text-sm text-gray-500 flex flex-col items-center justify-center min-h-[400px]">
+        <div className="w-10 h-10 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin mb-4"></div>
+        <p>Loading proposal details...</p>
+      </div>
+    );
+  }
+
+  if (error || !proposal) {
+    return (
+      <div className="p-8 text-sm text-gray-500">
+        {error || "Proposal not found."} <Link href="/proposals" className="text-blue-600 underline">Go back</Link>
+      </div>
+    );
+  }
+
+  const st = STATUSES[proposal.status] || STATUSES.draft;
+  const editableTextClass = isEditing
+    ? "outline-none rounded transition-all hover:bg-slate-200/50 hover:outline hover:outline-dashed hover:outline-1 hover:outline-[#C9A84C]/50 focus:bg-white focus:text-[#0D1B3E] focus:outline focus:outline-2 focus:outline-[#C9A84C] focus:shadow-sm px-1 py-0.5"
+    : "";
+
+  let mainContent = (
+    <div className="p-8 bg-[#f8fafc] min-h-screen">
+      {/* Top Bar with Breadcrumbs & CRM Access */}
+      <div className="max-w-7xl mx-auto flex justify-between items-center mb-6 border-b border-slate-200/50 pb-4">
+        {user ? (
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Link href="/proposals" className="hover:text-[#0D1B3E] transition-colors">Proposals</Link>
+            <span>/</span>
+            <span className="font-semibold text-slate-700">{proposal.clientName}</span>
+          </div>
+        ) : (
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
+            A&M CRM Quotation System
+          </div>
+        )}
+        
+        {user && (
+          <Link 
+            href="/proposals"
+            className="text-xs bg-[#0D1B3E] text-white px-4 py-2 rounded-xl font-bold uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-sm select-none"
+          >
+            ← Back to Proposals
+          </Link>
+        )}
+      </div>
+
+      {/* Header */}
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">{proposal.clientName}</h1>
+            <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>
+              {st.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-slate-500 font-bold">
+            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase">{(proposal.service || "").replace(/-/g, ' ')}</span>
+            <span className="text-slate-300 select-none">•</span>
+            <span>ID: {proposal.id.toUpperCase()}</span>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-4 w-full sm:w-auto">
+          {isEditing && (
+            <div className="flex items-center gap-2 mr-2 select-none">
+              <button
+                onClick={() => {
+                  if (historyIndex > 0) {
+                    const prevIdx = historyIndex - 1;
+                    setHistoryIndex(prevIdx);
+                    setProposal(history[prevIdx]);
+                  }
+                }}
+                disabled={historyIndex <= 0}
+                className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
+                title="Undo (Ctrl+Z)"
+              >
+                ↩ Undo
+              </button>
+              <button
+                onClick={() => {
+                  if (historyIndex < history.length - 1) {
+                    const nextIdx = historyIndex + 1;
+                    setHistoryIndex(nextIdx);
+                    setProposal(history[nextIdx]);
+                  }
+                }}
+                disabled={historyIndex >= history.length - 1}
+                className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
+                title="Redo (Ctrl+Y)"
+              >
+                ↪ Redo
+              </button>
+            </div>
+          )}
+
+          <button 
+            onClick={downloadPDF} 
+            className="flex-1 sm:flex-initial px-6 py-3 rounded-xl border border-slate-200 font-black text-xs uppercase tracking-widest text-slate-600 hover:bg-white hover:border-slate-300 transition-all shadow-sm select-none"
+          >
+            Download PDF
+          </button>
+          
+          {user ? (
+            <>
+              <button 
+                onClick={handleSaveChanges}
+                disabled={savingChanges}
+                className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+              >
+                {savingChanges ? "Saving..." : "Save Changes"}
+              </button>
+              <button 
+                onClick={handleSendProposal}
+                disabled={sending}
+                className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+              >
+                {sending ? "Sending..." : "Send Proposal"}
+              </button>
+            </>
+          ) : (
+            proposal.status !== "accepted" && proposal.status !== "won" ? (
+              <button 
+                onClick={() => setShowSignModal(true)}
+                className="flex-1 sm:flex-initial px-8 py-4 rounded-2xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-widest hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20 select-none"
+              >
+                Sign & Accept Proposal
+              </button>
+            ) : (
+              <div className="px-6 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs uppercase tracking-widest flex items-center gap-2 select-none">
+                <span className="text-base">✓</span> Signed & Accepted
+              </div>
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Main Document Content */}
+      <div id="proposal-document-area" className="bg-white border border-[#CCCCCC] rounded-[3rem] shadow-xl relative overflow-hidden max-w-7xl mx-auto font-sans text-[#222222]">
+        
+        {/* Cover Page */}
+        <div className="bg-[#0D1B3E] text-white p-12 lg:p-20 min-h-[920px] flex flex-col justify-between relative overflow-hidden">
+          {/* Background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-24 -mt-24 select-none"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full -ml-32 -mb-32 select-none"></div>
+          
+          <div className="relative z-10 space-y-16">
+            {/* Brand Header */}
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, companyHeaderTitle: e.target.innerText })}
+                  className={`text-sm font-black tracking-widest text-[#C9A84C] min-w-[200px] ${editableTextClass}`}
+                >
+                  {proposal.companyHeaderTitle || "THE A&M INTERNATIONALS"}
+                </div>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, companyHeaderSubtitle: e.target.innerText })}
+                  className={`text-[10px] text-slate-400 font-bold uppercase tracking-widest block min-w-[200px] ${editableTextClass}`}
+                >
+                  {proposal.companyHeaderSubtitle || "The.am.forge · Digital Marketing Division"}
+                </div>
+              </div>
+              <div 
+                contentEditable={isEditing}
+                suppressContentEditableWarning
+                onKeyDown={handleSingleLineKeyDown}
+                onBlur={(e) => updateProposalState({ ...proposal, documentTypeLabel: e.target.innerText })}
+                className={`text-2xl font-black text-[#C9A84C] tracking-tighter ${editableTextClass}`}
+              >
+                {proposal.documentTypeLabel || "QUOTATION"}
+              </div>
+            </div>
+
+            {/* Cover Title / Subject */}
+            <div className="pt-20">
+              <div 
+                contentEditable={isEditing}
+                suppressContentEditableWarning
+                onKeyDown={handleSingleLineKeyDown}
+                onBlur={(e) => updateProposalState({ ...proposal, subject: e.target.innerText })}
+                className={`text-4xl lg:text-6xl font-black font-playfair text-white tracking-tight leading-tight min-h-[1.5em] ${editableTextClass}`}
+              >
+                {proposal.subject || "Proposal Title"}
+              </div>
+            </div>
+          </div>
+
+          {/* Metainfo block */}
+          <div className="relative z-10 grid grid-cols-2 gap-8 pt-12 border-t border-white/10 text-sm select-none">
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prepared For</span>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, clientName: e.target.innerText })}
+                  className={`font-semibold text-white ${editableTextClass}`}
+                >
+                  {proposal.clientName}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prepared By</span>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, preparedByLabel: e.target.innerText })}
+                  className={`font-semibold text-white ${editableTextClass}`}
+                >
+                  {proposal.preparedByLabel || "The A&M Internationals (FZC) — The.am.forge"}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Document Reference</span>
+                <div className="font-semibold text-[#C9A84C]">#{proposal.id.slice(-8).toUpperCase()}</div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date of Issue</span>
+                <div className="font-semibold text-white">
+                  {new Date(proposal.createdAt).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Validity</span>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, validityLabel: e.target.innerText })}
+                  className={`font-semibold text-white ${editableTextClass}`}
+                >
+                  {proposal.validityLabel || "30 days from date of issue"}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Engagement Model</span>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, engagementModelLabel: e.target.innerText })}
+                  className={`font-semibold text-white ${editableTextClass}`}
+                >
+                  {proposal.engagementModelLabel || "Monthly Retainer — Pick & Choose Package"}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Proposal Currency</span>
+                <div 
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onKeyDown={handleSingleLineKeyDown}
+                  onBlur={(e) => updateProposalState({ ...proposal, currency: e.target.innerText })}
+                  className={`font-semibold text-white ${editableTextClass}`}
+                >
+                  {proposal.currency || "AED"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tagline Footer */}
+          <div className="relative z-10 text-center pt-8 select-none">
+            <div 
+              contentEditable={isEditing}
+              suppressContentEditableWarning
+              onKeyDown={handleSingleLineKeyDown}
+              onBlur={(e) => updateProposalState({ ...proposal, tagline: e.target.innerText })}
+              className={`text-xs text-[#C9A84C] font-serif italic tracking-widest ${editableTextClass}`}
+            >
+              {proposal.tagline || "“ Elevating the World, Elegantly ”"}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Pages (White Background) */}
+        <div className="bg-white p-12 lg:p-20 space-y-16">
+          {/* Running Header */}
+          <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase border-b border-[#CCCCCC] pb-4 select-none">
+            <span>{proposal.companyHeaderTitle || "THE A&M INTERNATIONALS"}</span>
+            <span>Quotation</span>
+            <span>{proposal.clientName}</span>
+          </div>
+
+          <DynamicTemplate 
+            proposal={proposal} 
+            isEditing={isEditing} 
+            onChange={(updated) => updateProposalState(updated)} 
+          />
+        </div>
+      </div>
+
+      {/* Signature Modal */}
+      {showSignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 select-none">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100">
+            <div className="bg-[#0D1B3E] p-6 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-black tracking-tight">Review & Sign Proposal</h3>
+                <p className="text-xs text-[#C9A84C] font-semibold mt-0.5 font-sans">The A&M Internationals FZC</p>
+              </div>
+              <button 
+                onClick={() => setShowSignModal(false)}
+                className="text-slate-400 hover:text-white transition-colors text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleSignProposal} className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Your Full Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={signingName}
+                  onChange={(e) => setSigningName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0D1B3E]/20 focus:border-[#0D1B3E] font-medium text-slate-800 transition-all text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Your Title / Designation</label>
+                <input 
+                  type="text" 
+                  required
+                  value={signingTitle}
+                  onChange={(e) => setSigningTitle(e.target.value)}
+                  placeholder="Managing Director"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0D1B3E]/20 focus:border-[#0D1B3E] font-medium text-slate-800 transition-all text-sm"
+                />
+              </div>
+
+              {/* Signature Preview */}
+              {signingName && (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Signature Preview</span>
+                  <span className="font-serif italic text-3xl text-indigo-900 tracking-wider block py-2 select-none">
+                    {signingName}
+                  </span>
+                </div>
+              )}
+
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input 
+                  type="checkbox"
+                  required
+                  checked={isAgreed}
+                  onChange={(e) => setIsAgreed(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-[#0D1B3E] focus:ring-[#0D1B3E] border-slate-300"
+                />
+                <span className="text-xs text-slate-500 leading-relaxed select-none group-hover:text-slate-700 transition-colors">
+                  I accept and agree that this is a legally binding electronic signature. By signing, I authorize execution of the services outlined in this proposal.
+                </span>
+              </label>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowSignModal(false)}
+                  className="w-1/3 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all text-xs"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submittingSign || !isAgreed || !signingName || !signingTitle}
+                  className="w-2/3 py-3 rounded-xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-md shadow-[#0D1B3E]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingSign ? "Signing..." : "Sign Agreement"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (user) {
+    return (
+      <div className="flex h-screen overflow-hidden" style={{ background: "#f0f2f8" }}>
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          {mainContent}
+        </main>
+      </div>
+    );
+  }
+
+  return mainContent;
+}
