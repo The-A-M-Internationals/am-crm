@@ -129,6 +129,7 @@ function ProposalsContent() {
     setIsAddingNew(false);
     setEditingId(p.id);
     setForm({
+      ...p,
       clientName: p.clientName || "",
       clientEmail: p.clientEmail || "",
       service: p.service || "web-development",
@@ -137,18 +138,6 @@ function ProposalsContent() {
       validUntil: p.validUntil || "",
       items: p.items || [{ ...EMPTY_ITEM }],
       currency: p.currency || "AED",
-      isRichDocument: p.isRichDocument ?? false,
-      introduction: p.introduction || "",
-      understanding: p.understanding || [],
-      objectives: p.objectives || [],
-      approachTitle: p.approachTitle || "",
-      approachDescription: p.approachDescription || "",
-      approachFeatures: p.approachFeatures || [],
-      packages: p.packages || [],
-      addons: p.addons || [],
-      timeline: p.timeline || [],
-      exclusions: p.exclusions || [],
-      terms: p.terms || [],
     });
   }
 

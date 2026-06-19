@@ -23,6 +23,41 @@ const STATUSES: Record<string, { label: string; color: string; bg: string; borde
 
 
 
+const getServiceHeaderSubtitle = (service: string) => {
+  switch (service) {
+    case "digital-marketing": return "The.am.forge · Digital Marketing Division";
+    case "social-media":      return "Social Media Marketing & Management";
+    case "seo":               return "Search Engine Optimization Division";
+    case "web-development":   return "Digital Engineering & Web Development";
+    case "ui-ux":             return "User Interface & User Experience Design";
+    case "branding":          return "Strategic Branding & Visual Identity";
+    default:                  return "Professional Consulting & Solutions";
+  }
+};
+
+const getServiceDefaultSubject = (service: string) => {
+  switch (service) {
+    case "digital-marketing": return "Digital Marketing Retainer & Lead Generation Proposal";
+    case "social-media":      return "Social Media Marketing & Retainer Proposal";
+    case "seo":               return "Search Engine Optimization & Retainer Proposal";
+    case "web-development":   return "Web Development Proposal";
+    case "ui-ux":             return "UI/UX Design Proposal";
+    case "branding":          return "Brand Identity Design Proposal";
+    default:                  return "Professional Services Proposal";
+  }
+};
+
+const getServiceEngagementModel = (service: string) => {
+  switch (service) {
+    case "web-development":
+    case "ui-ux":
+    case "branding":
+      return "Project-Based Engagement";
+    default:
+      return "Monthly Retainer — Pick & Choose Package";
+  }
+};
+
 export default function ProposalDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -269,7 +304,7 @@ export default function ProposalDetailPage() {
 
   const st = STATUSES[proposal.status] || STATUSES.draft;
   const editableTextClass = isEditing
-    ? "outline-none rounded transition-all hover:bg-slate-200/50 hover:outline hover:outline-dashed hover:outline-1 hover:outline-[#C9A84C]/50 focus:bg-white focus:text-[#0D1B3E] focus:outline focus:outline-2 focus:outline-[#C9A84C] focus:shadow-sm px-1 py-0.5"
+    ? "outline-none rounded transition-all hover:bg-white/10 hover:outline hover:outline-dashed hover:outline-1 hover:outline-[#C9A84C]/50 focus:bg-white/5 focus:outline focus:outline-2 focus:outline-[#C9A84C] focus:shadow-sm px-1 py-0.5"
     : "";
 
   let mainContent = (
@@ -418,7 +453,7 @@ export default function ProposalDetailPage() {
                   onBlur={(e) => updateProposalState({ ...proposal, companyHeaderSubtitle: e.target.innerText })}
                   className={`text-[10px] text-slate-400 font-bold uppercase tracking-widest block min-w-[200px] ${editableTextClass}`}
                 >
-                  {proposal.companyHeaderSubtitle || "The.am.forge · Digital Marketing Division"}
+                  {proposal.companyHeaderSubtitle || getServiceHeaderSubtitle(proposal.service)}
                 </div>
               </div>
               <div 
@@ -441,7 +476,7 @@ export default function ProposalDetailPage() {
                 onBlur={(e) => updateProposalState({ ...proposal, subject: e.target.innerText })}
                 className={`text-4xl lg:text-6xl font-black font-playfair text-white tracking-tight leading-tight min-h-[1.5em] ${editableTextClass}`}
               >
-                {proposal.subject || "Proposal Title"}
+                {proposal.subject || getServiceDefaultSubject(proposal.service)}
               </div>
             </div>
           </div>
@@ -507,7 +542,7 @@ export default function ProposalDetailPage() {
                   onBlur={(e) => updateProposalState({ ...proposal, engagementModelLabel: e.target.innerText })}
                   className={`font-semibold text-white ${editableTextClass}`}
                 >
-                  {proposal.engagementModelLabel || "Monthly Retainer — Pick & Choose Package"}
+                  {proposal.engagementModelLabel || getServiceEngagementModel(proposal.service)}
                 </div>
               </div>
               <div className="flex flex-col">

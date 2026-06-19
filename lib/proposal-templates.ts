@@ -129,7 +129,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Ad Spend", description: `Recommended ad spend is paid by ${clientCompany} directly to the ad network or via pre-funded account.` },
         { term: "Payment Terms", description: "Monthly in advance. Campaign goes live on receipt of payment." },
         { term: "Reporting", description: "Monthly performance report delivered by the 5th of the following month." }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "The.am.forge · Digital Marketing Division",
+      documentTypeLabel: "QUOTATION",
+      subject: "Digital Marketing Retainer & Lead Generation Proposal",
+      preparedByLabel: "The A&M Internationals (FZC) — The.am.forge",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Monthly Retainer — Pick & Choose Package",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Retainer Packages & Retainer Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 
@@ -257,7 +281,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Retainer Period", description: "Month-to-month contract. 15 days cancellation notice." },
         { term: "Approval Window", description: "Client agrees to review and approve content calendars within 3 business days of receipt." },
         { term: "Payment Details", description: "Paid monthly in advance before content creation begins." }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "Social Media Marketing & Management",
+      documentTypeLabel: "QUOTATION",
+      subject: "Social Media Marketing & Retainer Proposal",
+      preparedByLabel: "The A&M Internationals (FZC)",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Monthly Retainer — Pick & Choose Package",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Retainer Packages & Retainer Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 
@@ -385,7 +433,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Minimum Term", description: "3-month recommended term to see indexable results. 30 days notice applies thereafter." },
         { term: "Rankings Disclaimer", description: "We follow search engine guidelines strictly. We cannot guarantee specific rank positions as search algorithms update frequently." },
         { term: "Payment Details", description: "Monthly in advance." }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "Search Engine Optimization Division",
+      documentTypeLabel: "QUOTATION",
+      subject: "Search Engine Optimization & Retainer Proposal",
+      preparedByLabel: "The A&M Internationals (FZC)",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Monthly Retainer — Pick & Choose Package",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Retainer Packages & Retainer Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 
@@ -502,7 +574,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Payment Terms", description: "50% advance to initiate the project, 25% upon design approval, 25% prior to final deployment." },
         { term: "Intellectual Property", description: `Upon final payment, all source code and design assets will be transferred to ${clientCompany}.` },
         { term: "Warranty", description: "30-day post-launch bug fixing and support warranty included." }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "Digital Engineering & Web Development",
+      documentTypeLabel: "QUOTATION",
+      subject: "Web Development Proposal",
+      preparedByLabel: "The A&M Internationals (FZC)",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Project-Based Engagement",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Packages & Scope Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 
@@ -619,7 +715,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Payment Terms", description: "50% advance, 50% upon final Figma file handoff." },
         { term: "Revisions", description: "Packages include 2 rounds of structural revisions. Additional revisions billed hourly." },
         { term: "Intellectual Property", description: `All design assets and source files belong to ${clientCompany} upon full payment.` }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "User Interface & User Experience Design",
+      documentTypeLabel: "QUOTATION",
+      subject: "UI/UX Design Proposal",
+      preparedByLabel: "The A&M Internationals (FZC)",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Project-Based Engagement",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Packages & Design Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 
@@ -736,7 +856,31 @@ export const getMasterTemplate = (service: ServiceTag, clientCompany: string = "
         { term: "Payment Terms", description: "50% advance, 50% upon delivery of the final Brand Book." },
         { term: "Revisions", description: "Includes specified rounds of revision. Total redesigns after concept approval billed separately." },
         { term: "Intellectual Property", description: `Full copyright of the finalized logo and brand assets transfers to ${clientCompany} upon payment.` }
-      ]
+      ],
+      companyHeaderTitle: "THE A&M INTERNATIONALS",
+      companyHeaderSubtitle: "Strategic Branding & Visual Identity",
+      documentTypeLabel: "QUOTATION",
+      subject: "Brand Identity Design Proposal",
+      preparedByLabel: "The A&M Internationals (FZC)",
+      validityLabel: "30 days from date of issue",
+      engagementModelLabel: "Project-Based Engagement",
+      tagline: "“ Elevating the World, Elegantly ”",
+      currency: "AED",
+      aboutTitle: "1. About The A&M Internationals",
+      understandingTitle: `2. Our Understanding of ${clientCompany}`,
+      objectivesTitle: "3. Objective of This Engagement",
+      packagesTitle: "5. Packages & Scope Options",
+      packagesDescription: "All packages are designed specifically for your goals. Choose the tier that matches your current business pace.",
+      addonsTitle: "6. Optional Add-Ons",
+      addonsDescription: "These add-ons are offered separately and can be selected to enhance the primary scope.",
+      timelineTitle: "7. Execution Timeline",
+      exclusionsTitle: "8. What This Quotation Does Not Include",
+      termsTitle: "10. Commercial Terms & Conditions",
+      acceptanceTitle: "11. Acceptance & Sign-off",
+      acceptanceText: `By signing below, both parties agree to the scope, packages, commercial terms, and conditions set out in this quotation. On countersignature, this document becomes a binding agreement between The A&M Internationals (FZC) and ${clientCompany}.`,
+      providerSignatory: "The A&M Internationals",
+      clientSignatory: clientCompany,
+      footerClosingText: `We look forward to partnering with ${clientCompany} to elevate your digital presence.`
     };
   }
 

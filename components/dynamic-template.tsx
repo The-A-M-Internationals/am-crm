@@ -448,7 +448,7 @@ export default function DynamicTemplate({
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-[#0D1B3E] text-white">
-                  <th className="p-4 border-r border-slate-200/30 font-bold w-1/4">
+                  <th className="p-4 border-r border-slate-200/30 font-bold w-1/4 text-center">
                     <span className="font-playfair text-xs uppercase tracking-wider text-slate-300">Features</span>
                   </th>
                   {proposal.packages.map((pkg, i) => (
@@ -1053,7 +1053,7 @@ export default function DynamicTemplate({
                             const labels = proposal.packageRowLabels || {};
                             onChange({ ...proposal, packageRowLabels: { ...labels, totalMonthly: e.target.innerText } });
                           }}
-                          className={`font-bold text-white ${editableTextClass}`}
+                          className={`font-bold ${editableTextClass}`}
                         >
                           {rowLabels.totalMonthly}
                         </div>
@@ -1769,7 +1769,7 @@ export default function DynamicTemplate({
                 }}
                 className="text-xs text-[#C9A84C] hover:text-[#0D1B3E] font-bold border border-[#C9A84C]/30 px-2.5 py-1 rounded-xl transition-all shadow-sm bg-white hover:bg-slate-50 select-none ml-4"
               >
-                {sec.points ? "✍ Switch to Text" : "List Switch to Bullets"}
+                {sec.points ? "✍ Switch to Text" : "☰ Switch to Bullets"}
               </button>
             )}
           </div>
@@ -2012,7 +2012,23 @@ export default function DynamicTemplate({
               }}
               className="px-4 py-1.5 bg-[#0D1B3E] hover:bg-[#1a3070] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1"
             >
-              <span>+ Custom Section</span>
+              <span>+ Custom Text Section</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const newSection: ProposalCustomSection = {
+                  id: `custom_${Date.now()}`,
+                  title: "New Custom Bullet List",
+                  content: "",
+                  points: ["New Bullet Point"]
+                };
+                const currentCustoms = proposal.customSections || [];
+                onChange({ ...proposal, customSections: [...currentCustoms, newSection] });
+              }}
+              className="px-4 py-1.5 bg-[#C9A84C] hover:bg-[#b08f36] text-[#0D1B3E] text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1"
+            >
+              <span>+ Custom Bullet List</span>
             </button>
           </div>
         </div>
