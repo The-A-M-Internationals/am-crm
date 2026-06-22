@@ -144,7 +144,7 @@ export async function POST(req: Request) {
 
             <!-- CTA -->
             <div style="text-align: center; margin-top: 40px; margin-bottom: 40px;">
-              <a href="${origin}/proposals/${proposalId}" 
+              <a href="${origin}/proposals/${proposalId}?view=client" 
                  style="background: #0D1B3E; color: #C9A84C; padding: 18px 36px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 10px 20px rgba(13,27,62,0.15);">
                 Review & Sign Proposal Document
               </a>
@@ -214,7 +214,7 @@ export async function POST(req: Request) {
             </table>
 
             <div style="text-align: center; margin-top: 40px;">
-              <a href="${origin}/proposals/${proposalId}" 
+              <a href="${origin}/proposals/${proposalId}?view=client" 
                  style="background: #0D1B3E; color: #C9A84C; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 10px 20px rgba(13,27,62,0.15);">
                 Review & Sign Proposal
               </a>

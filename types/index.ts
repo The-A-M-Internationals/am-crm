@@ -117,6 +117,7 @@ export interface ProposalPackage {
   estimatedCostPerLead: string;
   recommended?: boolean;
   totalMonthly?: number | string;
+  customValues?: Record<string, string>;
 }
 
 export interface ProposalTimelinePhase {
@@ -208,6 +209,8 @@ export interface Proposal {
   };
 
   disabledPackageRows?: string[];
+  
+  customRows?: { id: string; label: string }[];
 
   // Commercial Summary Fields
   commercialSummaryTitle?: string;
@@ -227,6 +230,7 @@ export interface Proposal {
   sentAt?: string;
   clientSignatureName?: string;
   clientSignatureTitle?: string;
+  clientSignatureImage?: string;
   signedAt?: string;
   createdAt: string;
 }

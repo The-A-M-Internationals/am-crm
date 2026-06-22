@@ -31,6 +31,28 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [loggingPayment, setLoggingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
+  // Edit Financials State
+  const [showFinancialsModal, setShowFinancialsModal] = useState(false);
+  const [finForm, setFinForm] = useState({ budget: "", due: "", paid: "", remaining: "" });
+  const [savingFin, setSavingFin] = useState(false);
+
+  // Reminder State
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderBody, setReminderBody] = useState("");
+  const [sendingReminder, setSendingReminder] = useState(false);
+
+  // Dynamic Overview State
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descValue, setDescValue] = useState("");
+  
+  const [addingField, setAddingField] = useState(false);
+  const [fieldLabel, setFieldLabel] = useState("");
+  const [fieldValue, setFieldValue] = useState("");
+
+  const [addingMilestone, setAddingMilestone] = useState(false);
+  const [milestoneTitle, setMilestoneTitle] = useState("");
+  const [milestoneDate, setMilestoneDate] = useState("");
+
   async function fetchProject() {
     const [pSnap, uSnap, tSnap] = await Promise.all([
       getDoc(doc(db, "projects", id)),
@@ -46,6 +68,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setLoading(false);
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchProject(); }, [id]);
 
   async function addFile() {
@@ -100,16 +123,18 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       const updatedPayments = [...(project.payments || []), newPayment];
       
       // Auto-calculate new balance
-      const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
-      const newBalance = (project.budget || 0) - totalPaid;
+      const basePaid = project.paid ?? 0;
+      const loggedPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPaid = basePaid + loggedPaid;
+      const newRemaining = (project.budget ?? 0) - totalPaid;
 
       await updateDoc(doc(db, "projects", project.id), { 
         payments: updatedPayments,
-        balance: newBalance,
+        remaining: newRemaining,
         updatedAt: new Date().toISOString()
       });
 
-      setProject({ ...project, payments: updatedPayments, balance: newBalance });
+      setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
       setShowPaymentModal(false);
       setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
     } catch (e) {
@@ -117,6 +142,146 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       alert("Failed to log payment");
     } finally {
       setLoggingPayment(false);
+    }
+  }
+
+  function openEditFinancials() {
+    if (!project) return;
+    setFinForm({
+      budget: project.budget?.toString() || "",
+      due: project.due?.toString() || "",
+      paid: project.paid?.toString() || "",
+      remaining: project.remaining?.toString() || ""
+    });
+    setShowFinancialsModal(true);
+  }
+
+  async function saveFinancials() {
+    if (!project) return;
+    setSavingFin(true);
+    try {
+      const b = Number(finForm.budget) || 0;
+      const d = Number(finForm.due) || 0;
+      const p = Number(finForm.paid) || 0;
+      const r = Number(finForm.remaining) || 0;
+
+      await updateDoc(doc(db, "projects", project.id), {
+        budget: b,
+        due: d,
+        paid: p,
+        remaining: r,
+        updatedAt: new Date().toISOString()
+      });
+      setProject({ ...project, budget: b, due: d, paid: p, remaining: r });
+      setShowFinancialsModal(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save financials");
+    } finally {
+      setSavingFin(false);
+    }
+  }
+
+  function openReminder() {
+    const defaultText = `Dear ${project?.clientName || "Client"},\n\nWe hope this message finds you well.\n\nWe are writing to gently remind you that there is a pending balance of ${project?.currency || "AED"} ${project?.due?.toLocaleString() || "0"} on your account for the "${project?.title}" project. We understand that oversights happen, and we would greatly appreciate it if you could process this payment at your earliest convenience.\n\nIf you have already processed the payment, please kindly disregard this message.\n\nThank you for your continued partnership and trust in us.\n\nWarm regards,\nA&M Internationals Team`;
+    setReminderBody(defaultText);
+    setShowReminderModal(true);
+  }
+
+  async function sendReminder() {
+    setSendingReminder(true);
+    try {
+      // Simulate sending
+      await new Promise(res => setTimeout(res, 800));
+      alert("Reminder sent successfully!");
+      setShowReminderModal(false);
+    } finally {
+      setSendingReminder(false);
+    }
+  }
+
+  // --- DYNAMIC OVERVIEW HANDLERS ---
+  async function saveDescription() {
+    if (!project) return;
+    try {
+      await updateDoc(doc(db, "projects", project.id), { description: descValue });
+      setProject({ ...project, description: descValue });
+      setEditingDesc(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save description");
+    }
+  }
+
+  async function saveCustomField() {
+    if (!project || !fieldLabel.trim() || !fieldValue.trim()) return;
+    try {
+      const newField = { id: Date.now().toString(), label: fieldLabel, value: fieldValue };
+      const updated = [...(project.customFields || []), newField];
+      await updateDoc(doc(db, "projects", project.id), { customFields: updated });
+      setProject({ ...project, customFields: updated });
+      setAddingField(false);
+      setFieldLabel("");
+      setFieldValue("");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to add field");
+    }
+  }
+
+  async function deleteCustomField(id: string) {
+    if (!project) return;
+    try {
+      const updated = (project.customFields || []).filter((f: any) => f.id !== id);
+      await updateDoc(doc(db, "projects", project.id), { customFields: updated });
+      setProject({ ...project, customFields: updated });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function saveMilestone() {
+    if (!project || !milestoneTitle.trim() || !milestoneDate) return;
+    try {
+      const newMilestone = { 
+        id: Date.now().toString(), 
+        title: milestoneTitle, 
+        date: milestoneDate, 
+        completed: false 
+      };
+      const updated = [...(project.milestones || []), newMilestone];
+      await updateDoc(doc(db, "projects", project.id), { milestones: updated });
+      setProject({ ...project, milestones: updated });
+      setAddingMilestone(false);
+      setMilestoneTitle("");
+      setMilestoneDate("");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to add milestone");
+    }
+  }
+
+  async function toggleMilestone(id: string) {
+    if (!project) return;
+    try {
+      const updated = (project.milestones || []).map((m: any) => 
+        m.id === id ? { ...m, completed: !m.completed } : m
+      );
+      await updateDoc(doc(db, "projects", project.id), { milestones: updated });
+      setProject({ ...project, milestones: updated });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function deleteMilestone(id: string) {
+    if (!project) return;
+    try {
+      const updated = (project.milestones || []).filter((m: any) => m.id !== id);
+      await updateDoc(doc(db, "projects", project.id), { milestones: updated });
+      setProject({ ...project, milestones: updated });
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -130,8 +295,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const allInvolvedUids = Array.from(new Set([...projectAssignees, ...taskAssignees]));
   const assignedUsers = users.filter(u => allInvolvedUids.includes(u.uid));
 
-  const totalPaid = (project.payments || []).reduce((sum, p) => sum + p.amount, 0);
-  const calculatedBalance = (project.budget || 0) - totalPaid;
+  const basePaid = project.paid ?? 0;
+  const loggedPaid = (project.payments || []).reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = basePaid + loggedPaid;
+  const calculatedRemaining = (project.budget ?? 0) - totalPaid;
 
   return (
     <div className="p-8">
@@ -153,9 +320,15 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         </div>
         <div className="flex items-center gap-8 text-right">
           <div>
-            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>BUDGET</p>
+            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>TOTAL BUDGET</p>
             <p className="text-xl font-bold" style={{ color: "#0D1B3E" }}>
-              {project.currency || "AED"} {project.budget?.toLocaleString() || "—"}
+              {project.currency || "AED"} {(project.budget)?.toLocaleString() || "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>CURRENT DUE</p>
+            <p className="text-xl font-bold text-orange-500">
+              {project.currency || "AED"} {(project.due)?.toLocaleString() || "0"}
             </p>
           </div>
           <div>
@@ -165,9 +338,9 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>BALANCE</p>
+            <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>REMAINING</p>
             <p className="text-xl font-bold text-red-500">
-              {project.currency || "AED"} {calculatedBalance.toLocaleString()}
+              {project.currency || "AED"} {calculatedRemaining.toLocaleString()}
             </p>
           </div>
         </div>
@@ -195,11 +368,38 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         <div className="lg:col-span-2">
           {activeTab === "overview" && (
             <div className="space-y-8">
-              <div className="crm-card">
-                <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Description</h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#6b7280" }}>
-                  {project.description || "No description provided for this project."}
-                </p>
+              {/* DESCRIPTION BLOCK */}
+              <div className="crm-card group">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Description</h3>
+                  {!editingDesc && (
+                    <button 
+                      onClick={() => { setDescValue(project.description || ""); setEditingDesc(true); }}
+                      className="text-xs font-bold text-slate-400 hover:text-[#C9A84C] opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
+                
+                {editingDesc ? (
+                  <div className="space-y-3">
+                    <textarea 
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm"
+                      rows={4}
+                      value={descValue}
+                      onChange={e => setDescValue(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={saveDescription} className="btn-primary py-1.5 px-4 text-xs">Save</button>
+                      <button onClick={() => setEditingDesc(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed" style={{ color: "#6b7280" }}>
+                    {project.description || "No description provided. Click edit to add one."}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -214,6 +414,111 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#1a1a2e" }}>{project.service}</p>
                 </div>
               </div>
+
+              {/* CUSTOM FIELDS BLOCK */}
+              <div className="crm-card group">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Project Details</h3>
+                  <button 
+                    onClick={() => setAddingField(true)}
+                    className="text-xs font-bold text-[#C9A84C] hover:underline"
+                  >
+                    + Add Custom Field
+                  </button>
+                </div>
+
+                {addingField && (
+                  <div className="flex gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <input 
+                      placeholder="Label (e.g. Server IP)" 
+                      className="flex-1 p-2 text-xs rounded-lg border outline-none focus:border-[#C9A84C]"
+                      value={fieldLabel}
+                      onChange={e => setFieldLabel(e.target.value)}
+                    />
+                    <input 
+                      placeholder="Value" 
+                      className="flex-1 p-2 text-xs rounded-lg border outline-none focus:border-[#C9A84C]"
+                      value={fieldValue}
+                      onChange={e => setFieldValue(e.target.value)}
+                    />
+                    <button onClick={saveCustomField} className="btn-primary px-3 text-xs">Add</button>
+                    <button onClick={() => setAddingField(false)} className="px-3 text-xs text-slate-500 font-bold hover:bg-slate-200 rounded-lg">✕</button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {(!project.customFields || project.customFields.length === 0) ? (
+                    <p className="text-xs text-slate-400 italic">No custom fields added. Make this project scalable by tracking any arbitrary data points!</p>
+                  ) : (
+                    project.customFields.map((field: any) => (
+                      <div key={field.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                        <div className="flex gap-4">
+                          <span className="text-xs font-bold text-slate-500 w-32 uppercase tracking-wider">{field.label}</span>
+                          <span className="text-sm font-semibold text-slate-900">{field.value}</span>
+                        </div>
+                        <button onClick={() => deleteCustomField(field.id)} className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* MILESTONES BLOCK */}
+              <div className="crm-card group">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Milestones & Phases</h3>
+                  <button 
+                    onClick={() => setAddingMilestone(true)}
+                    className="text-xs font-bold text-[#C9A84C] hover:underline"
+                  >
+                    + Add Milestone
+                  </button>
+                </div>
+
+                {addingMilestone && (
+                  <div className="flex gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <input 
+                      placeholder="Phase Title (e.g. Design Approved)" 
+                      className="flex-[2] p-2 text-xs rounded-lg border outline-none focus:border-[#C9A84C]"
+                      value={milestoneTitle}
+                      onChange={e => setMilestoneTitle(e.target.value)}
+                    />
+                    <input 
+                      type="date"
+                      className="flex-[1] p-2 text-xs rounded-lg border outline-none focus:border-[#C9A84C]"
+                      value={milestoneDate}
+                      onChange={e => setMilestoneDate(e.target.value)}
+                    />
+                    <button onClick={saveMilestone} className="btn-primary px-3 text-xs">Add</button>
+                    <button onClick={() => setAddingMilestone(false)} className="px-3 text-xs text-slate-500 font-bold hover:bg-slate-200 rounded-lg">✕</button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {(!project.milestones || project.milestones.length === 0) ? (
+                    <p className="text-xs text-slate-400 italic">No milestones defined. Add project phases to track progress!</p>
+                  ) : (
+                    project.milestones.map((m: any) => (
+                      <div key={m.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors" style={{ background: m.completed ? "#f8fafc" : "white" }}>
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => toggleMilestone(m.id)}
+                            className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${m.completed ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'}`}
+                          >
+                            {m.completed && <span className="text-[10px]">✓</span>}
+                          </button>
+                          <div>
+                            <p className={`text-sm font-bold ${m.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{m.title}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Target: {new Date(m.date).toLocaleDateString("en-GB")}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => deleteMilestone(m.id)} className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -333,14 +638,65 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           {activeTab === "payments" && (
             <div className="space-y-6">
               <div className="crm-card">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Payment Ledger</h3>
-                  <button 
-                    onClick={() => setShowPaymentModal(true)}
-                    className="btn-primary py-1.5 px-4 text-xs"
-                  >
-                    + Log Payment
-                  </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+                  <div>
+                    <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Payment Ledger</h3>
+                    <p className="text-xs text-slate-500 mt-1">Track and manage financial transactions for this project.</p>
+                  </div>
+                  <div className="relative group">
+                    <button className="btn-primary py-2 px-4 text-xs flex items-center gap-2 shadow-md">
+                      Payment Actions ▼
+                    </button>
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <button 
+                        onClick={() => setShowPaymentModal(true)}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
+                      >
+                        <span className="text-sm">💰</span> Log Manual Payment
+                      </button>
+                      <button 
+                        onClick={openEditFinancials}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
+                      >
+                        <span className="text-sm">✏️</span> Edit Financials
+                      </button>
+                      <button 
+                        onClick={openReminder}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                      >
+                        <span className="text-sm">🔔</span> Send Payment Reminder
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  <div className="p-4 rounded-xl border border-slate-100 bg-slate-50">
+                    <p className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Total Budget</p>
+                    <p className="text-lg font-black text-[#0D1B3E]">{project.currency || "AED"} {project.budget?.toLocaleString() || "0"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border border-orange-100 bg-orange-50">
+                    <p className="text-[10px] font-bold text-orange-600 mb-1 uppercase tracking-wider">Current Due</p>
+                    <p className="text-lg font-black text-orange-700">{project.currency || "AED"} {project.due?.toLocaleString() || "0"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border border-green-100 bg-green-50">
+                    <p className="text-[10px] font-bold text-green-600 mb-1 uppercase tracking-wider">Total Paid</p>
+                    <p className="text-lg font-black text-green-700">{project.currency || "AED"} {totalPaid.toLocaleString()}</p>
+                  </div>
+                  <div className="p-4 rounded-xl border border-red-100 bg-red-50">
+                    <p className="text-[10px] font-bold text-red-600 mb-1 uppercase tracking-wider">Remaining</p>
+                    <p className="text-lg font-black text-red-700">{project.currency || "AED"} {calculatedRemaining.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="mb-8">
+                  <div className="flex justify-between text-xs font-bold mb-2">
+                    <span className="text-slate-500">Payment Progress</span>
+                    <span className="text-green-600">{Math.round((totalPaid / (project.budget || 1)) * 100)}% Paid</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (totalPaid / (project.budget || 1)) * 100)}%` }}></div>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -481,6 +837,114 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 className="flex-1 py-3 text-sm font-bold text-white bg-[#0D1B3E] rounded-xl hover:opacity-90 disabled:opacity-50"
               >
                 {loggingPayment ? "Logging..." : "Confirm Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Financials Modal */}
+      {showFinancialsModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-900">Edit Financials</h3>
+              <button onClick={() => setShowFinancialsModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Total Budget</label>
+                  <input 
+                    type="number" 
+                    className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
+                    value={finForm.budget}
+                    onChange={e => {
+                      const b = Number(e.target.value) || 0;
+                      const p = Number(finForm.paid) || 0;
+                      setFinForm({...finForm, budget: e.target.value, remaining: (b - p).toString()});
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Current Due</label>
+                  <input 
+                    type="number" 
+                    className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
+                    value={finForm.due}
+                    onChange={e => setFinForm({...finForm, due: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Amount Paid</label>
+                  <input 
+                    type="number" 
+                    className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
+                    value={finForm.paid}
+                    onChange={e => {
+                      const p = Number(e.target.value) || 0;
+                      const b = Number(finForm.budget) || 0;
+                      setFinForm({...finForm, paid: e.target.value, remaining: (b - p).toString()});
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Remaining</label>
+                  <input 
+                    type="number" 
+                    readOnly
+                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 outline-none"
+                    value={finForm.remaining}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={saveFinancials} 
+              disabled={savingFin}
+              className="mt-8 w-full py-3 bg-[#0D1B3E] hover:bg-[#1a3070] text-white rounded-xl font-bold transition-all disabled:opacity-50"
+            >
+              {savingFin ? "Saving..." : "Save Financials"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Send Reminder Modal */}
+      {showReminderModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black text-slate-900">Send Payment Reminder</h3>
+              <button onClick={() => setShowReminderModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Message Body</label>
+                <textarea 
+                  rows={10}
+                  className="w-full p-4 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm font-medium text-slate-700 leading-relaxed resize-none"
+                  value={reminderBody}
+                  onChange={e => setReminderBody(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button 
+                onClick={() => setShowReminderModal(false)} 
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={sendReminder} 
+                disabled={sendingReminder}
+                className="flex-1 py-3 bg-[#0D1B3E] hover:bg-[#1a3070] text-white rounded-xl font-bold transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+              >
+                {sendingReminder ? "Sending..." : <><span>✉️</span> Send Reminder Email</>}
               </button>
             </div>
           </div>

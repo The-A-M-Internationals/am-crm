@@ -1040,6 +1040,63 @@ export default function DynamicTemplate({
                   </tr>
                 )}
 
+                {/* Custom Dynamic Rows */}
+                {(proposal.customRows || []).map((row, rowIdx) => (
+                  <tr key={row.id} className={rowIdx % 2 === 0 ? "bg-white" : "bg-slate-50/20"}>
+                    <td className="p-4 font-semibold text-[#0D1B3E] border-r border-slate-200 group/row">
+                      <div className="flex items-center justify-between gap-1.5 w-full">
+                        <div
+                          contentEditable={isEditing}
+                          suppressContentEditableWarning
+                          onKeyDown={handleSingleLineKeyDown}
+                          onBlur={(e) => {
+                            const newRows = [...(proposal.customRows || [])];
+                            newRows[rowIdx] = { ...newRows[rowIdx], label: e.target.innerText };
+                            onChange({ ...proposal, customRows: newRows });
+                          }}
+                          className={editableTextClass}
+                        >
+                          {row.label}
+                        </div>
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newRows = (proposal.customRows || []).filter(r => r.id !== row.id);
+                              onChange({ ...proposal, customRows: newRows });
+                            }}
+                            className="text-red-400 hover:text-red-600 opacity-0 group-hover/row:opacity-100 transition-opacity font-bold select-none text-xs px-1"
+                            title="Remove Row"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    {proposal.packages.map((pkg, i) => (
+                      <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-medium">
+                        <div
+                          contentEditable={isEditing}
+                          suppressContentEditableWarning
+                          onKeyDown={handleSingleLineKeyDown}
+                          onBlur={(e) => {
+                            const newPackages = [...(proposal.packages || [])];
+                            const currentCustomVals = newPackages[i].customValues || {};
+                            newPackages[i] = { 
+                              ...newPackages[i], 
+                              customValues: { ...currentCustomVals, [row.id]: e.target.innerText } 
+                            };
+                            onChange({ ...proposal, packages: newPackages });
+                          }}
+                          className={`w-full text-center ${editableTextClass} text-xs`}
+                        >
+                          {(pkg.customValues || {})[row.id] || "-"}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+
                 {/* 12. TOTAL MONTHLY */}
                 {!disabledRows.includes("totalMonthly") && (
                   <tr className="bg-[#0D1B3E] text-white">
@@ -1104,6 +1161,18 @@ export default function DynamicTemplate({
                 className="px-4 py-2 bg-[#0D1B3E] text-white rounded-lg text-xs font-bold hover:bg-[#1a3070] transition-colors shadow-sm"
               >
                 + Add Package Column
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  const newRowId = `customRow_${Date.now()}`;
+                  const newRows = [...(proposal.customRows || []), { id: newRowId, label: "New Feature" }];
+                  onChange({ ...proposal, customRows: newRows });
+                }}
+                className="px-4 py-2 bg-white border border-[#0D1B3E] text-[#0D1B3E] rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                + Add Feature Row
               </button>
 
               {disabledRows.length > 0 && (
@@ -2088,15 +2157,27 @@ export default function DynamicTemplate({
                 }}
                 className={`font-bold text-[#0D1B3E] mb-16 ${editableTextClass}`}
               >
-                {proposal.providerSignatory || "The A&M Internationals"}
+                {proposal.providerSignatory || "Sijith Mathew"}
               </div>
-              <div className="border-b border-[#CCCCCC] w-full mb-2 h-10"></div>
+              <div className="border-b border-[#CCCCCC] w-full mb-2 h-10 flex items-end">
+                <span className="font-serif italic text-2xl text-indigo-900 tracking-wider">Sijith Mathew</span>
+              </div>
               <p className="text-xs text-slate-500 mb-12 select-none">Authorised Signatory</p>
               
-              <div className="border-b border-[#CCCCCC] w-full mb-2"></div>
+              <div className="border-b border-[#CCCCCC] w-full mb-2 flex items-end pb-1">
+                <span className="font-semibold text-slate-800 text-sm">Sijith Mathew | Co-Founder</span>
+              </div>
               <p className="text-xs text-slate-500 mb-12 select-none">Name & Title</p>
 
-              <div className="border-b border-[#CCCCCC] w-full mb-2"></div>
+              <div className="border-b border-[#CCCCCC] w-full mb-2">
+                <input 
+                  type="date" 
+                  disabled={!isEditing} 
+                  value={proposal.createdAt ? proposal.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]} 
+                  onChange={(e) => onChange({ ...proposal, createdAt: new Date(e.target.value).toISOString() })}
+                  className="bg-transparent border-none p-0 text-sm font-semibold text-slate-800 focus:ring-0 w-full"
+                />
+              </div>
               <p className="text-xs text-slate-500 select-none">Date</p>
             </div>
             <div>
@@ -2113,9 +2194,15 @@ export default function DynamicTemplate({
               </div>
               {proposal.status === "accepted" || proposal.status === "won" ? (
                 <div className="mb-4">
-                  <p className="font-serif italic text-2xl text-indigo-900 tracking-wider border-b border-[#CCCCCC] pb-2 h-10 flex items-end">
-                    {proposal.clientSignatureName || proposal.clientName}
-                  </p>
+                  <div className="border-b border-[#CCCCCC] pb-2 h-20 flex items-end">
+                    {proposal.clientSignatureImage ? (
+                      <img src={proposal.clientSignatureImage} alt="Signature" className="max-h-16 object-contain mix-blend-multiply" />
+                    ) : (
+                      <p className="font-serif italic text-2xl text-indigo-900 tracking-wider">
+                        {proposal.clientSignatureName || proposal.clientName}
+                      </p>
+                    )}
+                  </div>
                   <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mt-1 select-none">✓ Digitally Signed & Accepted</p>
                 </div>
               ) : (
@@ -2153,6 +2240,10 @@ export default function DynamicTemplate({
             className={`w-full text-center font-medium text-[#222222] italic mt-20 ${editableTextClass}`}
           >
             {proposal.footerClosingText || `We look forward to partnering with ${proposal.clientName} to elevate your digital presence.`}
+          </div>
+          
+          <div className="text-center text-[10px] text-slate-400 mt-12 border-t border-slate-200 pt-6 font-medium tracking-wider">
+            A&amp;M Internationals (FZC) · Ajman Free Zone, UAE · Licence No. 51609 · theaminternationals.com · am@theaminternational.com · +91 90255 62311
           </div>
         </section>
       )}

@@ -111,33 +111,7 @@ export default function RevenuePage() {
     INR: 0.043,
   });
 
-  if (crmUser?.role !== "admin") {
-    return (
-      <div className="p-8 flex items-center justify-center h-full">
-        <div className="text-center">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-            style={{ background: "#fee2e2" }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#991b1b"
-              strokeWidth="2"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold" style={{ color: "#1a1a2e" }}>
-            Admin Access Only
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Wait to do return until after hooks
 
   async function fetchExchangeRates() {
     try {
@@ -174,9 +148,32 @@ export default function RevenuePage() {
   }
 
   useEffect(() => {
-    fetchData();
-    fetchExchangeRates();
-  }, []);
+    if (crmUser?.role === "admin") {
+      fetchData();
+      fetchExchangeRates();
+    }
+  }, [crmUser]);
+
+  if (crmUser?.role !== "admin") {
+    return (
+      <div className="p-8 flex items-center justify-center h-full">
+        <div className="text-center">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+            style={{ background: "#fee2e2" }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold" style={{ color: "#1a1a2e" }}>
+            Admin Access Only
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Calculations
   const paidInvoices = invoices.filter((i) => i.status === "paid");

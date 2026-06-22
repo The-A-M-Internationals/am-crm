@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { Lead, ServiceTag, LeadStage } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
+import { PhoneInput } from "@/components/phone-input";
 import { useRouter } from "next/navigation";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
@@ -336,7 +337,10 @@ export default function LeadsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-                <div><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+971 50 123 4567" /></div>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <PhoneInput value={form.phone} onChange={(val) => setForm({ ...form, phone: val })} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

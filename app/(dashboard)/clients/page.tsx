@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, order
 import { db } from "@/lib/firebase";
 import { Client, ServiceTag } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PhoneInput } from "@/components/phone-input";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
 
@@ -32,6 +33,7 @@ const EMPTY_FORM = {
   status: "active" as "active" | "inactive",
   address: "", website: "", notes: "",
   currency: "AED",
+  budget: "", due: "", paid: "", remaining: "",
 };
 
 function Initials({ name }: { name: string }) {
@@ -83,6 +85,10 @@ export default function ClientsPage() {
       status: client.status, address: client.address ?? "",
       website: client.website ?? "", notes: client.notes ?? "",
       currency: client.currency ?? "AED",
+      budget: client.budget?.toString() ?? "",
+      due: client.due?.toString() ?? "",
+      paid: client.paid?.toString() ?? "",
+      remaining: client.remaining?.toString() ?? client.balance?.toString() ?? "",
     });
     setShowModal(true);
   }
@@ -108,10 +114,17 @@ export default function ClientsPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      
+      const payload: any = { ...form };
+      if (payload.budget) payload.budget = Number(payload.budget); else delete payload.budget;
+      if (payload.due) payload.due = Number(payload.due); else delete payload.due;
+      if (payload.paid) payload.paid = Number(payload.paid); else delete payload.paid;
+      if (payload.remaining) payload.remaining = Number(payload.remaining); else delete payload.remaining;
+
       if (editing) {
-        await updateDoc(doc(db, "clients", editing.id), { ...form });
+        await updateDoc(doc(db, "clients", editing.id), payload);
       } else {
-        await addDoc(collection(db, "clients"), { ...form, createdAt: now, active: true });
+        await addDoc(collection(db, "clients"), { ...payload, createdAt: now, active: true });
       }
       setShowModal(false);
     } finally {
@@ -347,7 +360,10 @@ export default function ClientsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-                <div><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <PhoneInput value={form.phone} onChange={(val) => setForm({ ...form, phone: val })} />
+                </div>
               </div>
               <div><label className="form-label">Website</label><input className="form-input" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." /></div>
               <div>
@@ -385,6 +401,56 @@ export default function ClientsPage() {
                   </select>
                 </div>
                 <div><label className="form-label">Address</label><input className="form-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <div>
+                  <label className="form-label">Budget</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.budget) === 0 ? "" : form.budget}
+                    onChange={(e) => {
+                      const budgetVal = Number(e.target.value) || 0;
+                      const paidVal = Number(form.paid) || 0;
+                      setForm({ ...form, budget: e.target.value, remaining: (budgetVal - paidVal).toString() });
+                    }}
+                    placeholder="Total Budget"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Due</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.due) === 0 ? "" : form.due}
+                    onChange={(e) => setForm({ ...form, due: e.target.value })}
+                    placeholder="Amount Due"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Paid</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.paid) === 0 ? "" : form.paid}
+                    onChange={(e) => {
+                      const paidVal = Number(e.target.value) || 0;
+                      const budgetVal = Number(form.budget) || 0;
+                      setForm({ ...form, paid: e.target.value, remaining: (budgetVal - paidVal).toString() });
+                    }}
+                    placeholder="Paid"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Remaining</label>
+                  <input
+                    className="form-input bg-gray-50 text-gray-500"
+                    type="number"
+                    value={Number(form.remaining) === 0 ? "" : form.remaining}
+                    readOnly
+                    placeholder="Auto Calculated"
+                  />
+                </div>
               </div>
               <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>

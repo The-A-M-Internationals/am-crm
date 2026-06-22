@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { PhoneInput } from "@/components/phone-input";
 
 const SERVICES = [
   { key: "digital-marketing", label: "Digital Marketing" },
@@ -382,7 +383,7 @@ export default function InvoicePage() {
                   <table style="width:100%;font-size:13px;">
                     <tr><td style="color:#9ca3af;padding:4px 0;">Invoice No.</td><td style="text-align:right;font-weight:600;color:#1a1a2e;">${inv.invoiceNumber}</td></tr>
                     <tr><td style="color:#9ca3af;padding:4px 0;">Service</td><td style="text-align:right;color:#1a1a2e;">${SERVICES.find((s) => s.key === inv.service)?.label || inv.service}</td></tr>
-                    ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
+                    ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;font-weight:600;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
                     <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">${curr} ${inv.subtotal?.toLocaleString()}</td></tr>
                     <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
                     <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">${curr} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
@@ -771,17 +772,8 @@ export default function InvoicePage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">
-                    Client Phone (with country code)
-                  </label>
-                  <input
-                    className="form-input"
-                    value={form.clientPhone}
-                    onChange={(e) =>
-                      setForm({ ...form, clientPhone: e.target.value })
-                    }
-                    placeholder="+971501234567"
-                  />
+                  <label className="form-label text-slate-500 font-semibold mb-1 block">Phone</label>
+                  <PhoneInput value={form.clientPhone} onChange={(val: string) => setForm({ ...form, clientPhone: val })} />
                 </div>
                 <div>
                   <label className="form-label">Client Address</label>

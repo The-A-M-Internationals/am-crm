@@ -3,7 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 
 export async function POST(req: Request) {
   try {
-    const { proposalId, clientSignatureName, clientSignatureTitle } = await req.json();
+    const { proposalId, clientSignatureName, clientSignatureTitle, clientSignatureImage } = await req.json();
 
     if (!proposalId || !clientSignatureName || !clientSignatureTitle) {
       return NextResponse.json(
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       status: "accepted",
       clientSignatureName,
       clientSignatureTitle,
+      clientSignatureImage: clientSignatureImage || null,
       signedAt: now,
       updatedAt: now,
     });
@@ -44,42 +45,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Sync Client status
-    const email = proposal.clientEmail.toLowerCase().trim();
-    const clientsSnap = await adminDb.collection("clients").where("email", "==", email).get();
-
-    if (clientsSnap.empty) {
-      const clientRef = adminDb.collection("clients").doc();
-      batch.set(clientRef, {
-        name: proposal.clientName || "Unknown",
-        company: proposal.company || proposal.clientName || "Unknown",
-        email: email,
-        phone: proposal.phone || "",
-        services: proposal.service ? [proposal.service] : [],
-        status: "active",
-        active: true,
-        currency: proposal.currency || "AED",
-        fromLeadId: proposal.fromLeadId || "",
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      clientsSnap.forEach((docSnap) => {
-        const clientData = docSnap.data();
-        const currentServices = clientData.services || [];
-        const services = proposal.service && !currentServices.includes(proposal.service)
-          ? [...currentServices, proposal.service]
-          : currentServices;
-
-        batch.update(docSnap.ref, {
-          status: "active",
-          active: true,
-          services: services,
-          currency: proposal.currency || clientData.currency || "AED",
-          updatedAt: now,
-        });
-      });
-    }
+    // Client sync is strictly handled by the reactive Global Pipeline Sync listener.
 
     await batch.commit();
 

@@ -7,7 +7,8 @@ import {
   where, 
   writeBatch, 
   updateDoc, 
-  addDoc 
+  addDoc,
+  onSnapshot
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Lead, LeadStage, ServiceTag } from "@/types";
@@ -22,6 +23,115 @@ const normalizeEmail = (email?: string) => (email || "").trim().toLowerCase();
  * Centralized pipeline logic to ensure atomic updates across Leads, Clients, and Proposals.
  */
 export const PipelineService = {
+  
+  _listenerUnsubscribe: null as any,
+
+  /**
+   * Establishes a strict real-time snapshot listener on the Proposals collection
+   * to enforce Proposal-to-Client hierarchy and data coupling automatically.
+   */
+  initGlobalPipelineListener() {
+    if (typeof window === "undefined") return;
+    if (this._listenerUnsubscribe) return;
+
+    const q = query(collection(db, "proposals"));
+    let isInitialLoad = true;
+
+    this._listenerUnsubscribe = onSnapshot(q, async (snap) => {
+      const changedEmails = new Set<string>();
+
+      if (isInitialLoad) {
+        isInitialLoad = false;
+        // On initial mount, ensure all active clients have an accepted proposal.
+        // Also ensure any accepted proposals have an active client (catches offline API signatures)
+        snap.docs.forEach(docSnap => {
+          const email = normalizeEmail(docSnap.data().clientEmail);
+          if (email) changedEmails.add(email);
+        });
+      } else {
+        // Strict real-time atomic sync for ongoing changes
+        snap.docChanges().forEach(change => {
+          const email = normalizeEmail(change.doc.data().clientEmail);
+          if (email) changedEmails.add(email);
+        });
+      }
+
+      // Execute atomic transaction checks for affected emails
+      for (const email of changedEmails) {
+        await this.syncClientForEmail(email);
+      }
+    });
+  },
+
+  /**
+   * Atomic evaluation: Validates if an email has accepted proposals.
+   * - If YES: Instantiates or activates Client profile.
+   * - If NO: Cascades to instantly deactivate/archive Client.
+   */
+  async syncClientForEmail(email: string) {
+    if (!email) return;
+    const normEmail = normalizeEmail(email);
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+
+    const propQ = query(collection(db, "proposals"), where("clientEmail", "==", normEmail));
+    const propSnap = await getDocs(propQ);
+    
+    // Strict isolation: Client ONLY exists if there's an accepted proposal
+    const acceptedProps = propSnap.docs.filter(d => {
+      const s = d.data().status;
+      return s === "accepted" || s === "won";
+    });
+
+    const clientQ = query(collection(db, "clients"), where("email", "==", normEmail));
+    const clientSnap = await getDocs(clientQ);
+
+    const shouldBeActive = acceptedProps.length > 0;
+
+    if (shouldBeActive) {
+      if (clientSnap.empty) {
+        // Instantiate new active Client profile carrying over the proposal's metadata
+        const latestProp = acceptedProps.map(d => d.data()).sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
+        const newClientRef = doc(collection(db, "clients"));
+        batch.set(newClientRef, {
+          name: latestProp.clientName || "Unknown",
+          company: latestProp.company || latestProp.clientName || "Unknown",
+          email: normEmail,
+          phone: latestProp.phone || "",
+          services: latestProp.service ? [latestProp.service] : [],
+          status: "active",
+          active: true,
+          currency: latestProp.currency || "AED",
+          fromLeadId: latestProp.fromLeadId || "",
+          createdAt: now,
+          updatedAt: now
+        });
+      } else {
+        // Enforce existing clients stay active
+        clientSnap.forEach(d => {
+           const cData = d.data();
+           const services = new Set(cData.services || []);
+           acceptedProps.forEach(p => {
+             if (p.data().service) services.add(p.data().service);
+           });
+           
+           if (cData.status !== "active" || cData.active !== true || services.size !== (cData.services || []).length) {
+             batch.update(d.ref, { active: true, status: "active", services: Array.from(services), updatedAt: now });
+           }
+        });
+      }
+    } else {
+      // Cascading signal: instantly deactivate/hide client record
+      clientSnap.forEach(d => {
+         const cData = d.data();
+         if (cData.status !== "inactive" || cData.active !== false) {
+           batch.update(d.ref, { active: false, status: "inactive", updatedAt: now });
+         }
+      });
+    }
+
+    await batch.commit();
+  },
   
   /**
    * Syncs Lead profile details to Client Profile (e.g. if phone or name is updated)
@@ -82,10 +192,8 @@ export const PipelineService = {
   },
 
   /**
-   * Automates the proposal acceptance pipeline explicitly via a single transactional hook.
-   * 1. Updates proposal to 'accepted'
-   * 2. Updates linked lead to 'won'
-   * 3. Automatically creates an 'active' client document populated with lead's contact details.
+   * Automates the proposal acceptance pipeline.
+   * Note: Client instantiation is now strictly handled by the reactive `syncClientForEmail` listener.
    */
   async acceptProposal(proposalId: string, leadId: string) {
     const batch = writeBatch(db);
@@ -94,19 +202,17 @@ export const PipelineService = {
     const propRef = doc(db, "proposals", proposalId);
     const propDoc = await getDoc(propRef);
     if (!propDoc.exists()) throw new Error("Proposal not found");
-    const proposalData = propDoc.data();
 
-    const leadRef = doc(db, "leads", leadId);
-    const leadDoc = await getDoc(leadRef);
-    let leadData: any = {};
-    if (leadDoc.exists()) {
-      leadData = leadDoc.data();
-      // 2. Update linked lead to 'won'
-      batch.update(leadRef, {
-        stage: "won",
-        active: true,
-        updatedAt: now
-      });
+    if (leadId) {
+      const leadRef = doc(db, "leads", leadId);
+      const leadDoc = await getDoc(leadRef);
+      if (leadDoc.exists()) {
+        batch.update(leadRef, {
+          stage: "won",
+          active: true,
+          updatedAt: now
+        });
+      }
     }
 
     // 1. Update proposal to 'accepted'
@@ -115,76 +221,25 @@ export const PipelineService = {
       updatedAt: now
     });
 
-    const email = normalizeEmail(proposalData.clientEmail || leadData.email);
-
-    // 3. Create a brand new active client document (or activate existing if matches email perfectly to avoid dupes)
-    if (email) {
-      const clientQ = query(collection(db, "clients"), where("email", "==", email));
-      const clientSnap = await getDocs(clientQ);
-
-      if (clientSnap.empty) {
-        const newClientRef = doc(collection(db, "clients"));
-        batch.set(newClientRef, {
-          name: proposalData.clientName || leadData.name || "Unknown",
-          company: proposalData.company || leadData.company || "Unknown",
-          email: email,
-          phone: proposalData.phone || leadData.phone || "",
-          services: proposalData.service ? [proposalData.service] : [],
-          status: "active",
-          active: true,
-          currency: proposalData.currency || "AED",
-          fromLeadId: leadId,
-          createdAt: now,
-          updatedAt: now
-        });
-      } else {
-        clientSnap.forEach(d => {
-          const currentServices = d.data().services || [];
-          const services = proposalData.service && !currentServices.includes(proposalData.service) 
-            ? [...currentServices, proposalData.service] 
-            : currentServices;
-
-          batch.update(doc(db, "clients", d.id), { 
-            status: "active", 
-            active: true,
-            services: services,
-            currency: proposalData.currency || d.data().currency || "AED",
-            updatedAt: now
-          });
-        });
-      }
-    }
-
     await batch.commit();
   },
 
   /**
-   * Reverts an accepted proposal retrospectively via a single transactional hook.
-   * 1. Reverts proposal to 'draft'
-   * 2. Resets linked lead to targetStage (e.g., 'meeting' or 'draft')
-   * 3. Automatically locates and deactivates the associated client record.
+   * Reverts an accepted proposal.
+   * Note: Client cleanup is now strictly handled by the reactive `syncClientForEmail` listener.
    */
   async withdrawProposal(proposalId: string, leadId: string, targetStage: 'draft' | 'meeting' | 'lead' | 'proposal') {
     const batch = writeBatch(db);
     const now = new Date().toISOString();
 
     const propRef = doc(db, "proposals", proposalId);
-    const propDoc = await getDoc(propRef);
-    let email = "";
-    if (propDoc.exists()) {
-      email = normalizeEmail(propDoc.data().clientEmail);
-      // 1. Revert proposal to 'draft'
-      batch.update(propRef, {
-        status: "draft",
-        updatedAt: now
-      });
-    }
+    batch.update(propRef, {
+      status: "draft",
+      updatedAt: now
+    });
 
-    const leadRef = doc(db, "leads", leadId);
-    const leadDoc = await getDoc(leadRef);
-    if (leadDoc.exists()) {
-      if (!email) email = normalizeEmail(leadDoc.data().email);
-      // 2. Reset linked lead to the requested stage
+    if (leadId) {
+      const leadRef = doc(db, "leads", leadId);
       batch.update(leadRef, {
         stage: targetStage,
         active: true,
@@ -192,33 +247,17 @@ export const PipelineService = {
       });
     }
 
-    // 3. Locate client and set status to inactive
-    if (email) {
-      const clientQ = query(collection(db, "clients"), where("email", "==", email));
-      const clientSnap = await getDocs(clientQ);
-      clientSnap.forEach(d => {
-        batch.update(doc(db, "clients", d.id), {
-          status: "inactive",
-          active: false,
-          updatedAt: now
-        });
-      });
-    }
-
     await batch.commit();
   },
 
   /**
-   * Syncs Client and Lead status when a Proposal's status changes.
-   * Ensures data integrity across the pipeline.
+   * Syncs Proposal and Lead status when a Proposal's status changes.
+   * Note: Client sync is handled strictly by the reactive `syncClientForEmail` listener.
    */
   async handleProposalStatusChange(proposal: any, newStatus: string) {
     const batch = writeBatch(db);
-    const email = normalizeEmail(proposal.clientEmail);
     const now = new Date().toISOString();
 
-    // Map proposal statuses to lead stages for syncing
-    // draft, sent, and proposal statuses keep the lead in 'proposal' stage
     let leadStage = "proposal";
     if (newStatus === "accepted" || newStatus === "won") leadStage = "won";
     else if (newStatus === "rejected" || newStatus === "lost") leadStage = "lost";
@@ -228,64 +267,7 @@ export const PipelineService = {
     // 1. Update the proposal
     batch.update(doc(db, "proposals", proposal.id), { status: newStatus, updatedAt: now });
 
-    // 2. Determine Client State
-    const propQ = query(collection(db, "proposals"), where("clientEmail", "==", email));
-    const propSnap = await getDocs(propQ);
-    
-    // Calculate state based on what it WILL be after this update
-    const otherProposals = propSnap.docs.filter(d => d.id !== proposal.id);
-    const hasOtherAccepted = otherProposals.some(d => d.data().status === "accepted" || d.data().status === "won");
-    const isNowAccepted = newStatus === "accepted" || newStatus === "won";
-    const shouldBeActive = isNowAccepted || hasOtherAccepted;
-
-    const clientQ = query(collection(db, "clients"), where("email", "==", email));
-    const clientSnap = await getDocs(clientQ);
-
-    if (shouldBeActive) {
-      if (clientSnap.empty) {
-        // Create new client if accepted and doesn't exist
-        const clientRef = doc(collection(db, "clients"));
-        batch.set(clientRef, {
-          name: proposal.clientName || "Unknown",
-          company: proposal.company || proposal.clientName || "Unknown",
-          email: email,
-          phone: proposal.phone || "",
-          services: proposal.service ? [proposal.service] : [],
-          status: "active",
-          active: true,
-          currency: proposal.currency || "AED",
-          fromLeadId: proposal.fromLeadId || "",
-          createdAt: now,
-          updatedAt: now
-        });
-      } else {
-        clientSnap.forEach(d => {
-          const currentServices = d.data().services || [];
-          const services = isNowAccepted && proposal.service && !currentServices.includes(proposal.service) 
-            ? [...currentServices, proposal.service] 
-            : currentServices;
-
-          batch.update(doc(db, "clients", d.id), { 
-            status: "active", 
-            active: true,
-            services: services,
-            currency: proposal.currency || d.data().currency || "AED",
-            updatedAt: now
-          });
-        });
-      }
-    } else {
-      // Deactivate client if no proposals are accepted
-      clientSnap.forEach(d => {
-        batch.update(doc(db, "clients", d.id), { 
-          status: "inactive", 
-          active: false,
-          updatedAt: now 
-        });
-      });
-    }
-
-    // 3. Update Lead Stage if applicable
+    // 2. Update Lead Stage if applicable
     if (proposal.fromLeadId) {
       const leadRef = doc(db, "leads", proposal.fromLeadId);
       const leadDoc = await getDoc(leadRef);
@@ -306,46 +288,35 @@ export const PipelineService = {
   },
 
   /**
-   * Deletes a proposal and syncs the Client/Lead status.
+   * Deletes a proposal.
+   * Note: Client sync is handled strictly by the reactive `syncClientForEmail` listener.
    */
   async deleteProposal(proposal: any) {
     const batch = writeBatch(db);
-    const email = normalizeEmail(proposal.clientEmail);
     const now = new Date().toISOString();
 
     // 1. Delete the proposal
     batch.delete(doc(db, "proposals", proposal.id));
 
-    // 2. Determine Client State
-    const propQ = query(collection(db, "proposals"), where("clientEmail", "==", email));
-    const propSnap = await getDocs(propQ);
-    
-    // Check other proposals (excluding the one being deleted)
-    const otherAccepted = propSnap.docs
-      .filter(d => d.id !== proposal.id)
-      .some(d => d.data().status === "accepted" || d.data().status === "won");
+    // 2. Revert lead stage if applicable
+    if (proposal.fromLeadId) {
+      // We check if other accepted proposals exist to avoid reverting lead if they're still active
+      const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", proposal.fromLeadId));
+      const propSnap = await getDocs(propQ);
+      const otherAccepted = propSnap.docs
+        .filter(d => d.id !== proposal.id)
+        .some(d => d.data().status === "accepted" || d.data().status === "won");
 
-    const clientQ = query(collection(db, "clients"), where("email", "==", email));
-    const clientSnap = await getDocs(clientQ);
-
-    if (!otherAccepted) {
-      // Inactivate client if no other accepted proposals remain
-      clientSnap.forEach(d => {
-        batch.update(doc(db, "clients", d.id), { status: "inactive", active: false });
-      });
-    }
-
-    // 3. Revert lead stage if applicable
-    if (proposal.fromLeadId && !otherAccepted) {
-      const leadRef = doc(db, "leads", proposal.fromLeadId);
-      const leadDoc = await getDoc(leadRef);
-      
-      if (leadDoc.exists()) {
-        batch.update(leadRef, { 
-          stage: "lead", // Revert to lead if proposal is deleted
-          active: true,
-          updatedAt: now 
-        });
+      if (!otherAccepted) {
+        const leadRef = doc(db, "leads", proposal.fromLeadId);
+        const leadDoc = await getDoc(leadRef);
+        if (leadDoc.exists()) {
+          batch.update(leadRef, { 
+            stage: "lead",
+            active: true,
+            updatedAt: now 
+          });
+        }
       }
     }
 
@@ -428,7 +399,7 @@ export const PipelineService = {
         clientEmail: email,
         phone: lead.phone || "",
         service: lead.service,
-        status: "proposal", // Match the single source of truth 'Proposal'
+        status: "draft", // Explicitly set default state to Draft
         items: [],
         subtotal: 0,
         tax: 0,
@@ -442,7 +413,7 @@ export const PipelineService = {
     } else {
       // If it exists, ensure status is set to 'proposal' so it appears in the view
       propSnap.forEach(d => {
-        batch.update(doc(db, "proposals", d.id), { status: "proposal", updatedAt: now });
+        batch.update(doc(db, "proposals", d.id), { status: "draft", updatedAt: now });
       });
     }
 

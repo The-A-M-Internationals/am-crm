@@ -55,6 +55,7 @@ function ProposalsContent() {
   const [form, setForm]           = useState<any>({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
   const [saving, setSaving]       = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   
   const activeRef = useRef<HTMLDivElement>(null);
 
@@ -266,30 +267,80 @@ function ProposalsContent() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-3 flex-shrink-0 relative" onClick={e => e.stopPropagation()}>
                     <div className="text-right mr-2">
                       <p className="text-base font-bold" style={{ color: "#C9A84C" }}>{p.currency || "AED"} {p.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                     </div>
                     <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
                     
-                    <div className="flex gap-1">
-                      {STATUSES.filter(s => s.key !== p.status).map(s => (
-                        <button key={s.key} onClick={() => updateStatus(p, s.key)} className="text-[10px] px-2 py-1 rounded-md font-bold transition-all hover:opacity-80 font-sans" style={{ background: s.bg, color: s.color, border: `1px solid ${st.border}` }}>
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                    <button 
+                    <button
+                      className="btn-primary"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          const res = await fetch("/api/send-proposal", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ proposalId: p.id, clientEmail: p.clientEmail }),
+                          });
+                          if (!res.ok) throw new Error("Failed to send proposal");
+                          if (p.status !== "accepted" && p.status !== "rejected") {
+                            await PipelineService.handleProposalStatusChange(p, "sent");
+                          }
+                          alert("Proposal sent successfully to " + p.clientEmail);
+                        } catch (err) {
+                          alert("Error sending proposal");
+                        }
+                      }}
+                    >
+                      ✉ Send Proposal
+                    </button>
+                    
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        startEditing(p);
-                      }} 
-                      className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                      title="Edit metadata"
+                        setOpenMenu(openMenu === p.id ? null : p.id);
+                      }}
+                      className="btn-primary"
                     >
-                      ✏️
+                      Actions ▼
                     </button>
-                    <button onClick={() => deleteProposal(p)} className="p-2 text-red-400 hover:text-red-600 transition-colors">🗑</button>
+
+                    {openMenu === p.id && (
+                      <div 
+                        className="absolute right-0 top-12 z-50 bg-white border rounded-xl shadow-lg w-56 py-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            viewProposal(p.id);
+                          }}
+                        >
+                          👁 View Proposal
+                        </button>
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            router.push(`/proposals/${p.id}?action=download`);
+                          }}
+                        >
+                          ⬇ Download PDF
+                        </button>
+                        <div className="border-t border-slate-100 my-1" />
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-bold transition-colors"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            deleteProposal(p);
+                          }}
+                        >
+                          🗑 Delete Proposal
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

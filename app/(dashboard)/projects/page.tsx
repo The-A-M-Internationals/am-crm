@@ -33,7 +33,7 @@ const CURRENCIES = [
 const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
-  description: "", budget: "", balance: "", due: "", currency: "AED",
+  description: "", budget: "", due: "", remaining: "", paid: "", currency: "AED",
 };
 
 function statusInfo(key: string) {
@@ -97,8 +97,9 @@ export default function ProjectsPage() {
       deadline: p.deadline ?? "", 
       description: p.description ?? "", 
       budget: p.budget?.toString() ?? "",
-      balance: p.balance?.toString() ?? "",
       due: p.due?.toString() ?? "",
+      remaining: p.remaining?.toString() ?? p.balance?.toString() ?? "",
+      paid: p.paid?.toString() ?? "",
       currency: p.currency ?? "AED",
       assignedTo: p.assignedTo || []
     });
@@ -161,11 +162,17 @@ export default function ProjectsPage() {
       if (form.budget) data.budget = Number(form.budget);
       else delete data.budget;
 
-      if (form.balance) data.balance = Number(form.balance);
-      else delete data.balance;
-
       if (form.due) data.due = Number(form.due);
       else delete data.due;
+
+      if (form.paid) data.paid = Number(form.paid);
+      else delete data.paid;
+
+      if (form.remaining) data.remaining = Number(form.remaining);
+      else delete data.remaining;
+      
+      // Clean up legacy fields if present
+      data.balance = null;
 
       let projectId = editing?.id;
       if (editing) {
@@ -300,11 +307,12 @@ export default function ProjectsPage() {
                               {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                             </span>
                           ) : <span className="text-xs text-slate-400">No deadline</span>}
-                          <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {project.budget?.toLocaleString()}</span>
+                          <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {(project.budget)?.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
-                          <span className="text-slate-500">Balance: <strong className="text-slate-700">{project.currency} {project.balance?.toLocaleString() || "0"}</strong></span>
-                          <span className="text-slate-500">Due: <strong className="text-red-600">{project.currency} {project.due?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Paid: <strong className="text-green-600">{project.currency} {(project.paid)?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Due: <strong className="text-orange-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Remaining: <strong className="text-red-600">{project.currency} {(project.remaining ?? project.balance)?.toLocaleString() || "0"}</strong></span>
                         </div>
                       </div>
 
@@ -411,46 +419,57 @@ export default function ProjectsPage() {
                       className="form-input"
                       type="number"
                       value={Number(form.budget) === 0 ? "" : form.budget}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const budgetVal = Number(e.target.value) || 0;
+                        const paidVal = Number(form.paid) || 0;
                         setForm({
                           ...form,
-                          budget: e.target.value
-                        })
-                      }
-                      placeholder="5000"
+                          budget: e.target.value,
+                          remaining: (budgetVal - paidVal).toString()
+                        });
+                      }}
+                      placeholder="Total Budget"
                     />
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">Balance</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.balance) === 0 ? "" : form.balance}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        balance: e.target.value
-                      })
-                    }
-                    placeholder="Remaining"
-                  />
-                </div>
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="form-label">Due</label>
                   <input
                     className="form-input"
                     type="number"
                     value={Number(form.due) === 0 ? "" : form.due}
-                    onChange={(e) =>
+                    onChange={(e) => setForm({ ...form, due: e.target.value })}
+                    placeholder="Amount Due"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Paid</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.paid) === 0 ? "" : form.paid}
+                    onChange={(e) => {
+                      const paidVal = Number(e.target.value) || 0;
+                      const budgetVal = Number(form.budget) || 0;
                       setForm({
                         ...form,
-                        due: e.target.value
-                      })
-                    }
-                    placeholder="Amount Due"
+                        paid: e.target.value,
+                        remaining: (budgetVal - paidVal).toString()
+                      });
+                    }}
+                    placeholder="Amount Paid"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Remaining</label>
+                  <input
+                    className="form-input bg-gray-50 text-gray-500"
+                    type="number"
+                    value={Number(form.remaining) === 0 ? "" : form.remaining}
+                    readOnly
+                    placeholder="Remaining"
                   />
                 </div>
               </div>

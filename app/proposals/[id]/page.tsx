@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Proposal, ProposalStatus, ProposalPackage, ProposalCustomSection } from "@/types";
@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/auth-context";
 import Sidebar from "@/components/sidebar";
 import { getMasterTemplate } from "@/lib/proposal-templates";
 import DynamicTemplate from "@/components/dynamic-template";
+import { PipelineService } from "@/lib/pipeline-service";
+import SignatureCanvas from "react-signature-canvas";
 
 const STATUSES: Record<string, { label: string; color: string; bg: string; border: string }> = {
   proposal: { label: "Proposal", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
@@ -62,8 +64,11 @@ export default function ProposalDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  const isClientView = searchParams.get("view") === "client";
   
   const { user } = useAuth();
+  const showAsClient = !user || isClientView;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
@@ -81,6 +86,15 @@ export default function ProposalDetailPage() {
   const [signingTitle, setSigningTitle] = useState("");
   const [isAgreed, setIsAgreed] = useState(false);
   const [submittingSign, setSubmittingSign] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const sigPad = useRef<any>(null);
+
+  // Close menu on click outside
+  useEffect(() => {
+    const handleClickOutside = () => setShowStatusMenu(false);
+    if (showStatusMenu) document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showStatusMenu]);
 
   useEffect(() => {
     async function fetchProposal() {
@@ -106,14 +120,6 @@ export default function ProposalDetailPage() {
     }
     fetchProposal();
   }, [id]);
-
-  useEffect(() => {
-    if (user) {
-      setIsEditing(true);
-    } else {
-      setIsEditing(false);
-    }
-  }, [user]);
 
   // Initial history load
   useEffect(() => {
@@ -189,7 +195,19 @@ export default function ProposalDetailPage() {
       const cleanedProposal = JSON.parse(JSON.stringify(proposal));
       delete cleanedProposal.id;
       
+      if (cleanedProposal.status !== "accepted" && cleanedProposal.status !== "rejected") {
+        cleanedProposal.status = "proposal";
+      }
+      
       await updateDoc(docRef, cleanedProposal);
+      
+      if (proposal.status !== "accepted" && proposal.status !== "rejected" && proposal.status !== "proposal") {
+        const updatedState = { ...proposal, status: "proposal" as ProposalStatus };
+        setProposal(updatedState);
+        setHistory(prev => [...prev.slice(0, historyIndex + 1), updatedState]);
+        setHistoryIndex(prev => prev + 1);
+      }
+      
       alert("Changes saved successfully!");
     } catch (err) {
       console.error("Error saving proposal changes:", err);
@@ -233,6 +251,15 @@ export default function ProposalDetailPage() {
       });
 
       if (!res.ok) throw new Error("Failed to send proposal");
+      
+      if (proposal.status !== "accepted" && proposal.status !== "rejected") {
+        await PipelineService.handleProposalStatusChange(proposal, "sent");
+        const sentState = { ...proposal, status: "sent" as ProposalStatus };
+        setProposal(sentState);
+        setHistory(prev => [...prev.slice(0, historyIndex + 1), sentState]);
+        setHistoryIndex(prev => prev + 1);
+      }
+      
       alert("Proposal sent successfully to " + proposal.clientEmail);
     } catch (err) {
       console.error("Error sending proposal:", err);
@@ -242,12 +269,36 @@ export default function ProposalDetailPage() {
     }
   }
 
+  async function handleWhatsApp() {
+    if (!proposal) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', 'client');
+    const text = `Hi ${proposal.clientName},\n\nHere is your proposal from The A&M Internationals:\n${url.toString()}\n\nPlease let us know if you have any questions!`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    
+    if (proposal.status !== "accepted" && proposal.status !== "rejected") {
+      try {
+        await PipelineService.handleProposalStatusChange(proposal, "sent");
+        const sentState = { ...proposal, status: "sent" as ProposalStatus };
+        setProposal(sentState);
+        setHistory(prev => [...prev.slice(0, historyIndex + 1), sentState]);
+        setHistoryIndex(prev => prev + 1);
+      } catch (err) {
+        console.error("Failed to update status to sent:", err);
+      }
+    }
+  }
+
   async function handleSignProposal(e: React.FormEvent) {
     e.preventDefault();
     if (!id || !signingName || !signingTitle || !isAgreed) return;
 
     setSubmittingSign(true);
     try {
+      const signatureData = (sigPad.current && !sigPad.current.isEmpty()) 
+        ? sigPad.current.getCanvas().toDataURL("image/png") 
+        : null;
+
       const res = await fetch("/api/accept-proposal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -255,10 +306,14 @@ export default function ProposalDetailPage() {
           proposalId: id,
           clientSignatureName: signingName,
           clientSignatureTitle: signingTitle,
+          clientSignatureImage: signatureData,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to sign proposal");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to sign proposal");
+      }
 
       if (!proposal) throw new Error("Proposal not loaded");
 
@@ -268,6 +323,7 @@ export default function ProposalDetailPage() {
         status: "accepted" as ProposalStatus,
         clientSignatureName: signingName,
         clientSignatureTitle: signingTitle,
+        clientSignatureImage: signatureData,
         signedAt: new Date().toISOString(),
       };
       
@@ -277,11 +333,61 @@ export default function ProposalDetailPage() {
 
       setShowSignModal(false);
       alert("Proposal signed and accepted successfully!");
-    } catch (err) {
-      console.error("Error signing proposal:", err);
-      alert("Error signing proposal. Please try again.");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error signing proposal: " + (err.message || String(err)));
     } finally {
       setSubmittingSign(false);
+    }
+  }
+
+  async function handleRejectProposal() {
+    if (!id) return;
+    if (!confirm("Are you sure you want to reject this proposal?")) return;
+    
+    setSubmittingSign(true);
+    try {
+      const res = await fetch("/api/reject-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposalId: id }),
+      });
+
+      if (!res.ok) throw new Error("Failed to reject proposal");
+
+      if (!proposal) throw new Error("Proposal not loaded");
+
+      const rejectedState: Proposal = {
+        ...proposal,
+        status: "rejected" as ProposalStatus,
+      };
+      
+      setProposal(rejectedState);
+      setHistory(prev => [...prev.slice(0, historyIndex + 1), rejectedState]);
+      setHistoryIndex(prev => prev + 1);
+
+      setShowSignModal(false);
+      alert("Proposal has been rejected.");
+    } catch (err) {
+      console.error("Error rejecting proposal:", err);
+      alert("Error rejecting proposal. Please try again.");
+    } finally {
+      setSubmittingSign(false);
+    }
+  }
+
+  async function handleStatusChange(newStatus: ProposalStatus) {
+    if (!proposal) return;
+    setShowStatusMenu(false);
+    try {
+      await PipelineService.handleProposalStatusChange(proposal, newStatus);
+      const updatedState = { ...proposal, status: newStatus };
+      setProposal(updatedState);
+      setHistory(prev => [...prev.slice(0, historyIndex + 1), updatedState]);
+      setHistoryIndex(prev => prev + 1);
+    } catch (err) {
+      console.error("Error updating status:", err);
+      alert("Failed to update status.");
     }
   }
 
@@ -335,19 +441,45 @@ export default function ProposalDetailPage() {
 
       {/* Header */}
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-2 relative">
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">{proposal.clientName}</h1>
-            <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>
+            <span className="badge rounded-full px-4 py-1 text-xs font-bold flex items-center shadow-sm select-none" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>
               {st.label}
             </span>
+            {!showAsClient && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleSendProposal(); }}
+                  className="px-4 py-1 bg-[#0D1B3E] text-white text-xs font-bold rounded-full hover:bg-[#1a3070] transition-colors shadow-sm select-none"
+                >
+                  ✉ Send Proposal
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }}
+                  className="px-4 py-1 bg-[#0D1B3E] text-white text-xs font-bold rounded-full hover:bg-[#1a3070] transition-colors flex items-center gap-2 shadow-sm select-none"
+                >
+                  Actions ▼
+                </button>
+              </>
+            )}
+            {showStatusMenu && !showAsClient && (
+              <div className="absolute left-[calc(100%+0.5rem)] top-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-56 py-2" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => { setIsEditing(false); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
+                  <span className="text-lg">👁</span> View Proposal
+                </button>
+                <button onClick={() => { setIsEditing(true); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
+                  <span className="text-lg">✏️</span> Edit Proposal
+                </button>
+                <button onClick={() => { downloadPDF(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
+                  <span className="text-lg">⬇️</span> Download PDF
+                </button>
+                <div className="border-t border-slate-100 my-1" />
+                <button onClick={() => { handleRejectProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-bold transition-colors">
+                  <span className="text-lg">🗑️</span> Delete Proposal
+                </button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3 text-slate-500 font-bold">
-            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase">{(proposal.service || "").replace(/-/g, ' ')}</span>
-            <span className="text-slate-300 select-none">•</span>
-            <span>ID: {proposal.id.toUpperCase()}</span>
-          </div>
-        </div>
         
         <div className="flex flex-wrap gap-4 w-full sm:w-auto">
           {isEditing && (
@@ -383,44 +515,28 @@ export default function ProposalDetailPage() {
             </div>
           )}
 
-          <button 
-            onClick={downloadPDF} 
-            className="flex-1 sm:flex-initial px-6 py-3 rounded-xl border border-slate-200 font-black text-xs uppercase tracking-widest text-slate-600 hover:bg-white hover:border-slate-300 transition-all shadow-sm select-none"
-          >
-            Download PDF
-          </button>
-          
-          {user ? (
-            <>
-              <button 
-                onClick={handleSaveChanges}
-                disabled={savingChanges}
-                className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed select-none"
-              >
-                {savingChanges ? "Saving..." : "Save Changes"}
-              </button>
-              <button 
-                onClick={handleSendProposal}
-                disabled={sending}
-                className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed select-none"
-              >
-                {sending ? "Sending..." : "Send Proposal"}
-              </button>
-            </>
-          ) : (
-            proposal.status !== "accepted" && proposal.status !== "won" ? (
-              <button 
-                onClick={() => setShowSignModal(true)}
-                className="flex-1 sm:flex-initial px-8 py-4 rounded-2xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-widest hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20 select-none"
-              >
-                Sign & Accept Proposal
-              </button>
-            ) : (
-              <div className="px-6 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs uppercase tracking-widest flex items-center gap-2 select-none">
-                <span className="text-base">✓</span> Signed & Accepted
-              </div>
-            )
+          {!showAsClient && isEditing && (
+            <button 
+              onClick={handleSaveChanges}
+              disabled={savingChanges}
+              className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+            >
+              {savingChanges ? "Saving..." : "Save Changes"}
+            </button>
           )}
+          
+          {showAsClient && (proposal.status !== "accepted" && proposal.status !== "won" ? (
+            <button 
+              onClick={() => setShowSignModal(true)}
+              className="flex-1 sm:flex-initial px-8 py-4 rounded-2xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-widest hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20 select-none"
+            >
+              Sign & Accept Proposal
+            </button>
+          ) : (
+            <div className="px-6 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs uppercase tracking-widest flex items-center gap-2 select-none">
+              <span className="text-base">✓</span> Signed & Accepted
+            </div>
+          ))}
         </div>
       </div>
 
@@ -633,15 +749,20 @@ export default function ProposalDetailPage() {
                 />
               </div>
 
-              {/* Signature Preview */}
-              {signingName && (
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Signature Preview</span>
-                  <span className="font-serif italic text-3xl text-indigo-900 tracking-wider block py-2 select-none">
-                    {signingName}
-                  </span>
+              {/* Signature Canvas */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between">
+                  <span>Draw Your Signature</span>
+                  <button type="button" onClick={() => sigPad.current?.clear()} className="text-[10px] text-red-500 hover:text-red-700">Clear</button>
+                </label>
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 shadow-inner">
+                  <SignatureCanvas 
+                    ref={sigPad}
+                    penColor="navy"
+                    canvasProps={{ className: "w-full h-40 cursor-crosshair" }}
+                  />
                 </div>
-              )}
+              </div>
 
               <label className="flex items-start gap-3 cursor-pointer group">
                 <input 
@@ -659,6 +780,14 @@ export default function ProposalDetailPage() {
               <div className="flex gap-3 pt-2">
                 <button 
                   type="button" 
+                  onClick={handleRejectProposal}
+                  disabled={submittingSign}
+                  className="w-1/3 py-3 rounded-xl border border-red-200 text-red-600 font-bold text-xs uppercase tracking-wider hover:bg-red-50 transition-all text-xs"
+                >
+                  Decline / Reject
+                </button>
+                <button 
+                  type="button" 
                   onClick={() => setShowSignModal(false)}
                   className="w-1/3 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all text-xs"
                 >
@@ -667,7 +796,7 @@ export default function ProposalDetailPage() {
                 <button 
                   type="submit" 
                   disabled={submittingSign || !isAgreed || !signingName || !signingTitle}
-                  className="w-2/3 py-3 rounded-xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-md shadow-[#0D1B3E]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-1/3 py-3 rounded-xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-md shadow-[#0D1B3E]/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submittingSign ? "Signing..." : "Sign Agreement"}
                 </button>
@@ -679,7 +808,7 @@ export default function ProposalDetailPage() {
     </div>
   );
 
-  if (user) {
+  if (!showAsClient) {
     return (
       <div className="flex h-screen overflow-hidden" style={{ background: "#f0f2f8" }}>
         <Sidebar />
