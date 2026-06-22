@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -20,10 +22,18 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
 ];
 
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
+];
+
 const EMPTY_FORM = {
-  clientName: "", title: "", service: "web-development" as ServiceTag,
+  clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
-  description: "", budget: "",
+  description: "", budget: "", due: "", remaining: "", paid: "", currency: "AED",
 };
 
 function statusInfo(key: string) {
@@ -35,29 +45,108 @@ function serviceInfo(key: string) {
 
 export default function ProjectsPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [form, setForm] = useState({ ...EMPTY_FORM, assignedTo: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
 
-  async function fetchProjects() {
-    const snap = await getDocs(query(collection(db, "projects"), orderBy("createdAt", "desc")));
-    setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
-    setLoading(false);
-  }
+  const searchParams = useSearchParams();
 
-  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => { 
+    const unsubProjects = onSnapshot(query(collection(db, "projects"), orderBy("createdAt", "desc")), snap => {
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+      setLoading(false);
+    });
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setShowModal(true); }
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    
+    // Handle redirect from Clients page
+    if (searchParams.get("new") === "true") {
+      const clientId = searchParams.get("clientId") || "";
+      const clientName = searchParams.get("clientName") || "";
+      setForm({ ...EMPTY_FORM, clientId, clientName, assignedTo: [] });
+      setEditing(null);
+      setShowModal(true);
+      router.replace("/projects"); // Clean up URL
+    }
+
+    return () => {
+      unsubProjects();
+      unsubUsers();
+    };
+  }, [searchParams, router]);
+
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: [] }); setShowModal(true); }
   function openEdit(p: Project) {
     setEditing(p);
-    setForm({ clientName: p.clientName, title: p.title, service: p.service, status: p.status, deadline: p.deadline ?? "", description: p.description ?? "", budget: p.budget?.toString() ?? "" });
+    setForm({ 
+      clientId: p.clientId,
+      clientName: p.clientName, 
+      title: p.title, 
+      service: p.service, 
+      status: p.status, 
+      deadline: p.deadline ?? "", 
+      description: p.description ?? "", 
+      budget: p.budget?.toString() ?? "",
+      due: p.due?.toString() ?? "",
+      remaining: p.remaining?.toString() ?? p.balance?.toString() ?? "",
+      paid: p.paid?.toString() ?? "",
+      currency: p.currency ?? "AED",
+      assignedTo: p.assignedTo || []
+    });
     setShowModal(true);
+  }
+
+  async function createTasksForProject(projectId: string, projectData: any) {
+    if (!projectData.assignedTo || projectData.assignedTo.length === 0) return;
+    
+    const now = new Date().toISOString();
+    
+    // Check if tasks already exist for this project to avoid duplicates
+    const existingTasksSnap = await getDocs(query(collection(db, "tasks"), where("relatedTo", "==", projectId)));
+    if (!existingTasksSnap.empty) return;
+
+    for (const uid of projectData.assignedTo) {
+      const member = members.find(m => m.uid === uid);
+      await addDoc(collection(db, "tasks"), {
+        title: projectData.title,
+        description: projectData.description || `Task for project: ${projectData.title}`,
+        assignedTo: uid,
+        assignedToName: member?.name || "Team Member",
+        assignedBy: crmUser?.uid || "System",
+        clientId: projectData.clientId || "",
+        clientName: projectData.clientName || "",
+        relatedTo: projectId,
+        relatedType: "project",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: projectData.deadline || now
+      });
+    }
+  }
+
+  async function deleteTasksForProject(projectId: string) {
+    try {
+      const q = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, "tasks", d.id));
+      }
+      console.log(`Deleted ${snap.docs.length} tasks for project ${projectId}`);
+    } catch (error) {
+      console.error("Error deleting tasks for project:", error);
+    }
   }
 
   async function handleSave() {
@@ -65,36 +154,75 @@ export default function ProjectsPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const data = { ...form, budget: form.budget ? Number(form.budget) : undefined, assignedTo: [], clientId: "" };
+      const data: any = { 
+        ...form, 
+        clientId: editing?.clientId || "" 
+      };
+      
+      if (form.budget) data.budget = Number(form.budget);
+      else delete data.budget;
+
+      if (form.due) data.due = Number(form.due);
+      else delete data.due;
+
+      if (form.paid) data.paid = Number(form.paid);
+      else delete data.paid;
+
+      if (form.remaining) data.remaining = Number(form.remaining);
+      else delete data.remaining;
+      
+      // Clean up legacy fields if present
+      data.balance = null;
+
+      let projectId = editing?.id;
       if (editing) {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
+        if (data.status === "in-progress") {
+          await createTasksForProject(editing.id, data);
+        } else if (data.status === "not-started") {
+          await deleteTasksForProject(editing.id);
+        }
       } else {
-        await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
+        const docRef = await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
+        projectId = docRef.id;
+        if (data.status === "in-progress") {
+          await createTasksForProject(projectId, data);
+        }
       }
       setShowModal(false);
-      fetchProjects();
     } finally { setSaving(false); }
   }
 
   async function deleteProject(id: string) {
-    if (!confirm("Delete this project?")) return;
+    if (!confirm("Delete this project? This will also remove associated tasks.")) return;
     await deleteDoc(doc(db, "projects", id));
-    fetchProjects();
+    await deleteTasksForProject(id);
   }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
-    await updateDoc(doc(db, "projects", project.id), { status, updatedAt: new Date().toISOString() });
+    await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
+    
+    // Create tasks if moving to in-progress
+    if (status === "in-progress") {
+      await createTasksForProject(project.id, project);
+    }
+    
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
   }
 
-  const filtered = statusFilter === "all" ? projects : projects.filter((p) => p.status === statusFilter);
+  const activeProjects = projects.filter(p => p.status !== "completed");
+  const completedProjects = projects.filter(p => p.status === "completed");
+
+  const filteredActive = statusFilter === "all" 
+    ? activeProjects 
+    : statusFilter === "completed" ? [] : activeProjects.filter(p => p.status === statusFilter);
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Projects</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{projects.filter((p) => p.status === "in-progress").length} active projects</p>
+          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{activeProjects.filter((p) => p.status === "in-progress").length} active projects</p>
         </div>
         {canEdit && (
           <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90" style={{ background: "#0D1B3E" }}>
@@ -103,9 +231,9 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Status filter */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {[{ key: "all", label: "All", color: "#6b7280", bg: "#f3f4f6" }, ...STATUSES].map((s) => (
+      {/* Status filter (for active column) */}
+      <div className="flex gap-2 mb-8 flex-wrap">
+        {[{ key: "all", label: "All Active", color: "#6b7280", bg: "#f3f4f6" }, ...STATUSES.filter(s => s.key !== "completed")].map((s) => (
           <button
             key={s.key}
             onClick={() => setStatusFilter(s.key as any)}
@@ -121,69 +249,133 @@ export default function ProjectsPage() {
         ))}
       </div>
 
-      {/* Project cards grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="h-48 rounded-xl animate-pulse" style={{ background: "#f3f4f6" }} />)}
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No projects found</p>
-          {canEdit && <button onClick={openAdd} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#0D1B3E" }}>+ New Project</button>}
-        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((project) => {
-            const st = statusInfo(project.status);
-            const svc = serviceInfo(project.service);
-            const isOverdue = project.deadline && new Date(project.deadline) < new Date() && project.status !== "completed";
-            return (
-              <div key={project.id} className="crm-card hover:shadow-md transition-shadow cursor-pointer" onClick={() => canEdit && openEdit(project)}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
-                  </div>
-                  {canEdit && (
-                    <button onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }} className="text-xs opacity-20 hover:opacity-60 ml-2" style={{ color: "#ef4444" }}>✕</button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span>
-                  <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
-                </div>
-
-                {project.description && (
-                  <p className="text-xs mb-3 line-clamp-2" style={{ color: "#9ca3af" }}>{project.description}</p>
-                )}
-
-                <div className="flex items-center justify-between mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
-                  {project.deadline ? (
-                    <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>
-                      {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </span>
-                  ) : <span />}
-                  {project.budget && (
-                    <span className="text-xs font-medium" style={{ color: "#C9A84C" }}>
-                      AED {Number(project.budget).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-
-                {/* Quick status change */}
-                {canEdit && (
-                  <div className="flex gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-                    {STATUSES.filter((s) => s.key !== project.status).map((s) => (
-                      <button key={s.key} onClick={() => updateStatus(project, s.key)} className="text-xs px-1.5 py-0.5 rounded transition-opacity hover:opacity-80" style={{ background: `${s.color}12`, color: s.color, fontSize: "10px" }}>
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          {/* Active Column */}
+          <div className="lg:col-span-2 space-y-6">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+              Active Pipeline ({filteredActive.length})
+            </h2>
+            
+            {filteredActive.length === 0 ? (
+              <div className="text-center py-12 crm-card border-dashed bg-slate-50/50">
+                <p className="text-xs text-slate-400">No active projects found.</p>
               </div>
-            );
-          })}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredActive.map((project) => {
+                  const st = statusInfo(project.status);
+                  const svc = serviceInfo(project.service);
+                  const isOverdue = project.deadline && new Date(project.deadline) < new Date();
+                  return (
+                    <div 
+                      key={project.id} 
+                      className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col" 
+                      onClick={() => router.push(`/projects/${project.id}`)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
+                        </div>
+                        {canEdit && (
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => openEdit(project)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#1e40af" }}>✎</button>
+                            <button onClick={() => deleteProject(project.id)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#ef4444" }}>✕</button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span>
+                        <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                      </div>
+
+                      {project.description && (
+                        <p className="text-xs mb-3 line-clamp-2" style={{ color: "#9ca3af" }}>{project.description}</p>
+                      )}
+
+                      <div className="flex flex-col gap-2 mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
+                        <div className="flex items-center justify-between">
+                          {project.deadline ? (
+                            <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>
+                              {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                            </span>
+                          ) : <span className="text-xs text-slate-400">No deadline</span>}
+                          <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {(project.budget)?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
+                          <span className="text-slate-500">Paid: <strong className="text-green-600">{project.currency} {(project.paid)?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Due: <strong className="text-orange-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</strong></span>
+                          <span className="text-slate-500">Remaining: <strong className="text-red-600">{project.currency} {(project.remaining ?? project.balance)?.toLocaleString() || "0"}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Quick status change */}
+                      {canEdit && (
+                        <div className="flex gap-1 mt-3 pt-2" onClick={(e) => e.stopPropagation()}>
+                          {STATUSES.filter((s) => s.key !== project.status).map((s) => (
+                            <button key={s.key} onClick={() => updateStatus(project, s.key)} className="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all hover:scale-105" style={{ background: `${s.color}12`, color: s.color, border: `1px solid ${s.color}25` }}>
+                              → {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Completed Column */}
+          <div className="space-y-6">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+              Success Archive ({completedProjects.length})
+            </h2>
+
+            <div className="space-y-3">
+              {completedProjects.length === 0 ? (
+                <div className="text-center py-8 rounded-2xl border-2 border-dashed border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No archived projects</p>
+                </div>
+              ) : (
+                completedProjects.map(p => (
+                  <div 
+                    key={p.id} 
+                    className="crm-card bg-slate-50/50 border-slate-100 hover:bg-white hover:border-green-200 transition-all cursor-pointer group"
+                    onClick={() => router.push(`/projects/${p.id}`)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-xs font-bold text-slate-700 group-hover:text-green-700 transition-colors">{p.title}</p>
+                      <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">DONE</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium mb-3">{p.clientName}</p>
+                    <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
+                      <span className="text-slate-400 uppercase">Valued at</span>
+                      <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
+                    </div>
+                    
+                    {/* Revert option */}
+                    {canEdit && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); updateStatus(p, "in-progress"); }}
+                        className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
+                      >
+                        ↩ Revert to Active
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -214,9 +406,96 @@ export default function ProjectsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Deadline</label><input className="form-input" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
-                <div><label className="form-label">Budget (AED)</label><input className="form-input" type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="5000" /></div>
+                <div className="flex gap-2">
+                  <div className="w-24">
+                    <label className="form-label">Currency</label>
+                    <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="form-label">Budget</label>
+                    <input
+                      className="form-input"
+                      type="number"
+                      value={Number(form.budget) === 0 ? "" : form.budget}
+                      onChange={(e) => {
+                        const budgetVal = Number(e.target.value) || 0;
+                        const paidVal = Number(form.paid) || 0;
+                        setForm({
+                          ...form,
+                          budget: e.target.value,
+                          remaining: (budgetVal - paidVal).toString()
+                        });
+                      }}
+                      placeholder="Total Budget"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label">Due</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.due) === 0 ? "" : form.due}
+                    onChange={(e) => setForm({ ...form, due: e.target.value })}
+                    placeholder="Amount Due"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Paid</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={Number(form.paid) === 0 ? "" : form.paid}
+                    onChange={(e) => {
+                      const paidVal = Number(e.target.value) || 0;
+                      const budgetVal = Number(form.budget) || 0;
+                      setForm({
+                        ...form,
+                        paid: e.target.value,
+                        remaining: (budgetVal - paidVal).toString()
+                      });
+                    }}
+                    placeholder="Amount Paid"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Remaining</label>
+                  <input
+                    className="form-input bg-gray-50 text-gray-500"
+                    type="number"
+                    value={Number(form.remaining) === 0 ? "" : form.remaining}
+                    readOnly
+                    placeholder="Remaining"
+                  />
+                </div>
               </div>
               <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+              
+              <div>
+                <label className="form-label">Assign Team Members</label>
+                <div className="grid grid-cols-2 gap-2 mt-2 p-3 rounded-xl border" style={{ borderColor: "#f0f0f5" }}>
+                  {members.map((m) => (
+                    <label key={m.uid} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-gray-300 text-[#0D1B3E] focus:ring-[#0D1B3E]"
+                        checked={form.assignedTo.includes(m.uid)}
+                        onChange={(e) => {
+                          const newAssigned = e.target.checked 
+                            ? [...form.assignedTo, m.uid]
+                            : form.assignedTo.filter(id => id !== m.uid);
+                          setForm({ ...form, assignedTo: newAssigned });
+                        }}
+                      />
+                      <span className="text-xs font-medium group-hover:text-[#0D1B3E]" style={{ color: "#6b7280" }}>{m.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>

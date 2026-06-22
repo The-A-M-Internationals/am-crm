@@ -32,9 +32,9 @@ const I = {
 const NAV: NavItem[] = [
   { href: "/dashboard",  label: "Dashboard",  roles: ["admin","manager","sales","designer","executive"], icon: I.dashboard,  section: "main" },
   { href: "/leads",      label: "Leads",      roles: ["admin","manager","sales","executive"],            icon: I.leads,      section: "main" },
+  { href: "/proposals",  label: "Proposals",  roles: ["admin","manager","sales","executive"],            icon: I.proposals,  section: "main" },
   { href: "/clients",    label: "Clients",    roles: ["admin","manager","sales","designer","executive"], icon: I.clients,    section: "main" },
   { href: "/projects",   label: "Projects",   roles: ["admin","manager","sales","designer","executive"], icon: I.projects,   section: "main" },
-  { href: "/proposals",  label: "Proposals",  roles: ["admin","manager","sales","executive"],            icon: I.proposals,  section: "main" },
   { href: "/tasks",      label: "Tasks",      roles: ["admin","manager","sales","designer","executive"], icon: I.tasks,      section: "main" },
   { href: "/calendar",   label: "Calendar",   roles: ["admin","manager","sales","designer","executive"], icon: I.calendar,   section: "main" },
   // Finance — ADMIN ONLY

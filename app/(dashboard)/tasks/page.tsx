@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
+import { useRouter } from "next/navigation";
 
 const PRIORITIES = [
   { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
@@ -25,13 +27,16 @@ const EMPTY_FORM = {
   priority: "medium" as TaskPriority,
   status: "not-started",
   relatedTo: "",
+  relatedType: "" as "project" | "lead" | "client" | "",
 };
 
 export default function TasksPage() {
   const { crmUser } = useAuth();
+  const router = useRouter();
   const [tasks, setTasks]     = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]   = useState<any | null>(null);
@@ -39,54 +44,117 @@ export default function TasksPage() {
   const [saving, setSaving]     = useState(false);
   const [filter, setFilter]     = useState<"all" | "pending" | "completed">("pending");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [creatingProject, setCreatingProject] = useState(false);
 
-  async function fetchAll() {
-    const [tasksSnap, membersSnap, clientsSnap] = await Promise.all([
-      getDocs(query(collection(db, "tasks"), orderBy("createdAt", "desc"))),
-      getDocs(collection(db, "users")),
-      getDocs(query(collection(db, "clients"), where("status", "==", "active"))),
-    ]);
-    setTasks(tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setMembers(membersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setClients(clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setLoading(false);
-  }
+  useEffect(() => {
+    const unsubTasks = onSnapshot(query(collection(db, "tasks"), orderBy("createdAt", "desc")), snap => {
+      setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
+      setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
+      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsubProjects = onSnapshot(collection(db, "projects"), snap => {
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
 
-  useEffect(() => { fetchAll(); }, []);
+    return () => {
+      unsubTasks();
+      unsubUsers();
+      unsubClients();
+      unsubProjects();
+    };
+  }, []);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
   function openEdit(t: any) {
     setEditing(t);
-    setForm({ title: t.title, description: t.description ?? "", assignedTo: t.assignedTo ?? "", assignedToName: t.assignedToName ?? "", clientId: t.clientId ?? "", clientName: t.clientName ?? "", dueDate: t.dueDate ?? "", priority: t.priority, status: t.status ?? "not-started", relatedTo: t.relatedTo ?? "" });
+    setForm({ 
+      title: t.title, 
+      description: t.description ?? "", 
+      assignedTo: t.assignedTo ?? "", 
+      assignedToName: t.assignedToName ?? "", 
+      clientId: t.clientId ?? "", 
+      clientName: t.clientName ?? "", 
+      dueDate: t.dueDate ?? "", 
+      priority: t.priority, 
+      status: t.status ?? "not-started", 
+      relatedTo: t.relatedTo ?? "",
+      relatedType: t.relatedType ?? ""
+    });
     setShowModal(true);
+  }
+
+  async function quickCreateProject() {
+    if (!form.clientId || !form.title) {
+      alert("Please select a client and give the task a title first.");
+      return;
+    }
+    setCreatingProject(true);
+    try {
+      const now = new Date().toISOString();
+      const docRef = await addDoc(collection(db, "projects"), {
+        title: form.title,
+        clientName: form.clientName,
+        clientId: form.clientId,
+        status: "in-progress",
+        service: "web-development",
+        createdAt: now,
+        updatedAt: now,
+        assignedTo: form.assignedTo ? [form.assignedTo] : []
+      });
+      
+      const newProjId = docRef.id;
+      setForm(f => ({ ...f, relatedTo: newProjId, relatedType: "project" }));
+      alert("✅ Project created and linked!");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to create project");
+    } finally {
+      setCreatingProject(false);
+    }
   }
 
   async function sendReminderEmail(task: any, memberEmail: string, memberName: string) {
     try {
+      const html = `
+        <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+          <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+            <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+              <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+              <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Reminder</p>
+            </div>
+            <div style="padding:32px;">
+              <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${memberName}</strong>,</p>
+              <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">This is a reminder that a task assigned to you is due <strong>tomorrow</strong>.</p>
+
+              <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${task.title}</h3>
+                ${task.description ? `<p style="color:#4b5563;font-size:13px;margin:8px 0;">${task.description}</p>` : ""}
+                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Priority:</strong> ${task.priority}</p>
+                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due Date:</strong> ${new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+              </div>
+              
+              <div style="text-align:center;margin-top:30px;">
+                <a href="https://crm.theaminternational.com/tasks" style="background:#0D1B3E;color:#C9A84C;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">View Task List</a>
+              </div>
+
+              <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+            </div>
+          </div>
+        </div>
+      `;
+
       await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: memberEmail,
+          to: [memberEmail, "am@theaminternational.com"],
           subject: `⏰ Task Due Tomorrow: ${task.title}`,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f9fc;padding:20px;border-radius:12px;">
-              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:24px;border-radius:10px 10px 0 0;text-align:center;">
-                <h1 style="color:#C9A84C;margin:0;font-size:22px;">A&M CRM</h1>
-                <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:13px;">Task Reminder</p>
-              </div>
-              <div style="background:white;padding:24px;border-radius:0 0 10px 10px;">
-                <p style="color:#1a1a2e;font-size:15px;">Hi <strong>${memberName}</strong>,</p>
-                <p style="color:#6b7280;">This is a reminder that the following task is due <strong style="color:#ef4444;">tomorrow</strong>:</p>
-                <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:16px;border-radius:0 8px 8px 0;margin:16px 0;">
-                  <h3 style="color:#0D1B3E;margin:0 0 8px;">${task.title}</h3>
-                  ${task.description ? `<p style="color:#6b7280;margin:0;font-size:13px;">${task.description}</p>` : ""}
-                  <p style="color:#9ca3af;font-size:12px;margin:8px 0 0;">Priority: <strong style="color:#374151;">${task.priority}</strong> · Due: <strong style="color:#374151;">${new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</strong></p>
-                </div>
-                <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
-              </div>
-            </div>
-          `,
+          html,
         }),
       });
     } catch (err) { console.error("Email error:", err); }
@@ -115,29 +183,56 @@ export default function TasksPage() {
         }
       }
 
-      setShowModal(false); fetchAll();
+      setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function toggleDone(task: any) {
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
-    await updateDoc(doc(db, "tasks", task.id), { done: newStatus === "completed", status: newStatus });
-    fetchAll();
+    if (newStatus === "completed") {
+      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    } else {
+      await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress" });
+    }
   }
 
   async function deleteTask(id: string) {
     if (!confirm("Delete this task?")) return;
-    await deleteDoc(doc(db, "tasks", id)); fetchAll();
+    await deleteDoc(doc(db, "tasks", id));
   }
 
   async function updateStatus(task: any, status: string) {
-    await updateDoc(doc(db, "tasks", task.id), { status, done: status === "completed" });
+    if (status === "completed") {
+      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    } else {
+      await updateDoc(doc(db, "tasks", task.id), { status, done: false });
+      
+      // Inverse State Synchronization
+      // If a task is set to 'not-started', push that status up to the parent project
+      if (status === "not-started" && task.relatedType === "project" && task.relatedTo) {
+        await updateDoc(doc(db, "projects", task.relatedTo), { 
+          status: "not-started",
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status, done: status === "completed" } : t));
   }
 
   const filtered = tasks
     .filter((t) => filter === "all" ? true : filter === "completed" ? t.status === "completed" : t.status !== "completed")
-    .filter((t) => priorityFilter === "all" || t.priority === priorityFilter);
+    .filter((t) => priorityFilter === "all" || t.priority === priorityFilter)
+    .filter((t) => {
+      // Conditional Task Visibility
+      // Hide tasks immediately if their parent project is 'not-started'
+      if (t.relatedType === "project" && t.relatedTo) {
+        const proj = projects.find(p => p.id === t.relatedTo);
+        if (proj && proj.status === "not-started") {
+          return false;
+        }
+      }
+      return true;
+    });
 
   const pInfo = (key: string) => PRIORITIES.find((p) => p.key === key) ?? PRIORITIES[1];
   const sInfo = (key: string) => TASK_STATUSES.find((s) => s.key === key) ?? TASK_STATUSES[0];
@@ -258,7 +353,28 @@ export default function TasksPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
-                <div><label className="form-label">Related To</label><input className="form-input" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value })} placeholder="Project name..." /></div>
+                <div>
+                  <label className="form-label">Link to Project</label>
+                  <div className="flex gap-2">
+                    <select className="form-input flex-1" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
+                      <option value="">No Project</option>
+                      {projects
+                        .filter(p => p.status !== "completed")
+                        .map((p) => <option key={p.id} value={p.id}>[{p.clientName}] {p.title}</option>)}
+                    </select>
+                    {form.clientId && !form.relatedTo && (
+                      <button 
+                        onClick={quickCreateProject}
+                        disabled={creatingProject || !form.title}
+                        className="px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap transition-all hover:bg-gray-50 disabled:opacity-30"
+                        style={{ borderColor: "#e5e7eb", color: "#0D1B3E" }}
+                        title="Create a new project from this task"
+                      >
+                        {creatingProject ? "..." : "➕ New Project"}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               {form.dueDate && (() => { const due = new Date(form.dueDate); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); return due.toDateString() === tomorrow.toDateString(); })() && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}>
