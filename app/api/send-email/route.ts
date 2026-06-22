@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: NextRequest) {
   try {
     const { to, subject, html } = await req.json();
 
     console.log(`[Email] Sending via Resend to: ${to} | Subject: ${subject}`);
     
-    if (!process.env.RESEND_API_KEY) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey || apiKey === "re_placeholder_key") {
       console.log("Email skipped — no RESEND_API_KEY configured in .env.local");
       return NextResponse.json({ success: true, skipped: true, reason: "No API Key" });
     }
 
-    // Using Resend for high reliability
+    const resend = new Resend(apiKey);
     const { data, error } = await resend.emails.send({
       from: "A&M CRM <crm@theaminternational.com>", 
       to: to,

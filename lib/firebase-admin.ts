@@ -6,8 +6,13 @@ let adminApp: App;
 
 function getAdminApp(): App {
   const existingApps = getApps();
-  if (existingApps.length > 0) {
-    return existingApps[0];
+  const existingAdmin = existingApps.find((app) => app.name === "admin");
+  if (existingAdmin) {
+    return existingAdmin;
+  }
+  if (existingApps.length > 0 && !existingAdmin) {
+    // If there is an app but it's not named 'admin', we can return the default one
+    // or initialize 'admin' below.
   }
 
   try {
@@ -51,7 +56,7 @@ function getAdminApp(): App {
     adminApp = initializeApp({
       credential: cert(serviceAccount as any),
       projectId: projectId, // Also set projectId at the app level
-    });
+    }, "admin");
     
     console.log("Firebase Admin Initialized successfully for project:", projectId);
     return adminApp;
@@ -69,6 +74,6 @@ export const getAdminAuth = (): Auth => {
   return getAuth(getAdminApp());
 };
 
-// Exporting null by default for compatibility, but apps should use getAdminDb/getAdminAuth
-export const adminDb = null;
-export const adminAuth = null;
+// Export actual instances for compatibility
+export const adminDb = null; // Used by some compatibility endpoints, or we can get them dynamically:
+export const adminAuth = getAdminAuth();
