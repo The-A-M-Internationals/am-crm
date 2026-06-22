@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -10,6 +9,16 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
+
+const SERVICE_COLORS: Record<string, string> = {
+  "digital-marketing": "#3b82f6",
+  "ui-ux": "#f59e0b",
+  "web-development": "#22c55e",
+  "seo": "#8b5cf6",
+  "social-media": "#ec4899",
+  "branding": "#f97316",
+  "other": "#6b7280",
+};
 
 const SERVICE_LABELS: Record<string, string> = {
   "digital-marketing": "Digital",
@@ -25,15 +34,16 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const PIE_COLORS = ["#0D1B3E","#C9A84C","#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6"];
 
 const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  lead:     { color: "#7e22ce", bg: "#faf5ff", label: "Lead" },
   meeting:  { color: "#c2410c", bg: "#fff7ed", label: "Meeting" },
   proposal: { color: "#1d4ed8", bg: "#eff6ff", label: "Proposal" },
   won:      { color: "#15803d", bg: "#f0fdf4", label: "Won" },
   lost:     { color: "#b91c1c", bg: "#fef2f2", label: "Lost" },
 };
 
-function StatCard({ label, value, sub, color, icon, href }: { label: string; value: string | number; sub?: string; color: string; icon: string; href: string }) {
+function StatCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: string }) {
   return (
-    <Link href={href} className="stat-card group block relative transition-shadow hover:shadow-md cursor-pointer">
+    <div className="stat-card group">
       <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color }} />
       <div className="flex items-start justify-between mt-1">
         <div>
@@ -43,7 +53,7 @@ function StatCard({ label, value, sub, color, icon, href }: { label: string; val
         </div>
         <div className="text-2xl opacity-20 group-hover:opacity-40 transition-opacity">{icon}</div>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -56,7 +66,6 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks]     = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [manualRev, setManualRev] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,37 +83,14 @@ export default function DashboardPage() {
         setTasks(tSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         if (isAdmin) {
-          const [iSnap, mSnap] = await Promise.all([
-            getDocs(collection(db, "invoices")),
-            getDocs(collection(db, "manual_revenue")),
-          ]);
+          const iSnap = await getDocs(collection(db, "invoices"));
           setInvoices(iSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-          setManualRev(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     }
     fetchAll();
   }, [isAdmin]);
-
-  const [triggering, setTriggering] = useState(false);
-
-  async function triggerReminders() {
-    setTriggering(true);
-    try {
-      const res = await fetch("/api/cron/reminders");
-      const data = await res.json();
-      if (data.success) {
-        alert(`✅ Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
-      } else {
-        alert(`❌ Error: ${data.error || "Failed to trigger"}`);
-      }
-    } catch (err) {
-      alert("❌ Network error triggering reminders");
-    } finally {
-      setTriggering(false);
-    }
-  }
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -127,31 +113,9 @@ export default function DashboardPage() {
   leads.forEach(l => { svcMap[l.service] = (svcMap[l.service] || 0) + 1; });
   const serviceData = Object.entries(svcMap).map(([name, value]) => ({ name: SERVICE_LABELS[name] || name, value }));
 
-  // Admin revenue calculations mirroring Revenue Page
-  const invoiceRevenue = invoices.reduce((s, i) => {
-    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
-    return s + paid;
-  }, 0);
-  
-  const completedProjectsValue = projects
-    .filter(p => p.status === "completed")
-    .reduce((s, p) => {
-      const paidForProject = invoices
-        .filter(inv => inv.projectId === p.id)
-        .reduce((sum, inv) => {
-          const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
-          return sum + paid;
-        }, 0);
-      return s + Math.max(0, (Number(p.budget) || 0) - paidForProject);
-    }, 0);
-
-  const manualRevenueTotal = manualRev.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-
-  const totalRevenue = invoiceRevenue + completedProjectsValue + manualRevenueTotal;
-  const pendingRevenue = invoices.reduce((s, i) => {
-    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
-    return s + Math.max(0, (Number(i.total) || 0) - paid);
-  }, 0);
+  // Admin revenue
+  const totalRevenue = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+  const pendingRevenue = invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -173,20 +137,8 @@ export default function DashboardPage() {
             {firstName} 👋
           </h1>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-            Here&apos;s what&apos;s happening with your team today.
+            Here's what's happening with your team today.
           </p>
-          <div className="flex items-center gap-3 mt-4">
-            {isAdmin && (
-              <>
-                <Link href="/revenue" className="btn-secondary px-4 py-2 text-xs" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
-                  <span className="text-sm">+</span> Add Revenue
-                </Link>
-                <Link href="/revenue" className="btn-primary px-4 py-2 text-xs">
-                  <span className="text-sm">+</span> Add Expense
-                </Link>
-              </>
-            )}
-          </div>
         </div>
         <div className="text-right">
           <p className="text-xs font-medium" style={{ color: "#9ca3af" }}>
@@ -201,10 +153,10 @@ export default function DashboardPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" href="/leads" />
-        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" href="/clients" />
-        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" href="/projects" />
-        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
+        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" />
+        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" />
+        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" />
       </div>
 
       {/* Admin Finance Row */}
@@ -212,9 +164,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #0D1B3E, #1a3070)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#C9A84C" }} />
-            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Realized Revenue</p>
+            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Total Revenue (Paid)</p>
             <p className="text-3xl font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</p>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>paid invoices + completed projects + manual</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>from {invoices.filter(i => i.status === "paid").length} paid invoices</p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #1a1a2e, #2a2a4e)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#f59e0b" }} />
@@ -347,7 +299,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2">
               {leads.slice(0, 5).map((lead: any) => {
-                const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage?.toUpperCase() || "LEAD" };
+                const st = STAGE_CONFIG[lead.stage] ?? STAGE_CONFIG.lead;
                 return (
                   <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: st.bg, color: st.color }}>

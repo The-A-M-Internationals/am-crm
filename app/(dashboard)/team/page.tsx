@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
+  addDoc,
+  deleteDoc,
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth, db, secondaryAuth } from "@/lib/firebase";
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -103,17 +106,9 @@ export default function TeamPage() {
   const isAdmin = crmUser?.role === "admin";
 
   async function fetchMembers() {
-    try {
-      const snap = await getDocs(collection(db, "users"));
-      setMembers(snap.docs.map((d) => {
-        const data = d.data();
-        return { ...data, uid: data.uid || d.id } as CRMUser;
-      }));
-    } catch (err) {
-      console.error("Error fetching members:", err);
-    } finally {
-      setLoading(false);
-    }
+    const snap = await getDocs(collection(db, "users"));
+    setMembers(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as CRMUser));
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -125,16 +120,20 @@ export default function TeamPage() {
     setSaving(true);
     setError("");
     try {
-      // Use API route to handle user creation/reactivation via Admin SDK
-      const res = await fetch("/api/team", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+      const cred = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        form.email,
+        form.password,
+      );
+      const now = new Date().toISOString();
+      await addDoc(collection(db, "users"), {
+        uid: cred.user.uid,
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        createdAt: now,
       });
-
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create/update user.");
-
+      await secondaryAuth.signOut();
       // Send welcome email
       try {
         await fetch("/api/send-email", {
@@ -165,9 +164,7 @@ export default function TeamPage() {
             `,
           }),
         });
-      } catch (err) {
-        console.warn("Welcome email could not be sent:", err);
-      }
+      } catch {}
 
       setShowModal(false);
       fetchMembers();
@@ -179,32 +176,54 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
-    if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
-    if (!confirm("Remove this team member? This will also delete their login access.")) return;
-    
+    if (uid === crmUser?.uid) {
+      return alert("You cannot delete yourself.");
+    }
+
+    if (!confirm("Remove this team member?")) {
+      return;
+    }
+
     try {
-      const res = await fetch("/api/team", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+      // Delete from Firebase Authentication
+      const res = await fetch("/api/delete-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ uid }),
       });
 
-      if (!res.ok) {
-        const result = await res.json();
-        throw new Error(result.error || "Failed to delete user.");
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to delete Auth user");
+      }
+
+      // Delete from Firestore
+      const snap = await getDocs(collection(db, "users"));
+
+      const docToDelete = snap.docs.find((d) => d.data().uid === uid);
+
+      if (docToDelete) {
+        await deleteDoc(doc(db, "users", docToDelete.id));
       }
 
       fetchMembers();
+
+      alert("Team member deleted successfully");
     } catch (err: any) {
-      alert("Error: " + err.message);
+      console.error(err);
+      alert(err.message || "Failed to delete user");
     }
   }
-
+  //newlydid edit access
   async function updateMemberRole() {
     if (!editingMember) return;
 
     try {
       const snap = await getDocs(collection(db, "users"));
+
       const firestoreDoc = snap.docs.find(
         (d) => d.data().uid === editingMember.uid,
       );
@@ -428,13 +447,14 @@ export default function TeamPage() {
           )}
         </div>
       )}
-
+      {/*edit acess modal*/}
       {/* Edit Access Modal */}
       {editingMember && (
         <div className="modal-overlay">
           <div className="modal-box" style={{ maxWidth: 480 }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="modal-title mb-0">Edit Access</h2>
+
               <button
                 onClick={() => setEditingMember(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
@@ -457,6 +477,7 @@ export default function TeamPage() {
 
               <div>
                 <label className="form-label">Role</label>
+
                 <div className="grid grid-cols-1 gap-2 mt-1">
                   {ROLES.map((r) => (
                     <button

@@ -1,30 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs, writeBatch } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Client, ServiceTag } from "@/types";
 import { useAuth } from "@/lib/auth-context";
-import { PhoneInput } from "@/components/phone-input";
-import { PipelineService } from "@/lib/pipeline-service";
-import { useRouter } from "next/navigation";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
-  { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
-  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fef3c7", text: "#92400e" },
-  { key: "web-development",   label: "Web Development",   bg: "#d1fae5", text: "#065f46" },
-  { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
-  { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
-  { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
-  { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
-];
-
-const CURRENCIES = [
-  { code: "AED", label: "AED (Dirham)" },
-  { code: "USD", label: "USD (Dollar)" },
-  { code: "INR", label: "INR (Rupee)" },
-  { code: "EUR", label: "EUR (Euro)" },
-  { code: "GBP", label: "GBP (Pound)" },
+  { key: "digital-marketing", label: "Digital Marketing", bg: "#e8f4ff", text: "#1a6bc4" },
+  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fff3e0", text: "#b35a00" },
+  { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
 ];
 
 const EMPTY_FORM = {
@@ -32,8 +17,6 @@ const EMPTY_FORM = {
   services: [] as ServiceTag[],
   status: "active" as "active" | "inactive",
   address: "", website: "", notes: "",
-  currency: "AED",
-  budget: "", due: "", paid: "", remaining: "",
 };
 
 function Initials({ name }: { name: string }) {
@@ -49,7 +32,6 @@ function Initials({ name }: { name: string }) {
 
 export default function ClientsPage() {
   const { crmUser } = useAuth();
-  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -58,18 +40,16 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [showHiddenClients, setShowHiddenClients] = useState(false);
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
 
-  useEffect(() => {
-    const q = query(collection(db, "clients"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  async function fetchClients() {
+    const snap = await getDocs(query(collection(db, "clients"), orderBy("createdAt", "desc")));
+    setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchClients(); }, []);
 
   function openAdd() {
     setEditing(null);
@@ -84,11 +64,6 @@ export default function ClientsPage() {
       phone: client.phone ?? "", services: client.services ?? [],
       status: client.status, address: client.address ?? "",
       website: client.website ?? "", notes: client.notes ?? "",
-      currency: client.currency ?? "AED",
-      budget: client.budget?.toString() ?? "",
-      due: client.due?.toString() ?? "",
-      paid: client.paid?.toString() ?? "",
-      remaining: client.remaining?.toString() ?? client.balance?.toString() ?? "",
     });
     setShowModal(true);
   }
@@ -104,86 +79,28 @@ export default function ClientsPage() {
 
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(form.email)) {
-      alert("Please enter a valid email address.");
-      return;
-    }
-
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      
-      const payload: any = { ...form };
-      if (payload.budget) payload.budget = Number(payload.budget); else delete payload.budget;
-      if (payload.due) payload.due = Number(payload.due); else delete payload.due;
-      if (payload.paid) payload.paid = Number(payload.paid); else delete payload.paid;
-      if (payload.remaining) payload.remaining = Number(payload.remaining); else delete payload.remaining;
-
       if (editing) {
-        await updateDoc(doc(db, "clients", editing.id), payload);
+        await updateDoc(doc(db, "clients", editing.id), { ...form });
       } else {
-        await addDoc(collection(db, "clients"), { ...payload, createdAt: now, active: true });
+        await addDoc(collection(db, "clients"), { ...form, createdAt: now });
       }
       setShowModal(false);
+      fetchClients();
     } finally {
       setSaving(false);
     }
   }
 
-  async function archiveClient(id: string) {
-    if (!confirm("Are you sure? This will archive the client and unlink their active tasks/projects.")) return;
-    try {
-      const batch = writeBatch(db);
-      
-      // 1. Archive the client
-      batch.update(doc(db, "clients", id), { active: false, status: "inactive", archivedAt: new Date().toISOString() });
-
-      // 2. Cascade cleanup: Unlink active tasks
-      const taskQ = query(collection(db, "tasks"), where("clientId", "==", id));
-      const taskSnap = await getDocs(taskQ);
-      taskSnap.forEach(t => {
-        batch.update(doc(db, "tasks", t.id), { clientId: "", clientName: "Archived Client" });
-      });
-
-      // 3. Cascade cleanup: Archive projects
-      const projQ = query(collection(db, "projects"), where("clientId", "==", id));
-      const projSnap = await getDocs(projQ);
-      projSnap.forEach(p => {
-        batch.update(doc(db, "projects", p.id), { status: "on-hold", notes: `(Client Archived) ${p.data().notes || ""}` });
-      });
-
-      await batch.commit();
-      console.log("Client and related items processed successfully.");
-    } catch (error) {
-      console.error("Error archiving client:", error);
-      alert("Failed to archive client properly.");
-    }
-  }
-
-  async function toggleLostStatus(client: Client) {
-    if (client.active === false) {
-      if (!confirm(`Recover ${client.name} back to Active clients?`)) return;
-      await updateDoc(doc(db, "clients", client.id), { active: true, status: "active", archivedAt: null });
-    } else {
-      await archiveClient(client.id);
-    }
-  }
-
   async function deleteClient(id: string) {
-    if (!confirm("PERMANENT DELETE: Are you sure you want to completely remove this client? This cannot be undone.")) return;
-    try {
-      await deleteDoc(doc(db, "clients", id));
-      console.log("Client deleted permanently.");
-    } catch (error) {
-      console.error("Error deleting client:", error);
-      alert("Failed to delete client.");
-    }
+    if (!confirm("Delete this client?")) return;
+    await deleteDoc(doc(db, "clients", id));
+    fetchClients();
   }
 
   const filtered = clients
-    .filter(c => showHiddenClients ? c.active === false : c.active !== false)
     .filter((c) => statusFilter === "all" || c.status === statusFilter)
     .filter((c) =>
       !search ||
@@ -198,28 +115,13 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Clients</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
-            {showHiddenClients ? `${clients.filter(c => c.active === false).length} archived` : `${clients.filter(c => c.active !== false).length} active`} clients
-          </p>
+          <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{clients.filter((c) => c.status === "active").length} active clients</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setShowHiddenClients(!showHiddenClients)}
-            className="text-xs font-semibold px-4 py-2 rounded-lg border transition-all"
-            style={{ 
-              background: showHiddenClients ? "#0D1B3E" : "white", 
-              color: showHiddenClients ? "white" : "#6b7280",
-              borderColor: "#e5e7eb"
-            }}
-          >
-            {showHiddenClients ? "View Active" : "View Archive"}
+        {canEdit && (
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity" style={{ background: "#0D1B3E" }}>
+            <span className="text-lg leading-none">+</span> Add Client
           </button>
-          {canEdit && (
-            <button onClick={openAdd} className="btn-primary">
-              <span className="text-lg leading-none">+</span> Add Client
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -267,7 +169,7 @@ export default function ClientsPage() {
           <table className="w-full">
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #f0f0f5" }}>
-                {["Client", "Email", "Phone", "Services", "Status", "Actions"].map((h) => (
+                {["Client", "Email", "Phone", "Services", "Status", ""].map((h) => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#9ca3af" }}>{h}</th>
                 ))}
               </tr>
@@ -306,35 +208,16 @@ export default function ClientsPage() {
                       {client.status}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-3">
-                      {canEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/projects?new=true&clientId=${client.id}&clientName=${encodeURIComponent(client.company || client.name)}`);
-                          }}
-                          className="text-xs font-semibold px-3 py-1 rounded text-white transition-colors"
-                          style={{ background: "#0D1B3E" }}
-                        >
-                          ➕ Create Project
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => toggleLostStatus(client)}
-                        className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors"
+                  <td className="px-5 py-3.5">
+                    {canEdit && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteClient(client.id); }}
+                        className="text-xs opacity-30 hover:opacity-70 transition-opacity"
+                        style={{ color: "#ef4444" }}
                       >
-                        {client.active === false ? "Recover" : "Archive"}
+                        Delete
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => deleteClient(client.id)}
-                          className="btn-danger"
-                        >
-                          🗑 Delete
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -360,10 +243,7 @@ export default function ClientsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-                <div>
-                  <label className="form-label">Phone</label>
-                  <PhoneInput value={form.phone} onChange={(val) => setForm({ ...form, phone: val })} />
-                </div>
+                <div><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
               </div>
               <div><label className="form-label">Website</label><input className="form-input" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." /></div>
               <div>
@@ -386,7 +266,7 @@ export default function ClientsPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Status</label>
                   <select className="form-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
@@ -394,63 +274,7 @@ export default function ClientsPage() {
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
-                <div>
-                  <label className="form-label">Currency</label>
-                  <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
-                  </select>
-                </div>
                 <div><label className="form-label">Address</label><input className="form-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-              </div>
-              <div className="grid grid-cols-4 gap-3">
-                <div>
-                  <label className="form-label">Budget</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.budget) === 0 ? "" : form.budget}
-                    onChange={(e) => {
-                      const budgetVal = Number(e.target.value) || 0;
-                      const paidVal = Number(form.paid) || 0;
-                      setForm({ ...form, budget: e.target.value, remaining: (budgetVal - paidVal).toString() });
-                    }}
-                    placeholder="Total Budget"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Due</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.due) === 0 ? "" : form.due}
-                    onChange={(e) => setForm({ ...form, due: e.target.value })}
-                    placeholder="Amount Due"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Paid</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.paid) === 0 ? "" : form.paid}
-                    onChange={(e) => {
-                      const paidVal = Number(e.target.value) || 0;
-                      const budgetVal = Number(form.budget) || 0;
-                      setForm({ ...form, paid: e.target.value, remaining: (budgetVal - paidVal).toString() });
-                    }}
-                    placeholder="Paid"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Remaining</label>
-                  <input
-                    className="form-input bg-gray-50 text-gray-500"
-                    type="number"
-                    value={Number(form.remaining) === 0 ? "" : form.remaining}
-                    readOnly
-                    placeholder="Auto Calculated"
-                  />
-                </div>
               </div>
               <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>

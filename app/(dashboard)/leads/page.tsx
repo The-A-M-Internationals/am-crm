@@ -1,13 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Lead, ServiceTag, LeadStage } from "@/types";
 import { useAuth } from "@/lib/auth-context";
-import { PipelineService } from "@/lib/pipeline-service";
-import { PhoneInput } from "@/components/phone-input";
-import { useRouter } from "next/navigation";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
   { key: "lead",     label: "Lead",     color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
@@ -46,7 +43,6 @@ const EMPTY_FORM = {
 
 export default function LeadsPage() {
   const { crmUser } = useAuth();
-  const router = useRouter();
   const [leads, setLeads]       = useState<Lead[]>([]);
   const [loading, setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -57,16 +53,14 @@ export default function LeadsPage() {
   const [filter, setFilter]     = useState<LeadStage | "all">("all");
   const [search, setSearch]     = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showHiddenLeads, setShowHiddenLeads] = useState(false);
 
-  useEffect(() => {
-    const q = query(collection(db, "leads"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  async function fetchLeads() {
+    const snap = await getDocs(query(collection(db, "leads"), orderBy("createdAt", "desc")));
+    setLeads(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Lead)));
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchLeads(); }, []);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setShowModal(true); }
   function openEdit(lead: Lead) {
@@ -78,90 +72,105 @@ export default function LeadsPage() {
 
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
-    
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(form.email)) {
-      alert("Please enter a valid email address.");
-      return;
-    }
-
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      let leadId: string;
-
       if (editing) {
         await updateDoc(doc(db, "leads", editing.id), { ...form, updatedAt: now });
-        leadId = editing.id;
+        // If won — auto create client
+        if (form.stage === "won" && editing.stage !== "won") {
+          const existing = await getDocs(query(collection(db, "clients")));
+          const already = existing.docs.find(d => d.data().email === form.email);
+          if (!already) {
+            await addDoc(collection(db, "clients"), {
+              name: form.name, company: form.company, email: form.email,
+              phone: form.phone, services: [form.service], status: "active",
+              fromLeadId: editing.id, createdAt: now,
+            });
+          }
+        }
       } else {
-        const leadRef = await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now, active: true });
-        leadId = leadRef.id;
+        await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now });
       }
-
-      // Chain reactions based on stage
-      const leadData = { ...form, id: leadId } as Lead;
-      
-      // Always sync basic profile details to the client record if it exists
-      await PipelineService.syncLeadToClient(leadData);
-
-      if (form.stage === "won") await PipelineService.markAsWon(leadData);
-      else if (form.stage === "lost") await PipelineService.markAsLost(leadId, form.email, "lead");
-      else if (form.stage === "proposal") {
-        await PipelineService.transitionToProposal(leadData, crmUser?.uid ?? "");
-        router.push(`/proposals?editLead=${leadId}`);
-      }
-      else await PipelineService.updateStage(leadData, form.stage);
-
-      setShowModal(false);
-    } catch (error) {
-      console.error("Error saving lead:", error);
+      setShowModal(false); fetchLeads();
     } finally { setSaving(false); }
   }
 
   async function deleteLead(id: string) {
     if (!confirm("Delete this lead?")) return;
-    await deleteDoc(doc(db, "leads", id));
+    await deleteDoc(doc(db, "leads", id)); fetchLeads();
   }
 
   async function moveStage(lead: Lead, stage: LeadStage) {
-    try {
-      if (stage === "won") await PipelineService.markAsWon(lead);
-      else if (stage === "lost") await PipelineService.markAsLost(lead.id, lead.email, "lead");
-      else if (stage === "proposal") {
-        await PipelineService.transitionToProposal(lead, crmUser?.uid ?? "");
-        router.push(`/proposals?editLead=${lead.id}`);
+    await updateDoc(doc(db, "leads", lead.id), { stage, updatedAt: new Date().toISOString() });
+    // Auto-create client if won
+    if (stage === "won") {
+      const existing = await getDocs(query(collection(db, "clients")));
+      const already = existing.docs.find(d => d.data().email === lead.email);
+      if (!already) {
+        await addDoc(collection(db, "clients"), {
+          name: lead.name, company: lead.company, email: lead.email,
+          phone: lead.phone, services: [lead.service], status: "active",
+          fromLeadId: lead.id, createdAt: new Date().toISOString(),
+        });
       }
-      else await PipelineService.updateStage(lead, stage);
-    } catch (error: any) {
-      console.error("Error moving stage:", error);
-      alert("Failed to update stage: " + (error.message || "Unknown error"));
     }
+    fetchLeads();
   }
 
-  const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? { key: "other", label: key?.toUpperCase() || "OTHER", bg: "#f3f4f6", text: "#374151" };
-  const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? { key: "lead", label: key?.toUpperCase() || "LEAD", color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" };
+  const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? SERVICES[2];
+  const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
 
-  const activeLeads = leads
-    .filter(l => l.active !== false)
+  const filtered = leads
     .filter(l => filter === "all" || l.stage === filter)
     .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
-  const archivedLeads = leads
-    .filter(l => l.active === false)
-    .filter(l => filter === "all" || l.stage === filter)
-    .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="page-header mb-0">
+          <h1 className="page-title">Leads</h1>
+          <p className="page-subtitle">{leads.length} total · {leads.filter(l => l.stage === "won").length} won · {leads.filter(l => l.stage === "lost").length} lost</p>
+        </div>
+        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Lead</button>
+      </div>
 
-  function LeadTable({ data, title, subtitle }: { data: Lead[], title?: string, subtitle?: string }) {
-    if (data.length === 0 && !title) return null;
+      {/* Stage summary pills */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
+          All ({leads.length})
+        </button>
+        {STAGES.map(s => {
+          const count = leads.filter(l => l.stage === s.key).length;
+          return (
+            <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
+              {s.label} ({count})
+            </button>
+          );
+        })}
+      </div>
 
-    return (
-      <div className="mb-10">
-        {title && (
-          <div className="mb-4">
-            <h2 className="text-lg font-bold" style={{ color: "#0D1B3E" }}>{title}</h2>
-            {subtitle && <p className="text-xs" style={{ color: "#9ca3af" }}>{subtitle}</p>}
-          </div>
-        )}
+      {/* Search */}
+      <div className="mb-5">
+        <input
+          className="form-input"
+          style={{ maxWidth: 360 }}
+          placeholder="🔍  Search leads by name or company..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* Leads Table */}
+      {loading ? (
+        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 crm-card">
+          <p className="text-sm" style={{ color: "#9ca3af" }}>No leads found</p>
+          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ Add Lead</button>
+        </div>
+      ) : (
         <div className="crm-card p-0 overflow-hidden">
           <table className="crm-table">
             <thead>
@@ -176,22 +185,18 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((lead) => {
+              {filtered.map((lead) => {
                 const svc = svcInfo(lead.service);
                 const stg = stgInfo(lead.stage);
                 const isExpanded = expandedId === lead.id;
                 const nextAction = (lead as any).nextAction;
-                const isHidden = lead.active === false;
-
                 return (
-                  <React.Fragment key={lead.id}>
+                  <>
                     <tr
+                      key={lead.id}
                       className="cursor-pointer"
                       onClick={() => setExpandedId(isExpanded ? null : lead.id)}
-                      style={{ 
-                        background: isExpanded ? "#fafbff" : "white",
-                        opacity: isHidden ? 0.7 : 1
-                      }}
+                      style={{ background: isExpanded ? "#fafbff" : "white" }}
                     >
                       <td>
                         <div className="flex items-center gap-3">
@@ -216,7 +221,7 @@ export default function LeadsPage() {
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <div className="flex gap-1 flex-wrap">
-                          {STAGES.filter(s => s.key !== lead.stage && s.key !== "lead").map(s => (
+                          {STAGES.filter(s => s.key !== lead.stage).map(s => (
                             <button key={s.key} onClick={() => moveStage(lead, s.key)} className="text-xs px-2 py-1 rounded-lg font-semibold transition-all hover:opacity-90" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: "10px" }}>
                               {s.label}
                             </button>
@@ -251,75 +256,12 @@ export default function LeadsPage() {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="page-header mb-0">
-          <h1 className="page-title">Leads</h1>
-          <p className="page-subtitle">{leads.length} total · {leads.filter(l => l.stage === "won").length} won · {leads.filter(l => l.stage === "lost").length} lost</p>
-        </div>
-        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Lead</button>
-      </div>
-
-      {/* Stage summary pills */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
-          All ({leads.filter(l => l.active !== false).length})
-        </button>
-        {STAGES.filter(s => s.key !== "lead").map(s => {
-          const count = leads.filter(l => l.active !== false && l.stage === s.key).length;
-          return (
-            <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
-              {s.label} ({count})
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search */}
-      <div className="mb-8 flex items-center justify-between gap-4">
-        <input
-          className="form-input flex-1"
-          style={{ maxWidth: 360 }}
-          placeholder="🔍  Search leads by name or company..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* Leads Table */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-      ) : leads.length === 0 ? (
-        <div className="text-center py-16 crm-card">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No leads found</p>
-          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ Add Lead</button>
-        </div>
-      ) : (
-        <>
-          <LeadTable 
-            data={activeLeads} 
-          />
-
-          {archivedLeads.length > 0 && (
-            <LeadTable 
-              data={archivedLeads} 
-              title="Future Opportunities" 
-              subtitle="Leads marked as 'Lost' but kept for future relationship nurturing"
-            />
-          )}
-        </>
       )}
 
       {/* Modal */}
@@ -337,10 +279,7 @@ export default function LeadsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-                <div>
-                  <label className="form-label">Phone</label>
-                  <PhoneInput value={form.phone} onChange={(val) => setForm({ ...form, phone: val })} />
-                </div>
+                <div><label className="form-label">Phone</label><input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+971 50 123 4567" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -352,7 +291,7 @@ export default function LeadsPage() {
                 <div>
                   <label className="form-label">Stage</label>
                   <select className="form-input" value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as LeadStage, nextAction: "" })}>
-                    {STAGES.filter(s => s.key !== "lead" || form.stage === "lead").map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -384,9 +323,9 @@ export default function LeadsPage() {
               <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
             </div>
 
-            {form.stage === "won" && (
-              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
-                ℹ️ Marking as <strong>Won</strong> tags this as a successful lead. To convert them to an active <strong>Client</strong>, you must generate and accept a Proposal.
+            {form.stage === "won" && editing && editing.stage !== "won" && (
+              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0" }}>
+                ✅ This lead will be automatically added to <strong>Clients</strong> when saved!
               </div>
             )}
 
