@@ -745,6 +745,85 @@ export default function RevenuePage() {
             </div>
           </div>
 
+          {/* Client revenue table */}
+          {clientData.length > 0 && (
+            <div className="crm-card p-0 overflow-hidden mb-6">
+              <div
+                className="px-5 py-4 border-b flex items-center justify-between"
+                style={{ borderColor: "#f0f0f5" }}
+              >
+                <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>
+                  Revenue per Client
+                </h2>
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: "#C9A84C" }}
+                >
+                  AED {totalRevenue.toLocaleString()}
+                </span>
+              </div>
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th>Client</th>
+                    <th>Revenue</th>
+                    <th>% Share</th>
+                    <th>Records</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientData.map((c, i) => (
+                    <tr key={c.name}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{
+                              background: PIE_COLORS[i % PIE_COLORS.length],
+                            }}
+                          />
+                          <span className="font-medium">{c.name}</span>
+                        </div>
+                      </td>
+                      <td className="font-bold" style={{ color: "#C9A84C" }}>
+                        AED {c.value.toLocaleString()}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="flex-1 h-1.5 rounded-full"
+                            style={{ background: "#f0f0f5" }}
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.round((c.value / totalRevenue) * 100)}%`,
+                                background: PIE_COLORS[i % PIE_COLORS.length],
+                              }}
+                            />
+                          </div>
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: "#6b7280" }}
+                          >
+                            {Math.round((c.value / totalRevenue) * 100)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="text-xs" style={{ color: "#9ca3af" }}>
+                        {
+                          paidInvoices.filter((inv) => inv.clientName === c.name).length + 
+                          manualRev.filter((r) => r.clientName === c.name && r.status === "received").length
+                        }{" "}
+                        received
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Tabs Section for Breakdown Tables */}
           <div className="flex border-b mb-4" style={{ borderColor: "#f0f0f5" }}>
             <button
