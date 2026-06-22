@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Sidebar from "@/components/sidebar";
+import { PipelineService } from "@/lib/pipeline-service";
 
 export default function DashboardLayout({
   children,
@@ -16,6 +17,8 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
+    } else if (user) {
+      PipelineService.initGlobalPipelineListener();
     }
   }, [user, loading, router]);
 
