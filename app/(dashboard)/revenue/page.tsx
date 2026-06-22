@@ -768,7 +768,7 @@ export default function RevenuePage() {
                     <th>Client</th>
                     <th>Revenue</th>
                     <th>% Share</th>
-                    <th>Records</th>
+                    <th>Invoices</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -812,10 +812,9 @@ export default function RevenuePage() {
                       </td>
                       <td className="text-xs" style={{ color: "#9ca3af" }}>
                         {
-                          paidInvoices.filter((inv) => inv.clientName === c.name).length + 
-                          manualRev.filter((r) => r.clientName === c.name && r.status === "received").length
+                          paidInvoices.filter((inv) => inv.clientName === c.name).length
                         }{" "}
-                        received
+                        paid
                       </td>
                     </tr>
                   ))}
