@@ -57,7 +57,7 @@ export const PipelineService = {
       }
 
       // Execute atomic transaction checks for affected emails
-      for (const email of changedEmails) {
+      for (const email of Array.from(changedEmails)) {
         await this.syncClientForEmail(email);
       }
     });

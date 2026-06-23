@@ -1073,7 +1073,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {(proposal.packages || []).map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-medium">
                         <div
                           contentEditable={isEditing}

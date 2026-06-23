@@ -55,6 +55,11 @@ export interface Client {
   contractDuration?: string;
   contractStart?: string;
   contractEnd?: string;
+  budget?: number | string;
+  due?: number | string;
+  paid?: number | string;
+  remaining?: number | string;
+  balance?: number | string;
   createdAt: string;
   fromLeadId?: string;
 }
@@ -81,8 +86,12 @@ export interface Project {
   budget?: number;
   balance?: number;
   due?: number;
+  paid?: number;
+  remaining?: number;
   currency?: string;
   tasks?: ProjectTask[];
+  customFields?: { id: string; label: string; value: string }[];
+  milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
   payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
