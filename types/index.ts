@@ -55,6 +55,11 @@ export interface Client {
   contractDuration?: string;
   contractStart?: string;
   contractEnd?: string;
+  budget?: number | string;
+  due?: number | string;
+  paid?: number | string;
+  remaining?: number | string;
+  balance?: number | string;
   createdAt: string;
   fromLeadId?: string;
   budget?: number;
@@ -62,6 +67,15 @@ export interface Client {
   paid?: number;
   remaining?: number;
   balance?: number;
+}
+
+export interface PaymentLog {
+  id: string;
+  amount: number;
+  date: string;
+  method: string;
+  notes?: string;
+  loggedBy: string;
 }
 
 export interface PaymentLog {
@@ -86,8 +100,12 @@ export interface Project {
   budget?: number;
   balance?: number;
   due?: number;
+  paid?: number;
+  remaining?: number;
   currency?: string;
   tasks?: ProjectTask[];
+  customFields?: { id: string; label: string; value: string }[];
+  milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
   payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
