@@ -73,15 +73,6 @@ export interface PaymentLog {
   loggedBy: string;
 }
 
-export interface PaymentLog {
-  id: string;
-  amount: number;
-  date: string;
-  method: string;
-  notes?: string;
-  loggedBy: string;
-}
-
 export interface Project {
   id: string;
   clientId: string;
