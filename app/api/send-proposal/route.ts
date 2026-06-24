@@ -233,7 +233,7 @@ export async function POST(req: Request) {
     }
 
     const { data, error } = await resend.emails.send({
-      from: "A&M CRM <crm@theaminternationals.com>",
+      from: "A&M CRM <crm@theaminternational.com>",
       to: [clientEmail],
       subject: `Quotation from The A&M Internationals — Ref: #${proposalId.slice(-8).toUpperCase()}`,
       html: htmlBody,
