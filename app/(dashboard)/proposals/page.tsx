@@ -7,6 +7,7 @@ import { Proposal, ProposalItem, ServiceTag, ProposalStatus, Lead } from "@/type
 import { useAuth } from "@/lib/auth-context";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PipelineService } from "@/lib/pipeline-service";
+import { PhoneInput } from "@/components/phone-input";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
   { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
@@ -315,6 +316,15 @@ function ProposalsContent() {
                           className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
                           onClick={() => {
                             setOpenMenu(null);
+                            startEditing(p);
+                          }}
+                        >
+                          ✏ Edit Details
+                        </button>
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                          onClick={() => {
+                            setOpenMenu(null);
                             viewProposal(p.id);
                           }}
                         >
@@ -373,6 +383,11 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">
+        <div><label className="form-label">Client Email *</label><input className="form-input" value={form.clientEmail} onChange={e => setForm({ ...form, clientEmail: e.target.value })} placeholder="email@example.com" /></div>
+        <div><label className="form-label">Phone</label><PhoneInput value={form.phone || ""} onChange={(val) => setForm({ ...form, phone: val })} /></div>
+        <div><label className="form-label">Company</label><input className="form-input" value={form.company || ""} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Company Ltd" /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-3 mt-3">
         <div><label className="form-label">Status</label><select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as ProposalStatus })}>{STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
         <div><label className="form-label">Currency</label><select className="form-input" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}</select></div>
         <div><label className="form-label">Valid Until</label><input className="form-input" type="date" value={form.validUntil} onChange={e => setForm({ ...form, validUntil: e.target.value })} /></div>
