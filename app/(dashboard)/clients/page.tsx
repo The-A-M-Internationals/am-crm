@@ -284,7 +284,7 @@ export default function ClientsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-sm" style={{ color: "#6b7280" }}>{client.email}</td>
+                  <td className="px-5 py-3.5 text-sm" style={{ color: "#6b7280", wordBreak: "break-all", maxWidth: "200px" }}>{client.email}</td>
                   <td className="px-5 py-3.5 text-sm" style={{ color: "#6b7280" }}>{client.phone || "—"}</td>
                   <td className="px-5 py-3.5">
                     <div className="flex gap-1 flex-wrap">
@@ -307,7 +307,7 @@ export default function ClientsPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 whitespace-nowrap flex-nowrap">
                       {canEdit && (
                         <button
                           onClick={(e) => {

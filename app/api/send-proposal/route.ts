@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing proposalId or clientEmail" }, { status: 400 });
     }
 
-    const productionDomain = "crm.theaminternationals.com";
+    const productionDomain = "crm.theaminternational.com";
     const host = req.headers.get("host") || productionDomain;
     const protoHeader = req.headers.get("x-forwarded-proto");
     const protocol = protoHeader || (host.includes("localhost") || host.includes("127.0.0.1") || host.includes("::1") || host.includes(":") ? "http" : "https");

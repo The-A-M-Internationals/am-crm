@@ -62,11 +62,6 @@ export interface Client {
   balance?: number | string;
   createdAt: string;
   fromLeadId?: string;
-  budget?: number;
-  due?: number;
-  paid?: number;
-  remaining?: number;
-  balance?: number;
 }
 
 export interface PaymentLog {
@@ -109,10 +104,6 @@ export interface Project {
   payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
-  paid?: number;
-  remaining?: number;
-  customFields?: { id: string; label: string; value: string }[];
-  milestones?: { id: string; title: string; date: string; completed: boolean }[];
 }
 
 export interface ProjectTask {
