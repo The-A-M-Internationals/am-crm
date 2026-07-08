@@ -818,6 +818,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 const getTaskProgressVal = (status: string) => {
                   switch (status) {
                     case "not-started": return 0;
+                    case "in-progress":
                     case "dev": return 25;
                     case "test": return 50;
                     case "review": return 75;
