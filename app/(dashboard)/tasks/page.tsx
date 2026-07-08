@@ -733,22 +733,37 @@ function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crm
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
   const [localDesc, setLocalDesc] = useState(task.liveDescription || "");
   const [localStatus, setLocalStatus] = useState(task.status || "not-started");
-  
-  const debouncedProgress = useDebounce(localProgress, 300);
-  const debouncedDesc = useDebounce(localDesc, 300);
 
-  // Optimistic UI updates to Firestore via Debounce
-  useEffect(() => {
-    if (debouncedProgress !== (task.progress || 0)) {
-      updateDoc(doc(db, "tasks", task.id), { progress: debouncedProgress });
+  const handleUpdateLog = async () => {
+    if (localDesc !== (task.liveDescription || "")) {
+      await updateDoc(doc(db, "tasks", task.id), { liveDescription: localDesc });
     }
-  }, [debouncedProgress, task.id, task.progress]);
+  };
 
-  useEffect(() => {
-    if (debouncedDesc !== (task.liveDescription || "")) {
-      updateDoc(doc(db, "tasks", task.id), { liveDescription: debouncedDesc });
+  const handleProgressClick = async (newProgress: number) => {
+    setLocalProgress(newProgress);
+    await updateDoc(doc(db, "tasks", task.id), { progress: newProgress });
+    
+    // Aggregated real-time project statistics update
+    if (task.relatedType === "project" && task.relatedTo) {
+      import("firebase/firestore").then(async ({ getDocs, collection, query, where, doc: firestoreDoc, updateDoc: firestoreUpdate }) => {
+        const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+        const snap = await getDocs(q);
+        let total = 0;
+        let count = 0;
+        snap.forEach(d => {
+           const p = d.id === task.id ? newProgress : (d.data().progress || 0);
+           total += p;
+           count++;
+        });
+        const projProgress = count === 0 ? 0 : Math.round(total / count);
+        await firestoreUpdate(firestoreDoc(db, "projects", task.relatedTo), { 
+          progress: projProgress, 
+          updatedAt: new Date().toISOString() 
+        });
+      });
     }
-  }, [debouncedDesc, task.id, task.liveDescription]);
+  };
 
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value;
@@ -764,19 +779,58 @@ function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crm
       </h4>
       
       <div className="space-y-4">
-        {/* Progress Slider */}
-        <div>
-          <div className="flex justify-between items-center mb-1 text-xs font-bold text-slate-600">
-            <label>Progress</label>
-            <span className="text-blue-600">{localProgress}%</span>
+        {/* God-Level Milestone Progress Tracker */}
+        <div className="mb-2">
+          <div className="flex justify-between items-center mb-4 text-xs font-bold text-slate-600">
+            <label className="uppercase tracking-widest text-[10px] text-slate-400">Milestone Track</label>
           </div>
-          <input 
-            type="range" 
-            min="0" max="100" step="5"
-            value={localProgress}
-            onChange={(e) => setLocalProgress(Number(e.target.value))}
-            className="w-full accent-blue-600 cursor-pointer"
-          />
+          <div className="flex items-center justify-between relative h-14 w-full bg-slate-50/50 p-2 rounded-2xl border border-slate-100 shadow-inner overflow-visible">
+            {/* Background Track Line */}
+            <div className="absolute left-6 right-6 h-1.5 bg-slate-200 top-1/2 -translate-y-1/2 rounded-full" />
+            
+            {/* Physics-based Sliding Fill Line */}
+            <div 
+              className="absolute left-6 h-1.5 bg-blue-500 top-1/2 -translate-y-1/2 rounded-full transition-all duration-700 cubic-bezier(0.34, 1.56, 0.64, 1) shadow-[0_0_12px_rgba(59,130,246,0.8)]"
+              style={{ width: `calc(${localProgress}% - ${localProgress === 100 ? 3 : localProgress === 0 ? 0 : 1.5}rem)` }}
+            />
+
+            {[
+              { val: 0, label: "Start" },
+              { val: 25, label: "Dev" },
+              { val: 50, label: "Test" },
+              { val: 75, label: "Review" },
+              { val: 100, label: "Done" }
+            ].map((step) => {
+              const isCompleted = localProgress >= step.val;
+              const isCurrent = localProgress === step.val;
+              return (
+                <button
+                  key={step.val}
+                  onClick={() => handleProgressClick(step.val)}
+                  className="relative group z-10 flex flex-col items-center justify-center focus:outline-none"
+                  title={step.label}
+                >
+                  <div 
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-black transition-all duration-500 ease-out ${
+                      isCompleted 
+                        ? "bg-gradient-to-br from-blue-500 to-blue-700 text-white border border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.6)] scale-110" 
+                        : "bg-white/60 backdrop-blur-md text-slate-400 border-2 border-slate-200/80 hover:bg-white hover:border-blue-300 hover:scale-105"
+                    }`}
+                  >
+                    {isCurrent && (
+                      <span className="absolute -top-7 text-[12px] font-black text-blue-600 animate-bounce bg-blue-50 px-2 py-0.5 rounded-md shadow-sm border border-blue-100">
+                        {step.val}%
+                      </span>
+                    )}
+                    {step.val === 100 && isCompleted ? "✓" : step.val === 0 ? "🚀" : `${step.val}`}
+                  </div>
+                  <span className={`absolute -bottom-5 text-[9px] font-black uppercase tracking-wider transition-colors ${isCompleted ? "text-blue-600" : "text-slate-400"}`}>
+                    {step.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Live Status Dropdown */}
@@ -794,16 +848,23 @@ function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crm
         </div>
 
         {/* Real-time Status Description */}
-        <div>
+        <div className="pt-2">
           <label className="text-xs font-bold text-slate-600 block mb-1">Status Description</label>
-          <textarea 
-            rows={3}
-            value={localDesc}
-            onChange={(e) => setLocalDesc(e.target.value)}
-            placeholder="Type your real-time status update..."
-            className="w-full resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-400 bg-slate-50 transition-colors"
-          />
-          <p className="text-[9px] text-slate-400 mt-1 italic text-right">Auto-saves as you type...</p>
+          <div className="relative">
+            <textarea 
+              rows={3}
+              value={localDesc}
+              onChange={(e) => setLocalDesc(e.target.value)}
+              placeholder="Type your real-time status update..."
+              className="w-full resize-none text-xs p-3 pb-12 rounded-xl border border-slate-200 outline-none focus:border-blue-400 bg-slate-50 transition-colors shadow-inner"
+            />
+            <button 
+              onClick={handleUpdateLog}
+              className="absolute bottom-2 right-2 px-4 py-1.5 bg-gradient-to-r from-[#0D1B3E] to-[#1a3070] text-[#C9A84C] rounded-lg text-[10px] font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Update Status Log
+            </button>
+          </div>
         </div>
       </div>
     </div>

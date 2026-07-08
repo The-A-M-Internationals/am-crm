@@ -119,7 +119,7 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="text-white text-xs font-medium truncate">{crmUser.name}</p>
-              <p className="text-amber-400 font-mono tracking-wider text-[10px] uppercase">{crmUser.role}</p>
+              <p className="font-mono tracking-wider text-[10px] uppercase" style={{ color: "#C9A84C" }}>{crmUser.role}</p>
             </div>
           </div>
           <button
