@@ -936,10 +936,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <div 
                         key={task.id} 
                         onClick={() => setSelectedDrawerTask(task)}
-                        className="group flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-slate-50 dark:bg-slate-900/50 hover:dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-4 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
+                        className="group flex flex-col md:flex-row items-center justify-between w-full gap-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-800 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
-                        <div className="flex items-center gap-4 min-w-0 md:w-1/3">
+                        <div className="flex items-center space-x-3 min-w-[200px]">
                           {/* Micro-avatar */}
                           <div 
                             className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0"
@@ -949,7 +949,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                           </div>
                           
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-white truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-500" : "none" }}>
+                            <p className="text-sm font-bold text-slate-800 dark:text-white truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-500" : "none" }}>
                               {task.title}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
@@ -966,7 +966,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="w-full md:flex-1 flex flex-col justify-center px-0 md:px-8" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 max-w-md w-full px-4" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                             <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
@@ -978,7 +978,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               style={{ width: `${pct}%` }} 
                             />
                             {/* Stepper Hitboxes */}
-                            {milestoneSteps.map((step, stepIdx) => (
+                            {milestoneSteps.map((step) => (
                               <div
                                 key={step.key}
                                 onClick={(e) => {
@@ -993,11 +993,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Right Section: Hover controls & Inspect trigger */}
-                        <div className="flex items-center justify-end gap-3 md:w-1/4">
+                        <div className="flex items-center space-x-4">
                           {/* Management Hover Controls */}
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div 
-                              className="hidden group-hover:flex items-center gap-2" 
+                              className="hidden group-hover:flex items-center space-x-2" 
                               onClick={e => e.stopPropagation()}
                             >
                               <button 
