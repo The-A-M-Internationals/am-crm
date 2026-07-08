@@ -419,27 +419,50 @@ export default function TasksPage() {
                   </button>
                 </div>
 
-                {/* Title & Description */}
-                <h3 className="font-bold text-[#0D1B3E] text-base mb-1.5 leading-tight pr-2" style={{ textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</h3>
-                <p className="text-[11px] text-slate-500 line-clamp-2 mb-4 flex-1 leading-relaxed">{task.description || "No description provided."}</p>
+                {/* Title */}
+                <h3 className="font-bold text-[#0D1B3E] text-base mb-3 leading-tight pr-2 flex-1" style={{ textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</h3>
 
-                {/* Smart Card Update Area (Progress & Live Description) */}
-                <div className="mb-4 bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                      Live Status
-                    </span>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{progress}%</span>
+                {/* Interactive Segmented Milestone Tracker (Outside View) */}
+                <div className="mb-4 mt-auto bg-slate-50/50 p-3 rounded-2xl border border-slate-100 shadow-inner relative overflow-visible" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute left-5 right-5 h-1.5 bg-slate-200 top-1/2 -translate-y-1/2 rounded-full" />
+                  <div 
+                    className="absolute left-5 h-1.5 bg-blue-500 top-1/2 -translate-y-1/2 rounded-full transition-all duration-700 shadow-[0_0_8px_rgba(59,130,246,0.8)]"
+                    style={{ width: `calc(${progress}% - ${progress === 100 ? 2 : progress === 0 ? 0 : 1.5}rem)` }}
+                  />
+                  <div className="flex justify-between relative z-10 px-1">
+                    {[0, 25, 50, 75, 100].map((step) => {
+                      const isCompleted = progress >= step;
+                      return (
+                        <button
+                          key={step}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (task.progress !== step) {
+                               const { doc, updateDoc } = await import("firebase/firestore");
+                               await updateDoc(doc(db, "tasks", task.id), { progress: step });
+                               if (task.relatedType === "project" && task.relatedTo) {
+                                  const { getDocs, collection, query, where } = await import("firebase/firestore");
+                                  const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+                                  const snap = await getDocs(q);
+                                  let total = 0; let count = 0;
+                                  snap.forEach(d => { total += d.id === task.id ? step : (d.data().progress || 0); count++; });
+                                  if (count > 0) {
+                                      await updateDoc(doc(db, "projects", task.relatedTo), { progress: Math.round(total / count), updatedAt: new Date().toISOString() });
+                                  }
+                               }
+                            }
+                          }}
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-[9px] font-black transition-all duration-300 ${
+                            isCompleted 
+                              ? "bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)] scale-110 border border-blue-400" 
+                              : "bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 hover:scale-105"
+                          }`}
+                        >
+                          {step === 100 && isCompleted ? "✓" : step === 0 ? "🚀" : step}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-1.5 mb-2.5 overflow-hidden">
-                    <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-                  </div>
-                  {task.liveDescription ? (
-                    <p className="text-[10px] text-slate-600 italic line-clamp-1 font-medium bg-white px-2 py-1.5 rounded-lg border border-slate-100">"{task.liveDescription}"</p>
-                  ) : (
-                    <p className="text-[10px] text-slate-400 italic line-clamp-1">No live updates yet...</p>
-                  )}
                 </div>
 
                 {/* Bottom Metadata */}
@@ -568,7 +591,7 @@ export default function TasksPage() {
             <>
               {/* Backdrop */}
               <div 
-                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] transition-opacity"
+                className="fixed inset-0 bg-slate-950/50 backdrop-blur-xl z-[100] transition-opacity"
                 onClick={() => setSelectedDrawerTask(null)}
               />
               
@@ -640,44 +663,52 @@ export default function TasksPage() {
                     <EmployeeTaskWorkspace task={selectedDrawerTask} crmUser={crmUser} updateStatus={updateStatus} />
 
                     {/* The Immutable Ledger Stream (Output) */}
-                    <div className="crm-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col relative overflow-hidden">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        Activity Timeline Sheet
-                      </h4>
-                      
-                      <div className="flex-1 overflow-y-auto pr-2 space-y-4 max-h-[400px]">
-                        <AnimatePresence>
-                          {(!selectedDrawerTask.activityLogs || selectedDrawerTask.activityLogs.length === 0) ? (
-                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-slate-400 italic text-center py-10">No activities logged yet.</motion.p>
-                          ) : (
-                            selectedDrawerTask.activityLogs.slice().reverse().map((log: any) => (
-                              <motion.div 
-                                key={log.id} 
-                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                className="p-4 bg-slate-50/80 rounded-xl border border-slate-100 space-y-2 shadow-sm relative overflow-hidden group"
-                              >
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400 to-blue-600 opacity-50" />
-                                <div className="flex justify-between items-start pl-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-black text-[#0D1B3E] uppercase tracking-wider">{log.authorName}</span>
-                                    <span className="text-[9px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100">
-                                      {new Date(log.timestamp).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · {new Date(log.timestamp).toLocaleTimeString("en-US", { hour: '2-digit', minute:'2-digit' })}
+                    {isLeadOrAdmin ? (
+                      <div className="crm-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                          Activity Timeline Sheet
+                        </h4>
+                        
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-4 max-h-[400px]">
+                          <AnimatePresence>
+                            {(!selectedDrawerTask.activityLogs || selectedDrawerTask.activityLogs.length === 0) ? (
+                              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-slate-400 italic text-center py-10">No activities logged yet.</motion.p>
+                            ) : (
+                              selectedDrawerTask.activityLogs.slice().reverse().map((log: any) => (
+                                <motion.div 
+                                  key={log.id} 
+                                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  className="p-4 bg-slate-50/80 rounded-xl border border-slate-100 space-y-2 shadow-sm relative overflow-hidden group"
+                                >
+                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400 to-blue-600 opacity-50" />
+                                  <div className="flex justify-between items-start pl-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] font-black text-[#0D1B3E] uppercase tracking-wider">{log.authorName}</span>
+                                      <span className="text-[9px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100">
+                                        {new Date(log.timestamp).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · {new Date(log.timestamp).toLocaleTimeString("en-US", { hour: '2-digit', minute:'2-digit' })}
+                                      </span>
+                                    </div>
+                                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md shadow-sm border border-blue-100 flex items-center gap-1">
+                                      <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"></circle></svg>
+                                      [ {log.progressPoint}% ]
                                     </span>
                                   </div>
-                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md shadow-sm border border-blue-100 flex items-center gap-1">
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"></circle></svg>
-                                    [ {log.progressPoint}% ]
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-600 leading-relaxed font-medium pl-2 whitespace-pre-line">{log.logText}</p>
-                              </motion.div>
-                            ))
-                          )}
-                        </AnimatePresence>
+                                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium pl-2 whitespace-pre-line">{log.logText}</p>
+                                </motion.div>
+                              ))
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="crm-card bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col items-center justify-center h-48 opacity-70">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 mb-2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Restricted View</p>
+                        <p className="text-[9px] text-slate-400 mt-1">Logs are only visible to project leads & admins.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
