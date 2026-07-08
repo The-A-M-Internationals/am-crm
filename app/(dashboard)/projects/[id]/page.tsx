@@ -752,60 +752,60 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Display URLs in Monospace dark blocks */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {[
-                        { label: "Figma Canvas URL", val: (project as any).figmaUrl },
-                        { label: "Repository Endpoint", val: (project as any).repoUrl },
-                        { label: "Staging Environment", val: (project as any).stagingUrl },
-                        { label: "Production Endpoint", val: (project as any).productionUrl },
-                      ].map((urlObj, index) => (
-                        <div key={index} className="space-y-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{urlObj.label}</span>
-                          <div className="font-mono text-xs bg-slate-950/80 border-l-2 border-amber-500/60 text-slate-400 p-3 rounded-lg flex items-center tracking-wide justify-between shadow-sm">
-                            <span className={`truncate mr-2 ${!urlObj.val ? "text-slate-500/70 italic" : "text-slate-300"}`}>
-                              {urlObj.val || "Not Provisioned"}
-                            </span>
-                            {urlObj.val && (
-                              <button 
-                                onClick={() => copyToClipboard(urlObj.val)} 
-                                className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-all flex-shrink-0"
-                              >
-                                Copy
-                              </button>
+                    <div className="space-y-5">
+                      {/* Display URLs in Monospace dark/light blocks */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          { label: "Figma Canvas URL", val: (project as any).figmaUrl },
+                          { label: "Repository Endpoint", val: (project as any).repoUrl },
+                          { label: "Staging Environment", val: (project as any).stagingUrl },
+                          { label: "Production Endpoint", val: (project as any).productionUrl },
+                        ].map((urlObj, index) => (
+                          <div key={index} className="space-y-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">{urlObj.label}</span>
+                            <div className="font-mono text-xs bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 border-l-2 border-l-[#C9A84C] text-slate-700 dark:text-slate-400 p-3 rounded-lg flex items-center tracking-wide justify-between shadow-sm transition-all hover:shadow-md">
+                              <span className={`truncate mr-2 ${!urlObj.val ? "text-slate-400 dark:text-slate-500/70 italic" : "text-slate-800 dark:text-slate-300 font-medium"}`}>
+                                {urlObj.val || "Not Provisioned"}
+                              </span>
+                              {urlObj.val && (
+                                <button 
+                                  onClick={() => copyToClipboard(urlObj.val)} 
+                                  className="text-[10px] font-bold text-slate-500 hover:text-white px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all flex-shrink-0"
+                                >
+                                  Copy
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Display Stack Badges & Focus */}
+                      <div className="flex items-start justify-between pt-4 mt-2 flex-wrap gap-6 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pl-1">Primary Focus Scope</span>
+                          <span className="text-xs font-bold bg-[#C9A84C15] border border-[#C9A84C30] text-[#C9A84C] px-3 py-1.5 rounded-lg inline-block shadow-sm">
+                            {(project as any).coreFocus || "Dynamic Web App"}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pr-1">Tech Stack Matrix</span>
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            {((project as any).techStack || []).length === 0 ? (
+                              <span className="text-[11px] text-slate-400 italic py-1 px-2">No technologies defined</span>
+                            ) : (
+                              ((project as any).techStack || []).map((t: string) => (
+                                <span key={t} className="text-xs font-bold bg-slate-100 dark:bg-[#0D1B3E]/40 border border-slate-200 dark:border-[#0D1B3E]/60 text-[#0D1B3E] dark:text-slate-300 px-2.5 py-1 rounded-md shadow-sm">
+                                  {t}
+                                </span>
+                              ))
                             )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Display Stack Badges & Focus */}
-                    <div className="flex items-center justify-between pt-2 flex-wrap gap-4 border-t border-slate-100">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Primary Focus Scope</span>
-                        <span className="text-xs font-bold bg-[#C9A84C20] text-[#C9A84C] px-3 py-1 rounded-lg">
-                          {(project as any).coreFocus || "Dynamic Web App"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tech Stack Matrix</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {((project as any).techStack || []).length === 0 ? (
-                            <span className="text-xs text-slate-400 italic">No technologies defined</span>
-                          ) : (
-                            ((project as any).techStack || []).map((t: string) => (
-                              <span key={t} className="text-xs font-bold bg-[#0D1B3E]/10 text-[#0D1B3E] px-2.5 py-1 rounded-md">
-                                {t}
-                              </span>
-                            ))
-                          )}
-                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
               {/* Macro-Phase Progress Rail */}
               {(() => {
@@ -836,14 +836,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   <div className="crm-card">
                     <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Macro-Phase Progress Rail</h3>
                     
-                    <div className="relative flex items-center justify-between mt-8 mb-12 px-4">
+                    <div className="relative flex items-center justify-between mt-8 mb-20 px-4 md:px-8">
                       {/* Background Connecting Line */}
-                      <div className="absolute top-4 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-800 -z-10" />
+                      <div className="absolute top-4 left-8 right-8 h-0.5 bg-slate-200 dark:bg-slate-800 z-0" />
                       
                       {/* Active Fill Connecting Line */}
                       <div 
-                        className="absolute left-4 top-4 h-0.5 bg-blue-500 -z-10 transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
-                        style={{ width: `${Math.max(0, Math.min(92, progressMean * 0.92))}%` }}
+                        className="absolute left-8 top-4 h-0.5 bg-blue-500 z-0 transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                        style={{ width: `calc(${Math.max(0, Math.min(100, progressMean))}% - 4rem)` }}
                       />
                       
                       {[
@@ -855,21 +855,21 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         const isActive = idx === activePhaseIndex;
                         const isCompleted = progressMean > (idx === 0 ? 25 : idx === 1 ? 50 : idx === 2 ? 75 : 100);
                         return (
-                          <div key={idx} className="flex flex-col items-center relative">
+                          <div key={idx} className="flex flex-col items-center relative z-10">
                             {/* Circle Node */}
                             <div 
-                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 relative z-10 bg-white ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 relative z-10 ${
                                 isActive 
                                   ? "bg-blue-600 text-white ring-4 ring-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-600"
                                   : isCompleted 
                                     ? "bg-green-500 border-green-500 text-white"
-                                    : "border-slate-300 text-slate-400"
+                                    : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-400"
                               }`}
                             >
                               {idx + 1}
                             </div>
                             {/* Label Vertical Stack */}
-                            <div className="absolute top-10 text-center w-28 flex flex-col items-center justify-start pt-1">
+                            <div className="absolute top-10 left-1/2 -translate-x-1/2 text-center w-32 flex flex-col items-center justify-start pt-1">
                               <p className={`text-[10px] font-black tracking-wide leading-tight ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
                                 {phase.label}
                               </p>
