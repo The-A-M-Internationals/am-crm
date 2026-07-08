@@ -281,30 +281,7 @@ export default function TasksPage() {
     }
   };
 
-  async function commitLogEntry() {
-    if (!selectedDrawerTask || !logInputText.trim()) return;
-    try {
-      const newLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        text: logInputText,
-        timestamp: new Date().toISOString(),
-        authorName: crmUser?.name || "Team Member",
-        authorUid: crmUser?.uid || ""
-      };
-      const updatedLogs = [...(selectedDrawerTask.logs || []), newLog];
-      
-      await updateDoc(doc(db, "tasks", selectedDrawerTask.id), { logs: updatedLogs });
-      
-      // Update local state instantly for optimistic UI
-      setSelectedDrawerTask({ ...selectedDrawerTask, logs: updatedLogs });
-      setTasks(prev => prev.map(t => t.id === selectedDrawerTask.id ? { ...t, logs: updatedLogs } : t));
-      setLogInputText("");
-      alert("Log committed successfully!");
-    } catch (err: any) {
-      console.error(err);
-      alert("Failed to commit log entry: " + (err.message || String(err)));
-    }
-  }
+  // Removed unused commitLogEntry
 
   const filtered = tasks
     .filter((t) => {
@@ -336,7 +313,9 @@ export default function TasksPage() {
           <h1 className="page-title">Tasks</h1>
           <p className="page-subtitle">{tasks.filter(t => t.status !== "completed").length} pending · {tasks.filter(t => t.status === "completed").length} completed</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Task</button>
+        {crmUser?.role !== "employee" && (
+          <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Task</button>
+        )}
       </div>
 
       {/* Filters */}
@@ -628,20 +607,28 @@ export default function TasksPage() {
 
                 {/* Two Column Layout Body */}
                 <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Column A (Scope) */}
+                  {/* Column A (Scope & Blueprint) */}
                   <div className="space-y-6">
-                    {/* Admin's Project Summary */}
-                    <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Project Execution Strategy</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                    {/* Admin's Project Summary (Master Blueprint) */}
+                    <div className="crm-card bg-[#0D1B3E] p-5 rounded-2xl border border-slate-700 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] to-yellow-200" />
+                      <h4 className="text-[10px] font-black text-[#C9A84C] uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                        Master Blueprint (Admins Only)
+                      </h4>
+                      <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line font-medium">
                         {summary}
                       </p>
                     </div>
 
                     {/* Lead's Task Instructions */}
-                    <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Lead Directions & Scope</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                    <div className="crm-card bg-white p-5 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
+                      <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Lead Directions & Scope
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50 p-4 rounded-xl border border-slate-100 font-medium">
                         {instructions}
                       </p>
                     </div>
@@ -649,43 +636,48 @@ export default function TasksPage() {
 
                   {/* Column B (Execution Log) */}
                   <div className="space-y-6 flex flex-col h-full">
-                    {/* Log Console for Employee */}
-                    {isAssignedEmployee ? (
-                      <EmployeeTaskWorkspace task={selectedDrawerTask} crmUser={crmUser} updateStatus={updateStatus} />
-                    ) : (
-                      <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
-                        Only the assigned employee can update live progress.
-                      </div>
-                    )}
+                    {/* Log Console for Employee / Interactive Tracker */}
+                    <EmployeeTaskWorkspace task={selectedDrawerTask} crmUser={crmUser} updateStatus={updateStatus} />
 
-                    {/* Log Timeline for Lead/Admin */}
-                    {isLeadOrAdmin ? (
-                      <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150 flex-1 flex flex-col">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Chronological Log Stream</h4>
-                        
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[300px]">
-                          {logs.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic text-center py-8">No committed log entries found.</p>
+                    {/* The Immutable Ledger Stream (Output) */}
+                    <div className="crm-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Activity Timeline Sheet
+                      </h4>
+                      
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-4 max-h-[400px]">
+                        <AnimatePresence>
+                          {(!selectedDrawerTask.activityLogs || selectedDrawerTask.activityLogs.length === 0) ? (
+                            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-slate-400 italic text-center py-10">No activities logged yet.</motion.p>
                           ) : (
-                            logs.slice().reverse().map((log: any) => (
-                              <div key={log.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-bold text-slate-600">{log.authorName}</span>
-                                  <span className="text-[8px] text-slate-400">{new Date(log.timestamp).toLocaleString("en-GB")}</span>
+                            selectedDrawerTask.activityLogs.slice().reverse().map((log: any) => (
+                              <motion.div 
+                                key={log.id} 
+                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                className="p-4 bg-slate-50/80 rounded-xl border border-slate-100 space-y-2 shadow-sm relative overflow-hidden group"
+                              >
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-400 to-blue-600 opacity-50" />
+                                <div className="flex justify-between items-start pl-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-black text-[#0D1B3E] uppercase tracking-wider">{log.authorName}</span>
+                                    <span className="text-[9px] text-slate-400 font-bold bg-white px-2 py-0.5 rounded shadow-sm border border-slate-100">
+                                      {new Date(log.timestamp).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · {new Date(log.timestamp).toLocaleTimeString("en-US", { hour: '2-digit', minute:'2-digit' })}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md shadow-sm border border-blue-100 flex items-center gap-1">
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"></circle></svg>
+                                    [ {log.progressPoint}% ]
+                                  </span>
                                 </div>
-                                <p className="text-xs text-slate-700 leading-relaxed font-medium">{log.text}</p>
-                              </div>
+                                <p className="text-[11px] text-slate-600 leading-relaxed font-medium pl-2 whitespace-pre-line">{log.logText}</p>
+                              </motion.div>
                             ))
                           )}
-                        </div>
+                        </AnimatePresence>
                       </div>
-                    ) : (
-                      !isAssignedEmployee && (
-                        <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
-                          Logs are private to project assignees and managers.
-                        </div>
-                      )
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -697,18 +689,9 @@ export default function TasksPage() {
                         openEdit(selectedDrawerTask);
                         setSelectedDrawerTask(null);
                       }} 
-                      className="px-4 py-2 border rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 border-blue-200 transition-all"
+                      className="px-4 py-2 border rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 border-blue-200 transition-all shadow-sm"
                     >
-                      ✏️ Edit Details
-                    </button>
-                    <button 
-                      onClick={() => {
-                        deleteTask(selectedDrawerTask.id);
-                        setSelectedDrawerTask(null);
-                      }} 
-                      className="px-4 py-2 border rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border-red-200 transition-all"
-                    >
-                      ✕ Delete Task
+                      ✏️ Edit Scope & Directions
                     </button>
                   </div>
                 )}
@@ -723,12 +706,28 @@ export default function TasksPage() {
 
 function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crmUser: any; updateStatus: (task: any, status: string) => void }) {
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
-  const [localDesc, setLocalDesc] = useState(task.liveDescription || "");
+  const [localDesc, setLocalDesc] = useState("");
   const [localStatus, setLocalStatus] = useState(task.status || "not-started");
 
   const handleUpdateLog = async () => {
-    if (localDesc !== (task.liveDescription || "")) {
-      await updateDoc(doc(db, "tasks", task.id), { liveDescription: localDesc });
+    if (!localDesc.trim()) return;
+    try {
+      const { arrayUnion, doc, updateDoc } = await import("firebase/firestore");
+      const newLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toISOString(),
+        progressPoint: localProgress,
+        logText: localDesc,
+        authorName: crmUser?.name || "Team Member",
+        authorUid: crmUser?.uid || ""
+      };
+      await updateDoc(doc(db, "tasks", task.id), { 
+        activityLogs: arrayUnion(newLog)
+      });
+      setLocalDesc("");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to commit log.");
     }
   };
 
@@ -839,22 +838,24 @@ function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crm
           </select>
         </div>
 
-        {/* Real-time Status Description */}
+        {/* The Commit Console (Input) */}
         <div className="pt-2">
-          <label className="text-xs font-bold text-slate-600 block mb-1">Status Description</label>
-          <div className="relative">
+          <label className="text-xs font-bold text-slate-600 block mb-2">Commit Console</label>
+          <div className="relative bg-slate-900 rounded-xl p-1 shadow-inner overflow-hidden">
             <textarea 
               rows={3}
               value={localDesc}
               onChange={(e) => setLocalDesc(e.target.value)}
-              placeholder="Type your real-time status update..."
-              className="w-full resize-none text-xs p-3 pb-12 rounded-xl border border-slate-200 outline-none focus:border-blue-400 bg-slate-50 transition-colors shadow-inner"
+              placeholder="> Describe what engineering actions or milestones you completed in this block..."
+              className="w-full resize-none text-[11px] p-4 pb-14 bg-slate-800 text-green-400 placeholder-slate-500 font-mono border-none outline-none focus:ring-1 focus:ring-blue-500 transition-all rounded-lg shadow-inner"
+              style={{ lineHeight: "1.6" }}
             />
             <button 
               onClick={handleUpdateLog}
-              className="absolute bottom-2 right-2 px-4 py-1.5 bg-gradient-to-r from-[#0D1B3E] to-[#1a3070] text-[#C9A84C] rounded-lg text-[10px] font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+              disabled={!localDesc.trim()}
+              className="absolute bottom-3 right-3 px-5 py-2 bg-[#C9A84C] text-[#0D1B3E] rounded-md text-[10px] font-bold shadow-[0_0_10px_rgba(201,168,76,0.3)] hover:shadow-[0_0_15px_rgba(201,168,76,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider hover:scale-105 active:scale-95"
             >
-              Update Status Log
+              Commit to Log Sheet
             </button>
           </div>
         </div>
