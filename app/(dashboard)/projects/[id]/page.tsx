@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ProjectTask, ServiceTag, ProjectStatus } from "@/types";
@@ -23,6 +23,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [project, setProject] = useState<Project | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const isDelegatingRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "files" | "payments">("overview");
   const [newFile, setNewFile] = useState({ name: "", url: "" });
@@ -282,6 +283,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   }
 
   async function delegateTask() {
+    if (isDelegatingRef.current) return;
     if (!project || !delegateForm.employeeId || !delegateForm.title) {
       alert("Please specify both an employee and a task title.");
       return;
@@ -289,7 +291,9 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
     // INTERCEPT DUPLICATE TASK ASSIGNMENT
     const assetAlreadyAssigned = projectTasks.find(
-      t => t.relatedTo === project.id && t.assignedTo === delegateForm.employeeId
+      t => t.relatedTo === project.id && 
+           t.assignedTo === delegateForm.employeeId && 
+           t.status !== "completed"
     );
 
     if (assetAlreadyAssigned) {
@@ -297,6 +301,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       return;
     }
 
+    isDelegatingRef.current = true;
     setDelegating(true);
     try {
       const now = new Date().toISOString();
@@ -334,6 +339,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       console.error(err);
       alert("Failed to delegate task: " + (err.message || String(err)));
     } finally {
+      isDelegatingRef.current = false;
       setDelegating(false);
     }
   }
