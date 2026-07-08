@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { doc, onSnapshot, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -119,19 +119,17 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
     await updateDoc(doc(db, "tasks", task.id), { progress: newProgress });
     
     if (task.relatedType === "project" && task.relatedTo) {
-      import("firebase/firestore").then(async ({ getDocs, collection, query, where, doc: firestoreDoc, updateDoc: firestoreUpdate }) => {
-        const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
-        const snap = await getDocs(q);
-        let total = 0; let count = 0;
-        snap.forEach(d => {
-           total += d.id === task.id ? newProgress : (d.data().progress || 0);
-           count++;
-        });
-        const projProgress = count === 0 ? 0 : Math.round(total / count);
-        await firestoreUpdate(firestoreDoc(db, "projects", task.relatedTo), { 
-          progress: projProgress, 
-          updatedAt: new Date().toISOString() 
-        });
+      const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+      const snap = await getDocs(q);
+      let total = 0; let count = 0;
+      snap.forEach(d => {
+         total += d.id === task.id ? newProgress : (d.data().progress || 0);
+         count++;
+      });
+      const projProgress = count === 0 ? 0 : Math.round(total / count);
+      await updateDoc(doc(db, "projects", task.relatedTo), { 
+        progress: projProgress, 
+        updatedAt: new Date().toISOString() 
       });
     }
   };

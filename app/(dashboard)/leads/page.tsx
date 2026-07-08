@@ -41,6 +41,7 @@ const EMPTY_FORM = {
   name: "", company: "", email: "", phone: "",
   service: "web-development" as ServiceTag,
   stage: "lead" as LeadStage,
+  lifecycleStatus: "Not Contacted",
   followUpDate: "", notes: "", source: "", nextAction: "",
 };
 
@@ -71,7 +72,7 @@ export default function LeadsPage() {
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setShowModal(true); }
   function openEdit(lead: Lead) {
     setEditing(lead);
-    setForm({ name: lead.name, company: lead.company, email: lead.email, phone: lead.phone ?? "", service: lead.service, stage: lead.stage, followUpDate: lead.followUpDate ?? "", notes: lead.notes ?? "", source: lead.source ?? "", nextAction: (lead as any).nextAction ?? "" });
+    setForm({ name: lead.name, company: lead.company, email: lead.email, phone: lead.phone ?? "", service: lead.service, stage: lead.stage, lifecycleStatus: (lead as any).lifecycleStatus || "Not Contacted", followUpDate: lead.followUpDate ?? "", notes: lead.notes ?? "", source: lead.source ?? "", nextAction: (lead as any).nextAction ?? "" });
     setIsCustomAction(false);
     setShowModal(true);
   }
@@ -233,7 +234,7 @@ export default function LeadsPage() {
                     {isExpanded && (
                       <tr key={`${lead.id}-expand`} style={{ background: "#fafbff" }}>
                         <td colSpan={7} style={{ padding: "12px 20px" }}>
-                          <div className="grid grid-cols-3 gap-4 text-xs">
+                          <div className="grid grid-cols-4 gap-4 text-xs">
                             <div>
                               <p className="font-bold mb-1" style={{ color: "#6b7280" }}>CONTACT</p>
                               <p style={{ color: "#374151" }}>📧 {lead.email}</p>
@@ -242,6 +243,27 @@ export default function LeadsPage() {
                             <div>
                               <p className="font-bold mb-1" style={{ color: "#6b7280" }}>SOURCE</p>
                               <p style={{ color: "#374151" }}>{(lead as any).source || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="font-bold mb-1" style={{ color: "#6b7280" }}>LIFECYCLE STATUS</p>
+                              <select 
+                                className="form-input text-xs py-1 px-2 border-slate-200 rounded-md w-full"
+                                value={(lead as any).lifecycleStatus || "Not Contacted"}
+                                onChange={async (e) => {
+                                  const val = e.target.value;
+                                  try {
+                                    await updateDoc(doc(db, "leads", lead.id), { lifecycleStatus: val });
+                                  } catch (err) { console.error(err); }
+                                }}
+                              >
+                                <option value="Not Contacted">Not Contacted</option>
+                                <option value="Attempted to Contact">Attempted to Contact</option>
+                                <option value="Contacted">Contacted</option>
+                                <option value="Pre-Qualified">Pre-Qualified</option>
+                                <option value="Contact in Future">Contact in Future</option>
+                                <option value="Lost Lead">Lost Lead</option>
+                                <option value="Junk Lead">Junk Lead</option>
+                              </select>
                             </div>
                             <div>
                               <p className="font-bold mb-1" style={{ color: "#6b7280" }}>NOTES</p>
@@ -356,20 +378,34 @@ export default function LeadsPage() {
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="form-label">Next Action</label>
-                <select className="form-input" value={isCustomAction ? "custom" : form.nextAction}
-                  onChange={e => {
-                    if (e.target.value === "custom") { setIsCustomAction(true); setForm({ ...form, nextAction: "" }); }
-                    else { setIsCustomAction(false); setForm({ ...form, nextAction: e.target.value }); }
-                  }}>
-                  <option value="">Select next action...</option>
-                  {NEXT_ACTIONS[form.stage].map(a => <option key={a} value={a}>{a}</option>)}
-                  <option value="custom">Custom...</option>
-                </select>
-                {isCustomAction && (
-                  <input className="form-input mt-2" placeholder="Type your custom action..." value={form.nextAction} autoFocus onChange={e => setForm({ ...form, nextAction: e.target.value })} />
-                )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Lifecycle Status</label>
+                  <select className="form-input" value={(form as any).lifecycleStatus || "Not Contacted"} onChange={e => setForm({ ...form, lifecycleStatus: e.target.value })}>
+                    <option value="Not Contacted">Not Contacted</option>
+                    <option value="Attempted to Contact">Attempted to Contact</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Pre-Qualified">Pre-Qualified</option>
+                    <option value="Contact in Future">Contact in Future</option>
+                    <option value="Lost Lead">Lost Lead</option>
+                    <option value="Junk Lead">Junk Lead</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Next Action</label>
+                  <select className="form-input" value={isCustomAction ? "custom" : form.nextAction}
+                    onChange={e => {
+                      if (e.target.value === "custom") { setIsCustomAction(true); setForm({ ...form, nextAction: "" }); }
+                      else { setIsCustomAction(false); setForm({ ...form, nextAction: e.target.value }); }
+                    }}>
+                    <option value="">Select next action...</option>
+                    {NEXT_ACTIONS[form.stage].map(a => <option key={a} value={a}>{a}</option>)}
+                    <option value="custom">Custom...</option>
+                  </select>
+                  {isCustomAction && (
+                    <input className="form-input mt-2" placeholder="Type your custom action..." value={form.nextAction} autoFocus onChange={e => setForm({ ...form, nextAction: e.target.value })} />
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="form-label">Follow-up Date</label><input className="form-input" type="date" value={form.followUpDate} onChange={e => setForm({ ...form, followUpDate: e.target.value })} /></div>

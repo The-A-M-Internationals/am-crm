@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Proposal, ProposalStatus, ProposalPackage, ProposalCustomSection } from "@/types";
 import Link from "next/link";
@@ -365,7 +365,6 @@ export default function ProposalDetailPage() {
 
       // Query and update associated client status to inactive
       const email = proposal.clientEmail.toLowerCase().trim();
-      const { collection, query, where, getDocs } = await import("firebase/firestore");
       const clientQ = query(collection(db, "clients"), where("email", "==", email));
       const clientSnap = await getDocs(clientQ);
       const updatePromises = clientSnap.docs.map(docSnap => 

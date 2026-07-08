@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -437,10 +437,8 @@ export default function TasksPage() {
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (task.progress !== step) {
-                               const { doc, updateDoc } = await import("firebase/firestore");
                                await updateDoc(doc(db, "tasks", task.id), { progress: step });
                                if (task.relatedType === "project" && task.relatedTo) {
-                                  const { getDocs, collection, query, where } = await import("firebase/firestore");
                                   const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
                                   const snap = await getDocs(q);
                                   let total = 0; let count = 0;

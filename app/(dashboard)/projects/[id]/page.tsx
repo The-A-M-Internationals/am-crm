@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ProjectTask, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
@@ -26,7 +26,9 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const isDelegatingRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "files" | "payments">("overview");
-  const [newFile, setNewFile] = useState({ name: "", url: "" });
+  const [assetName, setAssetName] = useState("");
+  const [assetUrl, setAssetUrl] = useState("");
+  const [assetCategory, setAssetCategory] = useState("Documentation");
   const [addingFile, setAddingFile] = useState(false);
 
   // Payment Log State
@@ -72,8 +74,18 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [duplicateConflictTask, setDuplicateConflictTask] = useState<any | null>(null);
   const [duplicateInstructionNote, setDuplicateInstructionNote] = useState("");
 
+  // Add Note Modal State
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteModalTask, setNoteModalTask] = useState<any | null>(null);
+  const [noteModalText, setNoteModalText] = useState("");
+
+  // Dynamic Tech Hub State
+  const [newTechTag, setNewTechTag] = useState("");
+  const [editingCoreFocus, setEditingCoreFocus] = useState(false);
+  const [tempCoreFocus, setTempCoreFocus] = useState("");
+  const router = useRouter();
+
   // File Category State
-  const [fileCategory, setFileCategory] = useState<"Design" | "Development" | "Documentation" | "Credentials">("Documentation");
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<"All" | "Design" | "Development" | "Documentation" | "Credentials">("All");
 
   const [addingField, setAddingField] = useState(false);
@@ -122,7 +134,27 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     
     const qTasks = query(collection(db, "tasks"), where("relatedTo", "==", id));
     const unsubTasks = onSnapshot(qTasks, (snap) => {
-      setProjectTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const rawTasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const seen = new Set();
+      const deduped: any[] = [];
+      const ghosts: string[] = [];
+      
+      rawTasks.forEach((t: any) => {
+        const titleKey = (t.title || "").trim().toLowerCase();
+        if (seen.has(titleKey)) {
+          ghosts.push(t.id);
+        } else {
+          seen.add(titleKey);
+          deduped.push(t);
+        }
+      });
+      
+      setProjectTasks(deduped);
+      
+      // Auto-heal: Silently assassinate database ghosts in the background
+      ghosts.forEach(async (ghostId) => {
+        try { await deleteDoc(doc(db, "tasks", ghostId)); } catch(e){}
+      });
     });
     
     return () => unsubTasks();
@@ -136,23 +168,25 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     }
   }, [searchParams]);
 
-  async function addFile() {
-    if (!newFile.name || !newFile.url || !project) return;
+  async function addAsset() {
+    if (!assetName.trim() || !assetUrl.trim() || !project) return;
     setAddingFile(true);
     try {
-      const fileObj = { 
-        name: newFile.name, 
-        url: newFile.url, 
-        addedBy: crmUser?.name || "Admin", 
-        at: new Date().toISOString() 
+      const fileObj = {
+        name: assetName.trim(),
+        url: assetUrl.trim(),
+        category: assetCategory,
+        addedBy: crmUser?.name || "Admin",
+        at: new Date().toISOString()
       };
       const updatedFiles = [...(project as any).sharedFiles || [], fileObj];
       await updateDoc(doc(db, "projects", project.id), { sharedFiles: updatedFiles });
       setProject({ ...project, sharedFiles: updatedFiles } as any);
-      setNewFile({ name: "", url: "" });
+      setAssetName("");
+      setAssetUrl("");
     } catch (e) {
       console.error(e);
-      alert("Failed to add file");
+      alert("Failed to add asset");
     } finally {
       setAddingFile(false);
     }
@@ -289,15 +323,13 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       return;
     }
 
-    // INTERCEPT DUPLICATE TASK ASSIGNMENT
-    const assetAlreadyAssigned = projectTasks.find(
-      t => t.relatedTo === project.id && 
-           t.assignedTo === delegateForm.employeeId && 
-           t.status !== "completed"
+    // DUPLICATE TITLE INTERCEPTOR
+    const titleCollision = projectTasks.find(
+      t => t.relatedTo === project.id && t.title.trim().toLowerCase() === delegateForm.title.trim().toLowerCase()
     );
 
-    if (assetAlreadyAssigned) {
-      setDuplicateConflictTask(assetAlreadyAssigned);
+    if (titleCollision) {
+      alert("WARNING: A task with this exact title already exists on this project. Please append a sequence index (e.g., V2, Part 2) to ensure separate communication history sheets.");
       return;
     }
 
@@ -306,7 +338,6 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     try {
       const now = new Date().toISOString();
       const employee = users.find(u => u.uid === delegateForm.employeeId);
-      const { addDoc, collection } = await import("firebase/firestore");
       
       const payload = {
         title: delegateForm.title,
@@ -680,54 +711,63 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     {/* Tech Stack Pills */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1">Core Architecture Stack</label>
+                      <div className="flex items-center gap-2 mt-1 mb-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. Three.js, Django..."
+                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200"
+                          value={newTechTag}
+                          onChange={(e) => setNewTechTag(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newTechTag.trim()) {
+                              e.preventDefault();
+                              const trimmed = newTechTag.trim();
+                              if (!techHubForm.techStack.includes(trimmed)) {
+                                setTechHubForm({ ...techHubForm, techStack: [...techHubForm.techStack, trimmed] });
+                              }
+                              setNewTechTag("");
+                            }
+                          }}
+                        />
+                        <span className="text-[10px] text-slate-400 italic">Press Enter to add</span>
+                      </div>
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"].map((tech) => {
-                          const selected = techHubForm.techStack.includes(tech);
-                          return (
+                        {techHubForm.techStack.map((tech) => (
+                          <span
+                            key={tech}
+                            className="px-3 py-1 rounded-full text-xs font-medium border bg-[#0D1B3E] text-white border-[#0D1B3E] flex items-center gap-1.5"
+                          >
+                            {tech}
                             <button
-                              key={tech}
                               type="button"
                               onClick={() => {
-                                const newStack = selected
-                                  ? techHubForm.techStack.filter((t) => t !== tech)
-                                  : [...techHubForm.techStack, tech];
-                                setTechHubForm({ ...techHubForm, techStack: newStack });
+                                setTechHubForm({
+                                  ...techHubForm,
+                                  techStack: techHubForm.techStack.filter(t => t !== tech)
+                                });
                               }}
-                              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                                selected 
-                                  ? "bg-[#0D1B3E] text-white border-[#0D1B3E]" 
-                                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                              }`}
+                              className="text-white hover:text-red-400 font-bold"
                             >
-                              {tech}
+                              ✕
                             </button>
-                          );
-                        })}
+                          </span>
+                        ))}
+                        {techHubForm.techStack.length === 0 && (
+                          <span className="text-xs text-slate-400 italic py-1">No custom technologies defined</span>
+                        )}
                       </div>
                     </div>
 
                     {/* Core Focus Toggle */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1">Primary Core Focus</label>
-                      <div className="grid grid-cols-3 gap-2 mt-1">
-                        {["Dynamic Web App", "Static Branding", "E-Commerce Build"].map((focus) => {
-                          const selected = techHubForm.coreFocus === focus;
-                          return (
-                            <button
-                              key={focus}
-                              type="button"
-                              onClick={() => setTechHubForm({ ...techHubForm, coreFocus: focus })}
-                              className={`py-1.5 px-1.5 rounded-lg text-xs font-semibold border transition-all text-center ${
-                                selected
-                                  ? "bg-[#C9A84C] text-[#0D1B3E] border-[#C9A84C] shadow-sm"
-                                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                              }`}
-                            >
-                              {focus}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <input
+                        type="text"
+                        className="form-input text-xs w-full py-2 px-3 rounded-lg border-slate-200"
+                        value={techHubForm.coreFocus}
+                        onChange={(e) => setTechHubForm({ ...techHubForm, coreFocus: e.target.value })}
+                        placeholder="e.g. Dynamic Web App"
+                      />
                     </div>
 
                     {/* URL Inputs */}
@@ -790,9 +830,41 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <div className="flex items-start justify-between pt-4 mt-2 flex-wrap gap-6 border-t border-slate-100 dark:border-slate-800">
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pl-1">Primary Focus Scope</span>
-                          <span className="text-xs font-bold bg-[#C9A84C15] border border-[#C9A84C30] text-[#C9A84C] px-3 py-1.5 rounded-lg inline-block shadow-sm">
-                            {(project as any).coreFocus || "Dynamic Web App"}
-                          </span>
+                          {editingCoreFocus ? (
+                            <input 
+                              type="text"
+                              autoFocus
+                              className="text-xs font-bold bg-white dark:bg-slate-900 border border-[#C9A84C] text-[#C9A84C] px-3 py-1.5 rounded-lg shadow-sm outline-none w-48"
+                              value={tempCoreFocus}
+                              onChange={e => setTempCoreFocus(e.target.value)}
+                              onBlur={async () => {
+                                setEditingCoreFocus(false);
+                                if (tempCoreFocus.trim() !== ((project as any).coreFocus || "Dynamic Web App")) {
+                                  const newVal = tempCoreFocus.trim();
+                                  try {
+                                    await updateDoc(doc(db, "projects", project.id), { coreFocus: newVal });
+                                    setProject({ ...project, coreFocus: newVal });
+                                  } catch (err) { console.error(err); }
+                                }
+                              }}
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          ) : (
+                            <span 
+                              onClick={() => {
+                                setTempCoreFocus((project as any).coreFocus || "Dynamic Web App");
+                                setEditingCoreFocus(true);
+                              }}
+                              className="text-xs font-bold bg-[#C9A84C15] border border-[#C9A84C30] text-[#C9A84C] px-3 py-1.5 rounded-lg inline-block shadow-sm cursor-pointer hover:bg-[#C9A84C25] transition-colors"
+                              title="Click to inline edit"
+                            >
+                              {(project as any).coreFocus || "Dynamic Web App"}
+                            </span>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pr-1">Tech Stack Matrix</span>
@@ -839,6 +911,20 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 else if (progressMean <= 75) activePhaseIndex = 2;
                 else activePhaseIndex = 3;
 
+                const activeStyles = [
+                  "bg-blue-600 text-white ring-4 ring-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.6)] border-blue-600",
+                  "bg-emerald-500 text-white ring-4 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.6)] border-emerald-500",
+                  "bg-purple-500 text-white ring-4 ring-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.6)] border-purple-500",
+                  "bg-amber-500 text-white ring-4 ring-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.6)] border-amber-500",
+                ];
+                
+                const lineFillColor = [
+                  "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]",
+                  "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
+                  "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]",
+                  "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
+                ];
+
                 return (
                   <div className="crm-card">
                     <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Macro-Phase Progress Rail</h3>
@@ -849,7 +935,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       
                       {/* Active Fill Connecting Line */}
                       <div 
-                        className="absolute left-8 top-4 h-0.5 bg-blue-500 z-0 transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                        className={`absolute left-8 top-4 h-0.5 z-0 transition-all duration-500 ${lineFillColor[activePhaseIndex]}`} 
                         style={{ width: `calc(${Math.max(0, Math.min(100, progressMean))}% - 4rem)` }}
                       />
                       
@@ -867,9 +953,9 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                             <div 
                               className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 relative z-10 ${
                                 isActive 
-                                  ? "bg-blue-600 text-white ring-4 ring-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-600"
+                                  ? activeStyles[idx]
                                   : isCompleted 
-                                    ? "bg-green-500 border-green-500 text-white"
+                                    ? "bg-slate-700 border-slate-700 text-white dark:bg-slate-600 dark:border-slate-600"
                                     : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-400"
                               }`}
                             >
@@ -942,29 +1028,29 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     return (
                       <div 
                         key={task.id} 
-                        onClick={() => setSelectedDrawerTask(task)}
-                        className="group flex flex-col md:flex-row items-center justify-between w-full gap-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-800 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
+                        onClick={() => router.push(`/tasks/${task.id}`)}
+                        className="w-full bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-900/60 shadow-lg cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
-                        <div className="flex items-center space-x-3 min-w-[200px]">
+                        <div className="flex items-center space-x-4 min-w-[240px]">
                           {/* Micro-avatar */}
                           <div 
-                            className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                            className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0"
                             title={`Assigned to: ${task.assignedToName || "Unassigned"}`}
                           >
                             {task.assignedToName?.charAt(0).toUpperCase() || "?"}
                           </div>
                           
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 dark:text-white truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-500" : "none" }}>
+                            <p className="text-sm font-bold text-slate-200 truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-500" : "none" }}>
                               {task.title}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${pBg}`}>
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${pBg}`}>
                                 {task.priority || "medium"}
                               </span>
                               {task.dueDate && (
-                                <span className="text-[9px] font-semibold text-slate-500">
+                                <span className="text-[10px] font-semibold text-slate-400">
                                   Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
                                 </span>
                               )}
@@ -973,12 +1059,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="flex-1 max-w-md w-full px-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 max-w-xl w-full px-4 py-2 bg-slate-950/30 rounded-lg border border-slate-800/40" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                             <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800/80 rounded-full flex relative">
+                          <div className="w-full h-1.5 bg-slate-800/80 rounded-full flex relative">
                             {/* Active segment fill */}
                             <div 
                               className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.6)]" 
@@ -1000,21 +1086,19 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Right Section: Hover controls & Inspect trigger */}
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center justify-between lg:justify-end gap-4 min-w-[280px]">
                           {/* Management Hover Controls */}
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div 
-                              className="hidden group-hover:flex items-center space-x-2" 
+                              className="flex items-center space-x-2" 
                               onClick={e => e.stopPropagation()}
                             >
                               <button 
                                 onClick={() => {
-                                  const note = prompt("Append directions/instructions to this task:", task.taskInstructions || "");
-                                  if (note !== null) {
-                                    updateTaskInstructions(task, note);
-                                  }
+                                  setNoteModalTask(task);
+                                  setShowNoteModal(true);
                                 }}
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[9px] font-black tracking-wider uppercase transition-all shadow-sm"
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-black tracking-wider uppercase transition-all shadow-sm"
                                 title="Append Directions"
                               >
                                 📝 Add Note
@@ -1023,9 +1107,9 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
-                                className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-black px-2 py-1.5 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm"
+                                className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-black px-2 py-1.5 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32"
                               >
-                                <option value="">Re-allocate Asset...</option>
+                                <option value="">Re-allocate...</option>
                                 {users
                                   .filter(u => u.role !== "admin")
                                   .map(u => (
@@ -1038,9 +1122,13 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
                           {/* Inspect Layout Deep link */}
                           <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/tasks/${task.id}`);
+                            }}
                             className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#0D1B3E] hover:bg-[#1a3070] text-[#C9A84C] shadow-md transition-all whitespace-nowrap border border-[#C9A84C]/30"
                           >
-                            Inspect Layout 🔍
+                            Inspect 🔍
                           </button>
                         </div>
                       </div>
@@ -1053,60 +1141,64 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
           {activeTab === "files" && (
             <div className="space-y-6">
-              {/* Add File Form */}
-              <div className="crm-card">
-                <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Add Shared File</h3>
-                <div className="flex gap-4 items-center flex-wrap md:flex-nowrap">
+              {/* Asset Vault Intake Grid */}
+              <div className="bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl">
+                <h3 className="text-sm font-bold mb-4 text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                  Asset Vault
+                </h3>
+                
+                <div className="flex flex-col md:flex-row gap-4 items-center">
                   <input 
-                    className="form-input flex-1 bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
-                    placeholder="File Name (e.g. Brand Guidelines)" 
-                    value={newFile.name}
-                    onChange={e => setNewFile({ ...newFile, name: e.target.value })}
+                    className="w-full md:flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
+                    placeholder="Custom Asset Name (e.g. Figma Wireframes)"
+                    value={assetName}
+                    onChange={e => setAssetName(e.target.value)}
                   />
                   <input 
-                    className="form-input flex-1 bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
-                    placeholder="URL (Google Drive, Figma, etc.)" 
-                    value={newFile.url}
-                    onChange={e => setNewFile({ ...newFile, url: e.target.value })}
+                    className="w-full md:flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
+                    placeholder="Asset URL Link"
+                    value={assetUrl}
+                    onChange={e => setAssetUrl(e.target.value)}
                   />
-                  <select 
-                    className="form-input bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
-                    value={fileCategory} 
-                    onChange={e => setFileCategory(e.target.value as any)}
-                    style={{ minWidth: "160px", height: "42px" }}
-                  >
-                    <option value="Design">Design</option>
-                    <option value="Development">Development</option>
-                    <option value="Documentation">Documentation</option>
-                    <option value="Credentials">Credentials</option>
-                  </select>
-                  <button 
-                    onClick={addFile}
-                    disabled={addingFile || !newFile.name || !newFile.url}
-                    className="btn-primary whitespace-nowrap disabled:opacity-50 h-[42px] px-8 rounded-lg shadow-sm"
-                  >
-                    {addingFile ? "Adding..." : "+ Add"}
-                  </button>
+                  
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <select 
+                      className="w-full md:w-[150px] bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 transition-all cursor-pointer" 
+                      value={assetCategory} 
+                      onChange={e => setAssetCategory(e.target.value)}
+                    >
+                      <option value="Design">Design</option>
+                      <option value="Development">Development</option>
+                      <option value="Documentation">Documentation</option>
+                      <option value="Credentials">Credentials</option>
+                    </select>
+                    
+                    <button 
+                      onClick={addAsset}
+                      disabled={addingFile || !assetName.trim() || !assetUrl.trim()}
+                      className="whitespace-nowrap px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md disabled:opacity-50 transition-all"
+                    >
+                      {addingFile ? "Adding..." : "+ Add Asset"}
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[10px] mt-2" style={{ color: "#9ca3af" }}>
-                  Paste a link to any project asset (Figma, Drive, Dropbox, etc.) to share it with the team.
-                </p>
               </div>
 
-              {/* Files List */}
-              <div className="crm-card">
+              {/* Asset Registry List */}
+              <div className="space-y-4 mt-8">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Project Assets</h3>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Project Assets</h3>
                   {/* Category Filter Tabs */}
-                  <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50">
                     {["All", "Design", "Development", "Documentation", "Credentials"].map((cat) => (
                       <button
                         key={cat}
                         onClick={() => setActiveCategoryFilter(cat as any)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
                           activeCategoryFilter === cat
-                            ? "bg-white text-[#0D1B3E] shadow-sm"
-                            : "text-slate-400 hover:text-slate-600"
+                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                         }`}
                       >
                         {cat}
@@ -1115,7 +1207,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {(() => {
                     const shared = (project as any).sharedFiles || [];
                     const filtered = shared.filter((f: any) => 
@@ -1123,49 +1215,66 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     );
                     
                     if (filtered.length === 0) {
-                      return <p className="text-xs py-4 text-center" style={{ color: "#9ca3af" }}>No files match this category.</p>;
+                      return <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800"><p className="text-sm font-medium text-slate-500">No assets match this category.</p></div>;
                     }
 
                     return filtered.map((file: any, index: number) => {
                       const origIndex = shared.indexOf(file);
-                      // Determine category badge colors
-                      let badgeBg = "bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
-                      const cat = file.category || "Documentation";
-                      if (cat === "Design") badgeBg = "bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
-                      else if (cat === "Development") badgeBg = "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
-                      else if (cat === "Credentials") badgeBg = "bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
-                      else if (cat === "Documentation") badgeBg = "bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
+                      
+                      // Platform Icon Logic
+                      const isFigma = file.url.includes("figma.com");
+                      const isGithub = file.url.includes("github.com") || file.url.includes("gitlab.com") || file.url.includes("bitbucket");
+                      
+                      let Icon = (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                      );
+                      
+                      if (isFigma) {
+                        Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"></path><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"></path><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"></path></svg>;
+                      } else if (isGithub) {
+                        Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-800 dark:text-slate-200"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>;
+                      }
+
+                      // Category Badge Logic
+                      const cat = file.category?.toUpperCase() || "DOCUMENTATION";
+                      let badgeClasses = "bg-slate-500/10 text-slate-500 border-slate-500/20";
+                      
+                      if (cat === "DESIGN") badgeClasses = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+                      else if (cat === "DEVELOPMENT") badgeClasses = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                      else if (cat === "DOCUMENTATION") badgeClasses = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                      else if (cat === "CREDENTIALS") badgeClasses = "bg-rose-500/10 text-rose-400 border-rose-500/20";
 
                       return (
-                        <div key={index} className="flex items-center justify-between p-4 rounded-xl border bg-white hover:bg-slate-50 transition-all shadow-sm mb-3" style={{ borderColor: "#f0f0f5" }}>
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">📎</div>
-                            <div>
-                              <div className="flex items-center gap-3 flex-wrap mb-1">
-                                <p className="text-sm font-black" style={{ color: "#1a1a2e" }}>{file.name}</p>
-                                <span className={badgeBg}>
-                                  {cat}
-                                </span>
-                              </div>
-                              <p className="text-[11px] font-medium" style={{ color: "#9ca3af" }}>Added by <span className="text-slate-600">{file.addedBy}</span> &middot; {new Date(file.at).toLocaleDateString("en-GB")}</p>
+                        <div key={index} className="flex items-center justify-between p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all group">
+                          <div className="flex items-center gap-4 truncate">
+                            <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center flex-shrink-0">
+                              {Icon}
+                            </div>
+                            <div className="truncate">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mb-0.5">{file.name}</p>
+                              <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-xs md:max-w-md lg:max-w-lg mb-1">{file.url}</p>
+                              <p className="text-[10px] font-medium text-slate-400">Added by {file.addedBy} &bull; {new Date(file.at).toLocaleDateString("en-GB")}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+                            <span className={`hidden md:inline-block px-2.5 py-1 rounded-md text-[9px] font-black tracking-widest border ${badgeClasses}`}>
+                              {cat}
+                            </span>
                             <a 
                               href={file.url} 
                               target="_blank" 
                               rel="noopener noreferrer" 
-                              className="text-xs font-bold text-[#0D1B3E] hover:underline"
+                              className="text-xs font-bold text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 hover:underline flex items-center gap-1"
                             >
-                              Open Link ↗
+                              Open Link <span className="text-[10px]">↗</span>
                             </a>
                             {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                               <button 
                                 onClick={() => deleteFile(origIndex)}
-                                className="w-6 h-6 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Delete Asset"
                               >
-                                ✕
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                               </button>
                             )}
                           </div>
@@ -1632,6 +1741,47 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   <p className="text-[9px] text-slate-400 mt-1">Return to dropdown to pick another team asset.</p>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Add Note Modal */}
+      {showNoteModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-sm font-bold text-slate-200 mb-3 uppercase tracking-wider">Append Project Directions/Instructions</h3>
+            <textarea 
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono mb-4 min-h-[100px]"
+              placeholder="Type your new task directives here..."
+              value={noteModalText}
+              onChange={e => setNoteModalText(e.target.value)}
+            />
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setNoteModalText("");
+                  setNoteModalTask(null);
+                }} 
+                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (noteModalTask && noteModalText) {
+                    const newInstruction = (noteModalTask.taskInstructions || "") + "\n\n[APPENDED DIRECTIVE]: " + noteModalText;
+                    updateTaskInstructions(noteModalTask, newInstruction);
+                  }
+                  setShowNoteModal(false);
+                  setNoteModalText("");
+                  setNoteModalTask(null);
+                }} 
+                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+              >
+                Save Note
+              </button>
             </div>
           </div>
         </div>
