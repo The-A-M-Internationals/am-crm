@@ -369,41 +369,89 @@ export default function TasksPage() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
                 key={task.id} 
-                className="crm-card flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer" 
+                className="crm-card flex items-center justify-between gap-6 hover:shadow-md transition-shadow cursor-pointer" 
                 style={{ opacity: task.status === "completed" ? 0.65 : 1 }}
                 onClick={() => setSelectedDrawerTask(task)}
               >
-                {/* Circle checkbox for completion */}
-                <button onClick={(e) => { e.stopPropagation(); toggleDone(task); }} className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all focus:outline-none" style={{ borderColor: task.status === "completed" ? "#22c55e" : "#d1d5db", background: task.status === "completed" ? "#22c55e" : "white" }}>
-                  {task.status === "completed" && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </button>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <p className="text-sm font-semibold flex-1" style={{ color: "#1a1a2e", textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</p>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                      <span className="badge" style={{ background: pInfo(task.priority).bg, color: pInfo(task.priority).color, border: `1px solid ${pInfo(task.priority).border}` }}>{task.priority}</span>
-                      <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                      {isOverdue && <span className="badge bg-red-50 text-red-600">Overdue</span>}
+                  <div className="flex items-start gap-4">
+                    {/* Circle checkbox for completion */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toggleDone(task); }} 
+                      className="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all focus:outline-none" 
+                      style={{ borderColor: task.status === "completed" ? "#22c55e" : "#d1d5db", background: task.status === "completed" ? "#22c55e" : "white" }}
+                    >
+                      {task.status === "completed" && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate text-[#1a1a2e]" style={{ textDecoration: task.status === "completed" ? "line-through" : "none" }}>
+                        {task.title}
+                      </p>
+                      
+                      {/* Meta badges and status badge */}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {task.clientName && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            🏢 {task.clientName}
+                          </span>
+                        )}
+                        {task.dueDate && (
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                            📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: s.bg, color: s.color }}>
+                          {s.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {task.description && <p className="text-xs mt-1 truncate" style={{ color: "#9ca3af" }}>{task.description}</p>}
-                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                    {task.assignedToName && <span className="text-xs font-medium" style={{ color: "#6b7280" }}>👤 {task.assignedToName}</span>}
-                    {task.clientName && <span className="text-xs" style={{ color: "#6b7280" }}>🏢 {task.clientName}</span>}
-                    {task.dueDate && <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 Due {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
-                  </div>
-                  {/* Status quick change */}
-                  <div className="flex gap-1 mt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                    {TASK_STATUSES.filter((st) => st.key !== (task.status ?? "not-started")).map((st) => (
-                      <button key={st.key} onClick={() => updateStatus(task, st.key)} className="text-xs px-2 py-0.5 rounded-lg font-semibold transition-all hover:opacity-80" style={{ background: `${st.color}12`, color: st.color, fontSize: "10px" }}>
-                        → {st.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
-                {crmUser?.role !== "employee" && (
-                  <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="btn-danger flex-shrink-0">✕ Delete</button>
-                )}
+
+                {/* Unified progress pipeline track */}
+                <div className="w-64 flex-shrink-0 relative flex items-center justify-between px-1" onClick={e => e.stopPropagation()}>
+                  {/* Connecting track line */}
+                  <div className="absolute left-2 right-2 h-0.5 bg-slate-200 -z-10" />
+                  
+                  {/* Active glowing fill track */}
+                  <div 
+                    className="absolute left-2 h-0.5 bg-blue-500 -z-10 transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                    style={{ 
+                      width: `${(getMilestoneIndex(task.status) / (milestoneSteps.length - 1)) * 92}%` 
+                    }}
+                  />
+
+                  {milestoneSteps.map((step, idx) => {
+                    const currentActiveIdx = getMilestoneIndex(task.status);
+                    const isCurrent = idx === currentActiveIdx;
+                    const isDone = idx < currentActiveIdx;
+                    return (
+                      <button
+                        key={step.key}
+                        onClick={() => updateStatus(task, step.key)}
+                        className="flex flex-col items-center group/node relative focus:outline-none"
+                      >
+                        <div 
+                          className={`w-5 h-5 rounded-full flex items-center justify-center border-2 text-[8px] font-black transition-all duration-300 ${
+                            isCurrent 
+                              ? "bg-blue-500 border-blue-500 text-white shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                              : isDone 
+                                ? "bg-green-500 border-green-500 text-white" 
+                                : "bg-white border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500"
+                          }`}
+                        >
+                          {idx + 1}
+                        </div>
+                        <span className={`text-[7px] font-black uppercase mt-1 tracking-wider ${
+                          isCurrent ? "text-blue-600 font-bold" : isDone ? "text-green-600" : "text-slate-400 group-hover/node:text-blue-400"
+                        }`}>
+                          {step.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </motion.div>
             );
           })}
