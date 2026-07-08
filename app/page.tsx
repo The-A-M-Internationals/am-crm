@@ -10,9 +10,17 @@ export default function RootPage() {
 
   useEffect(() => {
     if (!loading) {
-      router.replace(user ? "/dashboard" : "/login");
+      if (!user) {
+        router.replace("/login");
+      } else if (crmUser) {
+        if (crmUser.role === "admin") router.replace("/dashboard");
+        else if (crmUser.role === "lead") router.replace("/projects");
+        else router.replace("/tasks");
+      } else {
+        router.replace("/tasks");
+      }
     }
-  }, [user, loading, router]);
+  }, [user, crmUser, loading, router]);
 
   // Always show navy — never white
   return (

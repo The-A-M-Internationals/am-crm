@@ -35,7 +35,7 @@ const NAV: NavItem[] = [
   { href: "/clients",    label: "Clients",    roles: ["admin"], icon: I.clients,    section: "main" },
   { href: "/projects",   label: "Projects",   roles: ["admin","lead"], icon: I.projects,   section: "main" },
   { href: "/tasks",      label: "Tasks",      roles: ["admin","lead","employee"], icon: I.tasks,      section: "main" },
-  { href: "/calendar",   label: "Calendar",   roles: ["admin"], icon: I.calendar,   section: "main" },
+  { href: "/calendar",   label: "Calendar",   roles: ["admin","lead","employee"], icon: I.calendar,   section: "main" },
   // Finance — ADMIN ONLY
   { href: "/invoice",    label: "Invoices",   roles: ["admin"],                                         icon: I.invoice,    section: "finance" },
   { href: "/revenue",    label: "Revenue",    roles: ["admin"],                                         icon: I.revenue,    section: "finance" },
