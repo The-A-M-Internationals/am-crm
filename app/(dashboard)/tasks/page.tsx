@@ -66,8 +66,8 @@ export default function TasksPage() {
     if (!crmUser) return;
     const tasksRef = collection(db, "tasks");
     const tasksQuery = crmUser.role === "employee"
-      ? query(tasksRef, where("assignedTo", "==", crmUser.uid), orderBy("createdAt", "desc"))
-      : query(tasksRef, orderBy("createdAt", "desc"));
+      ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
+      : query(tasksRef);
 
     const unsubTasks = onSnapshot(tasksQuery, snap => {
       setTasks(prev => {
