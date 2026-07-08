@@ -221,6 +221,21 @@ export const PipelineService = {
       updatedAt: now
     });
 
+    // Auto-create onboarding task
+    const onboardingTaskRef = doc(collection(db, "tasks"));
+    batch.set(onboardingTaskRef, {
+      title: `Onboard new client from proposal ${proposalId.slice(-6)}`,
+      relatedTo: proposalId,
+      relatedType: "proposal",
+      priority: "high",
+      status: "not-started",
+      done: false,
+      createdAt: now,
+      dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day
+      description: `Proposal accepted. Please create the project and onboard the client.`,
+      assignedTo: "" 
+    });
+
     await batch.commit();
   },
 
@@ -439,6 +454,22 @@ export const PipelineService = {
       stage, 
       active: true, 
       updatedAt: now 
+    });
+
+    // Auto-create a follow-up task based on the new stage
+    const followUpTitle = `Follow up on ${lead.name} (${stage} stage)`;
+    const taskRef = doc(collection(db, "tasks"));
+    batch.set(taskRef, {
+      title: followUpTitle,
+      relatedTo: lead.id,
+      relatedType: "lead",
+      priority: "medium",
+      status: "not-started",
+      done: false,
+      createdAt: now,
+      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
+      description: `Auto-generated follow up for stage: ${stage}`,
+      assignedTo: "" // can be picked up by lead manager
     });
 
     // Sync any associated proposal to the same status (e.g. 'meeting' or 'lead')

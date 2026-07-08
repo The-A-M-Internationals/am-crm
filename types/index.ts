@@ -88,6 +88,8 @@ export interface Project {
   paid?: number;
   remaining?: number;
   currency?: string;
+  masterBlueprint?: string;
+  leadInstructions?: string;
   tasks?: ProjectTask[];
   customFields?: { id: string; label: string; value: string }[];
   milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];

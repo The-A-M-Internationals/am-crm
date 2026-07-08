@@ -64,8 +64,8 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
     );
   }
 
-  const summary = task.projectSummary || "No master brief provided by Admin.";
-  const instructions = task.taskInstructions || task.description || "No specific instructions provided by Lead.";
+  const summary = task.masterBlueprint || task.projectSummary || "No master brief provided by Admin.";
+  const instructions = task.leadInstructions || task.taskInstructions || task.description || "No specific instructions provided by Lead.";
 
   const handleUpdateLog = async () => {
     if (!localDesc.trim()) return;
@@ -206,7 +206,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                   // Master Blueprint (Admin)
                 </h4>
                 <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 shadow-inner">
-                  <p className="text-[14px] text-slate-300 leading-loose whitespace-pre-line font-medium font-mono">
+                  <p className="text-[14px] text-slate-300 leading-loose whitespace-pre-wrap font-medium font-mono">
                     {summary}
                   </p>
                 </div>
@@ -220,7 +220,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                   // Lead Directions & Scope
                 </h4>
                 <div className="bg-blue-50/40 p-6 rounded-2xl border border-blue-100 shadow-inner">
-                  <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-line font-medium">
+                  <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-wrap font-medium">
                     {instructions}
                   </p>
                 </div>

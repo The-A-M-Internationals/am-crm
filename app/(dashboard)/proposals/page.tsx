@@ -198,8 +198,22 @@ function ProposalsContent() {
   }
 
   async function updateStatus(p: Proposal, status: ProposalStatus) {
-    if (status === "accepted" && p.fromLeadId) {
-      await PipelineService.acceptProposal(p.id, p.fromLeadId);
+    if (status === "accepted") {
+      try {
+        const res = await fetch(`/api/proposals/${p.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signingName: "Admin",
+            signingTitle: "Admin Acceptance",
+            signatureData: null
+          }),
+        });
+        if (!res.ok) throw new Error("API fallback failed");
+      } catch (err) {
+        console.error(err);
+        alert("Failed to update status. Check console.");
+      }
     } else if (p.status === "accepted" && status !== "accepted" && p.fromLeadId) {
       await PipelineService.withdrawProposal(p.id, p.fromLeadId, "proposal");
     } else {

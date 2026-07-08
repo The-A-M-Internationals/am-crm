@@ -107,9 +107,18 @@ export default function ProposalDetailPage() {
           return;
         }
         setProposal({ id: docSnap.id, ...docSnap.data() } as Proposal);
-      } catch (err) {
-        console.error("Error fetching proposal:", err);
-        setError("Failed to load proposal details.");
+      } catch (err: any) {
+        console.warn("Client SDK fetch failed, falling back to API:", err.message);
+        try {
+          const res = await fetch(`/api/proposals/${id}`);
+          if (!res.ok) throw new Error("API fallback failed");
+          const data = await res.json();
+          setProposal(data as Proposal);
+          setError(null);
+        } catch (fallbackErr: any) {
+          console.error("Error fetching proposal:", fallbackErr);
+          setError("Failed to load proposal details. ERROR: " + (err.message || String(err)));
+        }
       } finally {
         setLoading(false);
       }
@@ -296,25 +305,23 @@ export default function ProposalDetailPage() {
         ? sigPad.current.getCanvas().toDataURL("image/png") 
         : null;
 
-      const now = new Date().toISOString();
-      const proposalRef = doc(db, "proposals", id);
-      await updateDoc(proposalRef, {
-        status: "accepted" as ProposalStatus,
-        clientSignatureName: signingName,
-        clientSignatureTitle: signingTitle,
-        clientSignatureImage: signatureData || null,
-        signedAt: now,
-        updatedAt: now,
+      const res = await fetch(`/api/proposals/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signingName,
+          signingTitle,
+          signatureData,
+        }),
       });
 
-      if (proposal.fromLeadId) {
-        const leadRef = doc(db, "leads", proposal.fromLeadId);
-        await updateDoc(leadRef, {
-          stage: "won",
-          active: true,
-          updatedAt: now,
-        });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to sign proposal via API");
       }
+
+      const { updated } = await res.json();
+      const now = updated.updatedAt || new Date().toISOString();
 
       // Update local state so changes render immediately
       const acceptedState: Proposal = {

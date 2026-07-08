@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { PhoneInput } from "@/components/phone-input";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toast";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
   { key: "lead",     label: "Lead",     color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
@@ -55,10 +56,10 @@ export default function LeadsPage() {
   const [form, setForm]         = useState({ ...EMPTY_FORM });
   const [saving, setSaving]     = useState(false);
   const [isCustomAction, setIsCustomAction] = useState(false);
-  const [filter, setFilter]     = useState<LeadStage | "all">("all");
   const [search, setSearch]     = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showHiddenLeads, setShowHiddenLeads] = useState(false);
+  
+  // Drag and drop state
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "leads"), orderBy("createdAt", "desc"));
@@ -82,7 +83,7 @@ export default function LeadsPage() {
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.email)) {
-      alert("Please enter a valid email address.");
+      toast("Please enter a valid email address.", "error");
       return;
     }
 
@@ -99,10 +100,8 @@ export default function LeadsPage() {
         leadId = leadRef.id;
       }
 
-      // Chain reactions based on stage
       const leadData = { ...form, id: leadId } as Lead;
       
-      // Always sync basic profile details to the client record if it exists
       await PipelineService.syncLeadToClient(leadData);
 
       if (form.stage === "won") await PipelineService.markAsWon(leadData);
@@ -114,8 +113,10 @@ export default function LeadsPage() {
       else await PipelineService.updateStage(leadData, form.stage);
 
       setShowModal(false);
+      toast("Lead saved successfully!", "success");
     } catch (error) {
       console.error("Error saving lead:", error);
+      toast("Failed to save lead.", "error");
     } finally { setSaving(false); }
   }
 
@@ -133,254 +134,267 @@ export default function LeadsPage() {
         router.push(`/proposals?editLead=${lead.id}`);
       }
       else await PipelineService.updateStage(lead, stage);
+      toast(`Stage updated to ${stage}`, "success");
     } catch (error: any) {
       console.error("Error moving stage:", error);
-      alert("Failed to update stage: " + (error.message || "Unknown error"));
+      toast("Failed to update stage: " + (error.message || "Unknown error"), "error");
     }
   }
+
+  // --- Drag and Drop Handlers ---
+  const onDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData("leadId", id);
+    setDraggingId(id);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); 
+  };
+
+  const onDrop = async (e: React.DragEvent, stageKey: LeadStage) => {
+    e.preventDefault();
+    setDraggingId(null);
+    const leadId = e.dataTransfer.getData("leadId");
+    if (!leadId) return;
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || lead.stage === stageKey) return;
+    await moveStage(lead, stageKey);
+  };
 
   const svcInfo  = (key: string) => SERVICES.find((s) => s.key === key) ?? { key: "other", label: key?.toUpperCase() || "OTHER", bg: "#f3f4f6", text: "#374151" };
   const stgInfo  = (key: string) => STAGES.find((s) => s.key === key) ?? { key: "lead", label: key?.toUpperCase() || "LEAD", color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" };
 
-  const activeLeads = leads
-    .filter(l => l.active !== false)
-    .filter(l => filter === "all" || l.stage === filter)
+  // We do NOT filter out active === false here because leads marked as 'lost' are set to active: false
+  // and we want them to appear in the "Lost" column.
+  const filteredLeads = leads
     .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
-  const archivedLeads = leads
-    .filter(l => l.active === false)
-    .filter(l => filter === "all" || l.stage === filter)
-    .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
-
-  function LeadTable({ data, title, subtitle }: { data: Lead[], title?: string, subtitle?: string }) {
-    if (data.length === 0 && !title) return null;
-
-    return (
-      <div className="mb-10">
-        {title && (
-          <div className="mb-4">
-            <h2 className="text-lg font-bold" style={{ color: "#0D1B3E" }}>{title}</h2>
-            {subtitle && <p className="text-xs" style={{ color: "#9ca3af" }}>{subtitle}</p>}
-          </div>
-        )}
-        <div className="crm-card p-0 overflow-hidden">
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th>Lead</th>
-                <th>Service</th>
-                <th>Stage</th>
-                <th>Next Action</th>
-                <th>Follow-up</th>
-                <th>Move To</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((lead) => {
-                const svc = svcInfo(lead.service);
-                const stg = stgInfo(lead.stage);
-                const isExpanded = expandedId === lead.id;
-                const nextAction = (lead as any).nextAction;
-                const isHidden = lead.active === false;
-
-                return (
-                  <React.Fragment key={lead.id}>
-                    <tr
-                      className="cursor-pointer"
-                      onClick={() => setExpandedId(isExpanded ? null : lead.id)}
-                      style={{ 
-                        background: isExpanded ? "#fafbff" : "white",
-                        opacity: isHidden ? 0.7 : 1
-                      }}
-                    >
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ background: stg.bg, color: stg.color }}>
-                            {lead.name?.charAt(0)?.toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-sm" style={{ color: "#1a1a2e" }}>{lead.name}</p>
-                            <p className="text-xs" style={{ color: "#9ca3af" }}>{lead.company}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td><span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span></td>
-                      <td><span className="badge" style={{ background: stg.bg, color: stg.color, border: `1px solid ${stg.border}` }}>{stg.label}</span></td>
-                      <td>
-                        {nextAction ? (
-                          <span className="text-xs px-2 py-1 rounded-lg font-medium" style={{ background: `${stg.color}10`, color: stg.color }}>→ {nextAction}</span>
-                        ) : <span style={{ color: "#c4c7d0" }}>—</span>}
-                      </td>
-                      <td className="text-xs" style={{ color: lead.followUpDate && new Date(lead.followUpDate) < new Date() ? "#ef4444" : "#6b7280" }}>
-                        {lead.followUpDate ? new Date(lead.followUpDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
-                      </td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <div className="flex gap-1 flex-wrap">
-                          {STAGES.filter(s => s.key !== lead.stage && s.key !== "lead").map(s => (
-                            <button key={s.key} onClick={() => moveStage(lead, s.key)} className="text-xs px-2 py-1 rounded-lg font-semibold transition-all hover:opacity-90" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, fontSize: "10px" }}>
-                              {s.label}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openEdit(lead)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>✎ Edit</button>
-                          <button onClick={() => deleteLead(lead.id)} className="btn-danger">🗑</button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr key={`${lead.id}-expand`} style={{ background: "#fafbff" }}>
-                        <td colSpan={7} style={{ padding: "12px 20px" }}>
-                          <div className="grid grid-cols-4 gap-4 text-xs">
-                            <div>
-                              <p className="font-bold mb-1" style={{ color: "#6b7280" }}>CONTACT</p>
-                              <p style={{ color: "#374151" }}>📧 {lead.email}</p>
-                              {lead.phone && <p style={{ color: "#374151" }}>📱 {lead.phone}</p>}
-                            </div>
-                            <div>
-                              <p className="font-bold mb-1" style={{ color: "#6b7280" }}>SOURCE</p>
-                              <p style={{ color: "#374151" }}>{(lead as any).source || "—"}</p>
-                            </div>
-                            <div>
-                              <p className="font-bold mb-1" style={{ color: "#6b7280" }}>LIFECYCLE STATUS</p>
-                              <select 
-                                className="form-input text-xs py-1 px-2 border-slate-200 rounded-md w-full"
-                                value={(lead as any).lifecycleStatus || "Not Contacted"}
-                                onChange={async (e) => {
-                                  const val = e.target.value;
-                                  try {
-                                    await updateDoc(doc(db, "leads", lead.id), { lifecycleStatus: val });
-                                  } catch (err) { console.error(err); }
-                                }}
-                              >
-                                <option value="Not Contacted">Not Contacted</option>
-                                <option value="Attempted to Contact">Attempted to Contact</option>
-                                <option value="Contacted">Contacted</option>
-                                <option value="Pre-Qualified">Pre-Qualified</option>
-                                <option value="Contact in Future">Contact in Future</option>
-                                <option value="Lost Lead">Lost Lead</option>
-                                <option value="Junk Lead">Junk Lead</option>
-                              </select>
-                            </div>
-                            <div>
-                              <p className="font-bold mb-1" style={{ color: "#6b7280" }}>NOTES</p>
-                              <p style={{ color: "#374151" }}>{lead.notes || "—"}</p>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
+  // Summary Metrics
+  const totalLeads = leads.length;
+  const inProgress = leads.filter(l => l.active !== false && l.stage !== "won" && l.stage !== "lost").length;
+  const wonLeads = leads.filter(l => l.stage === "won").length;
+  const lostLeads = leads.filter(l => l.stage === "lost").length;
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="page-header mb-0">
-          <h1 className="page-title">Leads</h1>
-          <p className="page-subtitle">{leads.length} total · {leads.filter(l => l.stage === "won").length} won · {leads.filter(l => l.stage === "lost").length} lost</p>
+    <div className="p-8 h-screen flex flex-col overflow-hidden bg-[#f8f9fa]">
+      {/* Top Header */}
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Leads Pipeline</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage and track your active opportunities.</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Lead</button>
-      </div>
-
-      {/* Stage summary pills */}
-      <div className="flex gap-2 mb-5 flex-wrap">
-        <button onClick={() => setFilter("all")} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === "all" ? "#0D1B3E" : "white", color: filter === "all" ? "white" : "#6b7280", border: "1px solid", borderColor: filter === "all" ? "#0D1B3E" : "#e5e7eb" }}>
-          All ({leads.filter(l => l.active !== false).length})
+        <button onClick={openAdd} className="btn-primary shadow-md hover:shadow-lg transition-all">
+          <span className="text-base mr-1">+</span> New Lead
         </button>
-        {STAGES.filter(s => s.key !== "lead").map(s => {
-          const count = leads.filter(l => l.active !== false && l.stage === s.key).length;
-          return (
-            <button key={s.key} onClick={() => setFilter(s.key)} className="px-4 py-2 rounded-xl text-xs font-semibold transition-all" style={{ background: filter === s.key ? s.bg : "white", color: filter === s.key ? s.color : "#6b7280", border: `1px solid ${filter === s.key ? s.border : "#e5e7eb"}` }}>
-              {s.label} ({count})
-            </button>
-          );
-        })}
       </div>
 
-      {/* Search */}
-      <div className="mb-8 flex items-center justify-between gap-4">
-        <input
-          className="form-input flex-1"
-          style={{ maxWidth: 360 }}
-          placeholder="🔍  Search leads by name or company..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* Leads Table */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-      ) : leads.length === 0 ? (
-        <div className="text-center py-16 crm-card">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No leads found</p>
-          <button onClick={openAdd} className="btn-primary mt-3 mx-auto">+ Add Lead</button>
+      {/* Premium Summary Bar */}
+      <div className="flex gap-4 mb-6 flex-shrink-0">
+        <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Leads</p>
+            <p className="text-2xl font-black text-slate-800">{totalLeads}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl">📊</div>
         </div>
-      ) : (
-        <>
-          <LeadTable 
-            data={activeLeads} 
-          />
+        <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">In Progress</p>
+            <p className="text-2xl font-black text-blue-900">{inProgress}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl">🚀</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Won Leads</p>
+            <p className="text-2xl font-black text-emerald-900">{wonLeads}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-xl">🏆</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-rose-500 uppercase tracking-wider mb-1">Lost Leads</p>
+            <p className="text-2xl font-black text-rose-900">{lostLeads}</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-xl">📉</div>
+        </div>
+      </div>
 
-          {archivedLeads.length > 0 && (
-            <LeadTable 
-              data={archivedLeads} 
-              title="Future Opportunities" 
-              subtitle="Leads marked as 'Lost' but kept for future relationship nurturing"
-            />
-          )}
-        </>
-      )}
+      {/* Search Bar */}
+      <div className="mb-6 flex-shrink-0">
+        <div className="relative max-w-md">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          <input
+            className="w-full bg-white border border-slate-200 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
+            placeholder="Search leads by name or company..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Kanban Board Area */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+        {loading ? (
+          <div className="flex gap-4 h-full">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="w-[320px] flex-shrink-0 bg-slate-100 rounded-2xl animate-pulse h-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-5 h-full items-start">
+            {STAGES.map(stage => {
+              const stageLeads = filteredLeads.filter(l => l.stage === stage.key);
+              
+              return (
+                <div 
+                  key={stage.key} 
+                  onDragOver={onDragOver}
+                  onDrop={(e) => onDrop(e, stage.key)}
+                  className="w-[340px] flex-shrink-0 flex flex-col max-h-full rounded-2xl border transition-colors duration-200"
+                  style={{
+                    background: "rgba(255,255,255,0.4)",
+                    borderColor: stage.border,
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
+                  }}
+                >
+                  {/* Column Header */}
+                  <div className="px-4 py-3 border-b flex items-center justify-between bg-white rounded-t-2xl" style={{ borderColor: stage.border }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ background: stage.color }} />
+                      <h3 className="font-bold text-sm" style={{ color: "#0D1B3E" }}>{stage.label}</h3>
+                    </div>
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: stage.bg, color: stage.color }}>
+                      {stageLeads.length}
+                    </span>
+                  </div>
+
+                  {/* Cards Container */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                    {stageLeads.map(lead => {
+                      const svc = svcInfo(lead.service);
+                      const isOverdue = lead.followUpDate && new Date(lead.followUpDate) < new Date(new Date().setHours(0,0,0,0));
+                      const isDragging = draggingId === lead.id;
+
+                      return (
+                        <div 
+                          key={lead.id} 
+                          draggable
+                          onDragStart={(e) => onDragStart(e, lead.id)}
+                          onDragEnd={() => setDraggingId(null)}
+                          onClick={() => openEdit(lead)} 
+                          className={`bg-white p-4 rounded-xl border cursor-grab active:cursor-grabbing transition-all group ${
+                            isDragging ? "opacity-50 scale-95" : "opacity-100 scale-100 hover:shadow-md hover:-translate-y-0.5"
+                          }`}
+                          style={{
+                            borderColor: isOverdue ? "#fca5a5" : "#e2e8f0",
+                            boxShadow: isOverdue ? "0 4px 12px rgba(239,68,68,0.1)" : "0 2px 8px rgba(0,0,0,0.04)"
+                          }}
+                        >
+                          {/* Top Row: Service & Overdue Badge */}
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: svc.bg, color: svc.text }}>
+                              {svc.label}
+                            </span>
+                            {isOverdue && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+                                ⚠️ Overdue
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Contact Info */}
+                          <div className="mb-3">
+                            <h4 className="font-bold text-[15px] text-slate-900 leading-tight mb-0.5 group-hover:text-blue-600 transition-colors">{lead.company}</h4>
+                            <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                              <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[8px]">👤</span>
+                              {lead.name}
+                            </p>
+                          </div>
+                          
+                          {/* Next Action */}
+                          {((lead as any).nextAction || lead.followUpDate) && (
+                            <div className="bg-slate-50 rounded-lg p-2 mb-3 border border-slate-100">
+                              {(lead as any).nextAction && (
+                                <p className="text-xs text-slate-600 font-medium leading-snug line-clamp-2 mb-1.5">
+                                  <span className="text-slate-400 mr-1">↳</span>{(lead as any).nextAction}
+                                </p>
+                              )}
+                              {lead.followUpDate && (
+                                <p className="text-[11px] font-semibold flex items-center gap-1" style={{ color: isOverdue ? "#ef4444" : "#64748b" }}>
+                                  📅 {new Date(lead.followUpDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Quick Actions Footer */}
+                          <div className="flex gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto pb-1 no-scrollbar opacity-0 group-hover:opacity-100 transition-opacity">
+                            {STAGES.filter(s => s.key !== lead.stage).map(s => (
+                              <button 
+                                key={s.key} 
+                                onClick={(e) => { e.stopPropagation(); moveStage(lead, s.key); }} 
+                                className="flex-shrink-0 text-[10px] px-2 py-1 rounded font-bold hover:brightness-95 transition-all" 
+                                style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
+                              >
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {stageLeads.length === 0 && (
+                      <div className="h-24 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl">
+                        <p className="text-xs text-slate-400 font-medium">Drop leads here</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-box" style={{ maxWidth: 560 }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="modal-title mb-0">{editing ? "Edit Lead" : "Add New Lead"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">✕</button>
+        <div className="modal-overlay z-50">
+          <div className="modal-box shadow-2xl" style={{ maxWidth: 600 }}>
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+              <h2 className="text-xl font-bold text-slate-900">{editing ? "Edit Lead" : "Add New Lead"}</h2>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">✕</button>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="form-label">Full Name *</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="John Smith" /></div>
-                <div><label className="form-label">Company *</label><input className="form-input" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Acme Corp" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Full Name *</label><input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="John Smith" /></div>
+                <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Company *</label><input className="form-input" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Acme Corp" /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Email *</label><input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
                 <div>
-                  <label className="form-label">Phone</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
                   <PhoneInput value={form.phone} onChange={(val) => setForm({ ...form, phone: val })} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="form-label">Service</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Service</label>
                   <select className="form-input" value={form.service} onChange={e => setForm({ ...form, service: e.target.value as ServiceTag })}>
                     {SERVICES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Stage</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Stage</label>
                   <select className="form-input" value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value as LeadStage, nextAction: "" })}>
                     {STAGES.filter(s => s.key !== "lead" || form.stage === "lead").map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="form-label">Lifecycle Status</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Lifecycle Status</label>
                   <select className="form-input" value={(form as any).lifecycleStatus || "Not Contacted"} onChange={e => setForm({ ...form, lifecycleStatus: e.target.value })}>
                     <option value="Not Contacted">Not Contacted</option>
                     <option value="Attempted to Contact">Attempted to Contact</option>
@@ -392,7 +406,7 @@ export default function LeadsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Next Action</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Next Action</label>
                   <select className="form-input" value={isCustomAction ? "custom" : form.nextAction}
                     onChange={e => {
                       if (e.target.value === "custom") { setIsCustomAction(true); setForm({ ...form, nextAction: "" }); }
@@ -407,30 +421,37 @@ export default function LeadsPage() {
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="form-label">Follow-up Date</label><input className="form-input" type="date" value={form.followUpDate} onChange={e => setForm({ ...form, followUpDate: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Follow-up Date</label><input className="form-input" type="date" value={form.followUpDate} onChange={e => setForm({ ...form, followUpDate: e.target.value })} /></div>
                 <div>
-                  <label className="form-label">Source</label>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Source</label>
                   <select className="form-input" value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}>
                     <option value="">Select source...</option>
                     {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
-              <div><label className="form-label">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
+              <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
             </div>
 
             {form.stage === "won" && (
-              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+              <div className="mt-4 px-4 py-3 rounded-xl text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200">
                 ℹ️ Marking as <strong>Won</strong> tags this as a successful lead. To convert them to an active <strong>Client</strong>, you must generate and accept a Proposal.
               </div>
             )}
 
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || !form.name || !form.company || !form.email} className="btn-primary flex-1 justify-center disabled:opacity-50">
-                {saving ? "Saving..." : editing ? "Update Lead" : "Add Lead"}
-              </button>
+            <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-100">
+              {editing ? (
+                <button onClick={() => deleteLead(editing.id)} className="text-red-500 text-sm font-bold hover:text-red-700 transition-colors">
+                  Delete Lead
+                </button>
+              ) : <div/>}
+              <div className="flex gap-3">
+                <button onClick={() => setShowModal(false)} className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button onClick={handleSave} disabled={saving || !form.name || !form.company || !form.email} className="btn-primary px-8 disabled:opacity-50 shadow-md hover:shadow-lg transition-all">
+                  {saving ? "Saving..." : editing ? "Update Lead" : "Create Lead"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

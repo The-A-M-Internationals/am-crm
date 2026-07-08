@@ -5,6 +5,7 @@ import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onS
 import { db } from "@/lib/firebase";
 import { Project, ProjectTask, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -47,9 +48,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [sendingReminder, setSendingReminder] = useState(false);
 
   // Dynamic Overview State
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [descValue, setDescValue] = useState("");
-  
+  const [editingBlueprint, setEditingBlueprint] = useState(false);
+  const [blueprintValue, setBlueprintValue] = useState("");
+  const [editingInstructions, setEditingInstructions] = useState(false);
+  const [instructionsValue, setInstructionsValue] = useState("");
   // Technical Hub State
   const [editingTechHub, setEditingTechHub] = useState(false);
   const [techHubForm, setTechHubForm] = useState({
@@ -355,7 +357,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         createdAt: now,
         dueDate: project.deadline || now,
         // Documentation cascade fields:
-        projectSummary: (project as any).projectSummary || "",
+        masterBlueprint: project.masterBlueprint || "",
+        leadInstructions: project.leadInstructions || "",
         taskInstructions: delegateForm.instructions || ""
       };
 
@@ -396,6 +399,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   };
 
   async function updateTaskStatus(task: any, status: string) {
+    if (crmUser?.role === "admin") {
+      alert("Action Restricted: Only the assigned Employee or Lead can update active task milestones.");
+      return;
+    }
     try {
       const isCompleted = status === "completed" || status === "done";
       const dbStatus = status === "done" ? "completed" : status;
@@ -406,7 +413,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to update status");
+      toast("Failed to update status", "error");
     }
   }
 
@@ -426,10 +433,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       
       setSelectedDrawerTask({ ...selectedDrawerTask, logs: updatedLogs });
       setLogInputText("");
-      alert("Log committed successfully!");
+      toast("Log committed successfully!", "success");
     } catch (err: any) {
       console.error(err);
-      alert("Failed to commit log entry: " + (err.message || String(err)));
+      toast("Failed to commit log entry: " + (err.message || String(err)), "error");
     }
   }
 
@@ -439,10 +446,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       if (selectedDrawerTask && selectedDrawerTask.id === task.id) {
         setSelectedDrawerTask({ ...selectedDrawerTask, taskInstructions: instructions, description: instructions });
       }
-      alert("Instructions updated successfully!");
+      toast("Instructions updated successfully!", "success");
     } catch (e) {
       console.error(e);
-      alert("Failed to update instructions");
+      toast("Failed to update instructions", "error");
     }
   }
 
@@ -468,23 +475,39 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     if (!confirm("Are you sure you want to delete this task?")) return;
     try {
       await deleteDoc(doc(db, "tasks", taskId));
-      alert("Task deleted successfully!");
+      toast("Task deleted successfully!", "success");
     } catch (e) {
       console.error(e);
-      alert("Failed to delete task");
+      toast("Failed to delete task", "error");
     }
   }
 
   // --- DYNAMIC OVERVIEW HANDLERS ---
-  async function saveDescription() {
+  async function saveBlueprint() {
     if (!project) return;
+    if (crmUser?.role !== "admin") {
+      alert("Only Administrators can modify the Master Blueprint.");
+      return;
+    }
     try {
-      await updateDoc(doc(db, "projects", project.id), { description: descValue });
-      setProject({ ...project, description: descValue });
-      setEditingDesc(false);
+      await updateDoc(doc(db, "projects", project.id), { masterBlueprint: blueprintValue });
+      setProject({ ...project, masterBlueprint: blueprintValue });
+      setEditingBlueprint(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to save description");
+      alert("Failed to save master blueprint");
+    }
+  }
+
+  async function saveLeadInstructions() {
+    if (!project) return;
+    try {
+      await updateDoc(doc(db, "projects", project.id), { leadInstructions: instructionsValue });
+      setProject({ ...project, leadInstructions: instructionsValue });
+      setEditingInstructions(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to save lead instructions");
     }
   }
 
@@ -594,28 +617,28 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           <p className="text-sm font-medium" style={{ color: "#6b7280" }}>{project.clientName}</p>
         </div>
         {crmUser?.role === "admin" && (
-          <div className="flex items-center gap-8 text-right">
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>TOTAL BUDGET</p>
-              <p className="text-xl font-bold" style={{ color: "#0D1B3E" }}>
+          <div className="flex flex-wrap items-center gap-4 text-right justify-end">
+            <div className="bg-white border border-slate-200/60 shadow-sm rounded-xl px-5 py-4 min-w-[140px]">
+              <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase mb-1">Total Budget</p>
+              <p className="text-xl font-bold text-slate-900 tracking-tight">
                 {project.currency || "AED"} {(project.budget)?.toLocaleString() || "—"}
               </p>
             </div>
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>CURRENT DUE</p>
-              <p className="text-xl font-bold text-orange-500">
+            <div className="bg-white border border-slate-200/60 shadow-sm rounded-xl px-5 py-4 min-w-[140px]">
+              <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase mb-1">Current Due</p>
+              <p className="text-xl font-bold text-amber-600 tracking-tight">
                 {project.currency || "AED"} {(project.due)?.toLocaleString() || "0"}
               </p>
             </div>
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>TOTAL PAID</p>
-              <p className="text-xl font-bold text-green-600">
+            <div className="bg-white border border-slate-200/60 shadow-sm rounded-xl px-5 py-4 min-w-[140px]">
+              <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase mb-1">Total Paid</p>
+              <p className="text-xl font-bold text-emerald-600 tracking-tight">
                 {project.currency || "AED"} {totalPaid.toLocaleString()}
               </p>
             </div>
-            <div>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#9ca3af" }}>REMAINING</p>
-              <p className="text-xl font-bold text-red-500">
+            <div className="bg-white border border-slate-200/60 shadow-sm rounded-xl px-5 py-4 min-w-[140px]">
+              <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase mb-1">Remaining</p>
+              <p className="text-xl font-bold text-rose-600 tracking-tight">
                 {project.currency || "AED"} {calculatedRemaining.toLocaleString()}
               </p>
             </div>
@@ -645,55 +668,95 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         <div className="lg:col-span-2">
           {activeTab === "overview" && (
             <div className="space-y-8">
-              {/* DESCRIPTION BLOCK */}
-              <div className="crm-card group">
+              {/* MASTER BLUEPRINT BLOCK */}
+              <div className="bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm group">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Description</h3>
-                  {!editingDesc && (
+                  <h3 className="text-sm font-bold text-slate-900">Master Blueprint</h3>
+                  {!editingBlueprint && crmUser?.role === "admin" && (
                     <button 
-                      onClick={() => { setDescValue(project.description || ""); setEditingDesc(true); }}
-                      className="text-xs font-bold text-slate-400 hover:text-[#C9A84C] opacity-0 group-hover:opacity-100 transition-all"
+                      onClick={() => { setBlueprintValue(project.masterBlueprint || ""); setEditingBlueprint(true); }}
+                      className="text-xs font-semibold text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all"
                     >
                       ✏️ Edit
                     </button>
                   )}
                 </div>
                 
-                {editingDesc ? (
+                {editingBlueprint ? (
                   <div className="space-y-3">
                     <textarea 
-                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm"
-                      rows={4}
-                      value={descValue}
-                      onChange={e => setDescValue(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      rows={6}
+                      value={blueprintValue}
+                      onChange={e => setBlueprintValue(e.target.value)}
                     />
                     <div className="flex gap-2">
-                      <button onClick={saveDescription} className="btn-primary py-1.5 px-4 text-xs">Save</button>
-                      <button onClick={() => setEditingDesc(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                      <button onClick={saveBlueprint} className="btn-primary py-1.5 px-4 text-xs">Save Blueprint</button>
+                      <button onClick={() => setEditingBlueprint(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm leading-relaxed" style={{ color: "#6b7280" }}>
-                    {project.description || "No description provided. Click edit to add one."}
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "#6b7280" }}>
+                    {project.masterBlueprint || "No master blueprint provided. Click edit to add the overall project architecture."}
                   </p>
                 )}
               </div>
 
+              {/* LEAD INSTRUCTIONS BLOCK */}
+              <div className="bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm group border-l-4 border-l-blue-500">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900">Dynamic Lead Instructions</h3>
+                  {!editingInstructions && (
+                    <button 
+                      onClick={() => { setInstructionsValue(project.leadInstructions || ""); setEditingInstructions(true); }}
+                      className="text-xs font-semibold text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
+                
+                {editingInstructions ? (
+                  <div className="space-y-3">
+                    <textarea 
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      rows={4}
+                      value={instructionsValue}
+                      onChange={e => setInstructionsValue(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={saveLeadInstructions} className="btn-primary py-1.5 px-4 text-xs">Save Instructions</button>
+                      <button onClick={() => setEditingInstructions(false)} className="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "#1a1a2e" }}>
+                    {project.leadInstructions ? (
+                      <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 text-slate-700">
+                        {project.leadInstructions}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic font-medium">No lead instructions currently active for this phase.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div className="crm-card">
-                  <h3 className="text-xs font-bold mb-3" style={{ color: "#9ca3af" }}>TIMELINE</h3>
-                  <p className="text-sm font-semibold" style={{ color: "#1a1a2e" }}>
+                <div className="bg-white border border-slate-200/60 rounded-xl p-5 shadow-sm">
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">TIMELINE</h3>
+                  <p className="text-sm font-bold text-slate-900">
                     Deadline: {project.deadline ? new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "Not set"}
                   </p>
                 </div>
-                <div className="crm-card">
-                  <h3 className="text-xs font-bold mb-3" style={{ color: "#9ca3af" }}>SERVICE TYPE</h3>
-                  <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#1a1a2e" }}>{project.service}</p>
+                <div className="bg-white border border-slate-200/60 rounded-xl p-5 shadow-sm">
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">SERVICE TYPE</h3>
+                  <p className="text-sm font-bold text-slate-900 uppercase tracking-wider">{project.service}</p>
                 </div>
               </div>
 
               {/* Technical Infrastructure Hub */}
-              <div className="bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl group">
+              <div className="bg-white border border-slate-200/60 rounded-xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] group">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Technical Infrastructure Hub</h3>
                   {(crmUser?.role === "admin" || crmUser?.role === "lead") && !editingTechHub && (
@@ -808,15 +871,15 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                           { label: "Production Endpoint", val: (project as any).productionUrl },
                         ].map((urlObj, index) => (
                           <div key={index} className="space-y-1.5">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">{urlObj.label}</span>
-                            <div className="font-mono text-xs bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 border-l-2 border-l-[#C9A84C] text-slate-700 dark:text-slate-400 p-3 rounded-lg flex items-center tracking-wide justify-between shadow-sm transition-all hover:shadow-md">
-                              <span className={`truncate mr-2 ${!urlObj.val ? "text-slate-400 dark:text-slate-500/70 italic" : "text-slate-800 dark:text-slate-300 font-medium"}`}>
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider pl-1">{urlObj.label}</span>
+                            <div className={`text-xs border border-slate-200/60 p-3 rounded-lg flex items-center justify-between transition-all shadow-sm ${urlObj.val ? 'bg-white' : 'bg-slate-50/80'}`}>
+                              <span className={`truncate mr-2 ${urlObj.val ? 'text-slate-700 font-mono font-medium tracking-tight' : 'text-slate-400 font-medium italic'}`}>
                                 {urlObj.val || "Not Provisioned"}
                               </span>
                               {urlObj.val && (
                                 <button 
                                   onClick={() => copyToClipboard(urlObj.val)} 
-                                  className="text-[10px] font-bold text-slate-500 hover:text-white px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all flex-shrink-0"
+                                  className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 transition-colors flex-shrink-0"
                                 >
                                   Copy
                                 </button>
@@ -912,30 +975,30 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 else activePhaseIndex = 3;
 
                 const activeStyles = [
-                  "bg-blue-600 text-white ring-4 ring-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.6)] border-blue-600",
-                  "bg-emerald-500 text-white ring-4 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.6)] border-emerald-500",
-                  "bg-purple-500 text-white ring-4 ring-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.6)] border-purple-500",
-                  "bg-amber-500 text-white ring-4 ring-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.6)] border-amber-500",
+                  "bg-blue-600 text-white shadow-sm border-blue-600",
+                  "bg-emerald-500 text-white shadow-sm border-emerald-500",
+                  "bg-purple-500 text-white shadow-sm border-purple-500",
+                  "bg-amber-500 text-white shadow-sm border-amber-500",
                 ];
                 
                 const lineFillColor = [
-                  "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]",
-                  "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
-                  "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]",
-                  "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
+                  "bg-blue-500",
+                  "bg-emerald-500",
+                  "bg-purple-500",
+                  "bg-amber-500",
                 ];
 
                 return (
-                  <div className="crm-card">
+                  <div className="bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm">
                     <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Macro-Phase Progress Rail</h3>
                     
-                    <div className="relative flex items-center justify-between mt-8 mb-20 px-4 md:px-8">
+                    <div className="relative flex items-center justify-between mt-10 mb-16 px-4 md:px-8">
                       {/* Background Connecting Line */}
-                      <div className="absolute top-4 left-8 right-8 h-0.5 bg-slate-200 dark:bg-slate-800 z-0" />
+                      <div className="absolute top-4 left-8 right-8 h-1 bg-slate-100 z-0 rounded-full" />
                       
                       {/* Active Fill Connecting Line */}
                       <div 
-                        className={`absolute left-8 top-4 h-0.5 z-0 transition-all duration-500 ${lineFillColor[activePhaseIndex]}`} 
+                        className={`absolute left-8 top-4 h-1 z-0 transition-all duration-500 rounded-full ${lineFillColor[activePhaseIndex]}`} 
                         style={{ width: `calc(${Math.max(0, Math.min(100, progressMean))}% - 4rem)` }}
                       />
                       
@@ -955,18 +1018,18 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                 isActive 
                                   ? activeStyles[idx]
                                   : isCompleted 
-                                    ? "bg-slate-700 border-slate-700 text-white dark:bg-slate-600 dark:border-slate-600"
-                                    : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-400"
+                                    ? "bg-slate-700 border-slate-700 text-white"
+                                    : "bg-white border-slate-200 text-slate-400"
                               }`}
                             >
                               {idx + 1}
                             </div>
                             {/* Label Vertical Stack */}
                             <div className="absolute top-10 left-1/2 -translate-x-1/2 text-center w-32 flex flex-col items-center justify-start pt-1">
-                              <p className={`text-[10px] font-black tracking-wide leading-tight ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
+                              <p className={`text-[10px] font-semibold tracking-wide leading-tight ${isActive ? 'text-slate-800' : isCompleted ? 'text-slate-600' : 'text-slate-400'}`}>
                                 {phase.label}
                               </p>
-                              <p className="text-[9px] font-semibold text-slate-400 mt-1 opacity-80">{phase.range}</p>
+                              <p className="text-[9px] font-medium text-slate-400 mt-0.5">{phase.range}</p>
                             </div>
                           </div>
                         );
@@ -990,20 +1053,19 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 const pending = projectTasks.filter(t => t.status !== "completed").length;
                 const completed = projectTasks.filter(t => t.status === "completed").length;
                 return (
-                  <div className="bg-slate-950 text-slate-200 rounded-xl px-5 py-3 border border-slate-800 flex justify-between items-center shadow-inner">
+                  <div className="bg-white text-slate-700 rounded-xl px-5 py-3 border border-slate-200/60 flex justify-between items-center shadow-sm">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Runway Velocity:</span>
-                      <span className="text-[11px] font-bold text-slate-300">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Runway Velocity:</span>
+                      <span className="text-[11px] font-bold text-slate-900">
                         {pending} Pending &middot; {completed} Completed
                       </span>
                     </div>
                     {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                       <button 
                         onClick={() => setShowDelegateModal(true)}
-                        className="px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-opacity hover:opacity-90"
-                        style={{ background: "#C9A84C", color: "#0D1B3E" }}
+                        className="px-4 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-opacity hover:opacity-90 bg-slate-900 text-white shadow-sm"
                       >
-                        + Delegate New Task
+                        + Delegate Task
                       </button>
                     )}
                   </div>
@@ -1013,44 +1075,44 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               {/* The Runway Grid Layout */}
               <div className="space-y-2">
                 {projectTasks.length === 0 ? (
-                  <div className="text-center py-12 bg-slate-950/40 border border-slate-800/50 rounded-xl">
-                    <p className="text-xs text-slate-500 italic">No tasks delegated to this workspace yet.</p>
+                  <div className="text-center py-12 bg-white border border-slate-200/60 rounded-xl shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">No tasks delegated to this workspace yet.</p>
                   </div>
                 ) : (
                   projectTasks.map(task => {
                     const pct = Math.round((getMilestoneIndex(task.status) / 4) * 100);
                     
                     // Priority configurations
-                    let pBg = "bg-slate-800 text-slate-400 border border-slate-700";
-                    if (task.priority === "high") pBg = "bg-red-950/40 text-red-400 border border-red-900/50";
-                    else if (task.priority === "medium") pBg = "bg-orange-950/40 text-orange-400 border border-orange-900/50";
+                    let pBg = "bg-slate-100 text-slate-600 border-slate-200";
+                    if (task.priority === "high") pBg = "bg-rose-50 text-rose-700 border-rose-200/60";
+                    else if (task.priority === "medium") pBg = "bg-amber-50 text-amber-700 border-amber-200/60";
                     
                     return (
                       <div 
                         key={task.id} 
                         onClick={() => router.push(`/tasks/${task.id}`)}
-                        className="w-full bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-900/60 shadow-lg cursor-pointer"
+                        className="w-full bg-white border border-slate-200/60 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-50/80 shadow-sm cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
                         <div className="flex items-center space-x-4 min-w-[240px]">
                           {/* Micro-avatar */}
                           <div 
-                            className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-xs font-black flex-shrink-0"
+                            className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0"
                             title={`Assigned to: ${task.assignedToName || "Unassigned"}`}
                           >
                             {task.assignedToName?.charAt(0).toUpperCase() || "?"}
                           </div>
                           
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-200 truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-500" : "none" }}>
+                            <p className="text-sm font-bold text-slate-900 truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-400" : "none" }}>
                               {task.title}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${pBg}`}>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${pBg}`}>
                                 {task.priority || "medium"}
                               </span>
                               {task.dueDate && (
-                                <span className="text-[10px] font-semibold text-slate-400">
+                                <span className="text-[10px] font-medium text-slate-500">
                                   Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
                                 </span>
                               )}
@@ -1059,15 +1121,15 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="flex-1 max-w-xl w-full px-4 py-2 bg-slate-950/30 rounded-lg border border-slate-800/40" onClick={e => e.stopPropagation()}>
-                          <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                        <div className="flex-1 max-w-xl w-full px-4 py-2.5 bg-slate-50 rounded-lg border border-slate-200/50" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-between text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                             <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-800/80 rounded-full flex relative">
+                          <div className="w-full h-1.5 bg-slate-200/80 rounded-full flex relative">
                             {/* Active segment fill */}
                             <div 
-                              className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.6)]" 
+                              className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full transition-all duration-300" 
                               style={{ width: `${pct}%` }} 
                             />
                             {/* Stepper Hitboxes */}
@@ -1086,7 +1148,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Right Section: Hover controls & Inspect trigger */}
-                        <div className="flex items-center justify-between lg:justify-end gap-4 min-w-[280px]">
+                        <div className="flex items-center justify-between lg:justify-end gap-3 min-w-[280px]">
                           {/* Management Hover Controls */}
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div 
@@ -1098,16 +1160,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                   setNoteModalTask(task);
                                   setShowNoteModal(true);
                                 }}
-                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-black tracking-wider uppercase transition-all shadow-sm"
+                                className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-all shadow-sm"
                                 title="Append Directions"
                               >
-                                📝 Add Note
+                                📝
                               </button>
                               
                               <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
-                                className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[10px] font-black px-2 py-1.5 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32"
+                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-2 py-1.5 outline-none focus:border-blue-500 cursor-pointer shadow-sm w-32"
                               >
                                 <option value="">Re-allocate...</option>
                                 {users
@@ -1126,9 +1188,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               e.stopPropagation();
                               router.push(`/tasks/${task.id}`);
                             }}
-                            className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#0D1B3E] hover:bg-[#1a3070] text-[#C9A84C] shadow-md transition-all whitespace-nowrap border border-[#C9A84C]/30"
+                            className="p-2 rounded-lg text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-slate-200 hover:border-blue-200 shadow-sm"
+                            title="Inspect Task"
                           >
-                            Inspect 🔍
+                            🔍
                           </button>
                         </div>
                       </div>

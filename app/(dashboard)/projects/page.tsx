@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -35,6 +35,8 @@ const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
   description: "", budget: "", due: "", remaining: "", paid: "", currency: "AED",
+  masterBlueprint: "",
+  leadInstructions: "",
   projectSummary: "",
   techStack: [] as string[],
   figmaUrl: "",
@@ -105,13 +107,73 @@ export default function ProjectsPage() {
       setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     
-    // Handle redirect from Clients page
+    // Handle redirect from Clients page with smart prefill
     if (searchParams.get("new") === "true") {
       const clientId = searchParams.get("clientId") || "";
-      const clientName = searchParams.get("clientName") || "";
-      setForm({ ...EMPTY_FORM, clientId, clientName, assignedTo: [] });
-      setEditing(null);
-      setShowModal(true);
+      const clientNameFromUrl = searchParams.get("clientName") || "";
+      
+      const prefillData = async () => {
+        let prefill = { ...EMPTY_FORM, clientId, clientName: decodeURIComponent(clientNameFromUrl), assignedTo: [] as string[] };
+        
+        try {
+          if (clientId) {
+            const clientDoc = await getDoc(doc(db, "clients", clientId));
+            if (clientDoc.exists()) {
+              const cData = clientDoc.data();
+              prefill.clientName = cData.company || cData.name || prefill.clientName;
+              prefill.service = (cData.services && cData.services.length > 0) ? cData.services[0] : "web-development";
+              
+              // Smart prefill from accepted proposal
+              if (cData.email) {
+                const propQ = query(
+                  collection(db, "proposals"), 
+                  where("clientEmail", "==", cData.email),
+                  where("status", "in", ["accepted", "won"])
+                );
+                const propsSnap = await getDocs(propQ);
+                
+                if (!propsSnap.empty) {
+                  // Get the latest accepted proposal
+                  const latestProp = propsSnap.docs
+                  .map(d => d.data())
+                  .sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
+                  
+                prefill.title = `${prefill.clientName} - ${latestProp.service ? latestProp.service.replace(/-/g, " ") : "Project"}`;
+                prefill.budget = latestProp.total?.toString() || "";
+                prefill.due = latestProp.total?.toString() || "";
+                
+                // Smart deadline (e.g. 30 days from now if not specified)
+                const date = new Date();
+                date.setDate(date.getDate() + 30);
+                prefill.deadline = date.toISOString().split("T")[0];
+                
+                // Construct a rich Master Blueprint from proposal scope
+                let scope = [];
+                if (latestProp.introduction) scope.push(`## Introduction\n${latestProp.introduction}`);
+                if (latestProp.approachDescription) scope.push(`## Approach\n${latestProp.approachDescription}`);
+                if (latestProp.executiveSummary) scope.push(`## Executive Summary\n${latestProp.executiveSummary}`);
+                if (latestProp.packages && Array.isArray(latestProp.packages)) {
+                  const pkgs = latestProp.packages.map((p: any) => `- ${p.name}: ${p.description || "Included"}`).join("\n");
+                  if (pkgs) scope.push(`## Selected Packages\n${pkgs}`);
+                }
+                prefill.masterBlueprint = scope.join("\n\n");
+                
+                // We no longer use prefill.description
+                prefill.description = "";
+              }
+            }
+          }
+          }
+        } catch (err) {
+          console.error("Error prefilling project data:", err);
+        }
+
+        setForm(prefill);
+        setEditing(null);
+        setShowModal(true);
+      };
+      
+      prefillData(); // Execute async prefill
       router.replace("/projects"); // Clean up URL
     }
 
@@ -174,7 +236,9 @@ export default function ProjectsPage() {
         status: "not-started",
         done: false,
         createdAt: now,
-        dueDate: projectData.deadline || now
+        dueDate: projectData.deadline || now,
+        masterBlueprint: projectData.masterBlueprint || "",
+        leadInstructions: projectData.leadInstructions || ""
       });
     }
   }
@@ -266,7 +330,8 @@ export default function ProjectsPage() {
         createdAt: now,
         dueDate: delegateForm.deadline || delegateProject.deadline || now,
         taskInstructions: delegateForm.instructions || "",
-        projectSummary: (delegateProject as any).projectSummary || ""
+        masterBlueprint: (delegateProject as any).masterBlueprint || "",
+        leadInstructions: (delegateProject as any).leadInstructions || ""
       });
       alert("Task successfully delegated and assigned!");
       setDelegateProject(null);
@@ -621,16 +686,14 @@ export default function ProjectsPage() {
                   </div>
                 </div>
               )}
-              <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-              
-              <div>
-                <label className="form-label">Project Summary (Execution Strategy, Deadlines, Details)</label>
+              <div className="col-span-full">
+                <label className="form-label">Master Blueprint</label>
                 <textarea 
                   className="form-input resize-none" 
                   rows={4} 
-                  value={form.projectSummary} 
-                  onChange={(e) => setForm({ ...form, projectSummary: e.target.value })} 
-                  placeholder="Enter detailed execution strategy, requirements, and deadlines..." 
+                  value={form.masterBlueprint} 
+                  onChange={(e) => setForm({ ...form, masterBlueprint: e.target.value })} 
+                  placeholder="Enter the comprehensive project blueprint (e.g. phases, milestones, architecture)..." 
                 />
               </div>
 

@@ -207,6 +207,60 @@ export default function DashboardPage() {
         <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
       </div>
 
+      {/* COMMAND CENTER (ACTIONABLE ALERTS) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* Overdue & Priority Tasks */}
+        <div className="crm-card border-l-4 border-l-red-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⚠️ Attention Required</h2>
+          <div className="space-y-3">
+            {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length > 0 ? (
+              tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).slice(0, 3).map(t => (
+                <div key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 rounded-lg">
+                  <span className="font-semibold text-red-900 truncate pr-2">{t.title}</span>
+                  <span className="text-red-700 whitespace-nowrap">Overdue</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No overdue tasks.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Leads Needing Follow Up */}
+        <div className="crm-card border-l-4 border-l-amber-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⏳ Lead Follow-ups</h2>
+          <div className="space-y-3">
+            {leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).length > 0 ? (
+              leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).slice(0, 3).map(l => (
+                <div key={l.id} className="flex justify-between items-center text-xs p-2 bg-amber-50 rounded-lg">
+                  <span className="font-semibold text-amber-900 truncate pr-2">{l.name}</span>
+                  <span className="text-amber-700 whitespace-nowrap">{new Date(l.followUpDate).toLocaleDateString()}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No immediate follow-ups.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Projects at Risk */}
+        <div className="crm-card border-l-4 border-l-blue-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">🚀 Upcoming Deadlines</h2>
+          <div className="space-y-3">
+            {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).length > 0 ? (
+              projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).slice(0, 3).map(p => (
+                <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-blue-50 rounded-lg">
+                  <span className="font-semibold text-blue-900 truncate pr-2">{p.title}</span>
+                  <span className="text-blue-700 whitespace-nowrap">Due soon</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No projects at risk.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Admin Finance Row */}
       {isAdmin && (
         <div className="grid grid-cols-2 gap-4 mb-6">

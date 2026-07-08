@@ -60,7 +60,17 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
-  const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
+  const canEdit = crmUser?.role === "admin";
+
+  if (crmUser && crmUser.role !== "admin") {
+    return (
+      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <h2 className="text-2xl font-black text-red-500 mb-2">Access Denied</h2>
+        <p className="text-slate-500 mb-6">The clients directory is strictly restricted to administrators.</p>
+        <button onClick={() => router.push("/")} className="px-6 py-2 bg-[#0D1B3E] text-white rounded-lg font-bold">Return to Dashboard</button>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const q = query(collection(db, "clients"), orderBy("createdAt", "desc"));

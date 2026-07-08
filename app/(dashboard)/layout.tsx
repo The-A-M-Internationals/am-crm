@@ -11,16 +11,16 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const { crmUser, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !crmUser) {
       router.replace("/login");
-    } else if (user) {
+    } else if (crmUser) {
       PipelineService.initGlobalPipelineListener();
     }
-  }, [user, loading, router]);
+  }, [crmUser, loading, router]);
 
   // Full navy loading screen — no white flash
   if (loading) {
@@ -74,7 +74,7 @@ export default function DashboardLayout({
   }
 
   // Not logged in — show nothing while redirect happens
-  if (!user) {
+  if (!crmUser) {
     return (
       <div
         className="min-h-screen"
