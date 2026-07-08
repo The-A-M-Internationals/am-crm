@@ -415,9 +415,19 @@ export default function TasksPage() {
                     <span className="badge" style={{ background: pInfo(task.priority).bg, color: pInfo(task.priority).color, border: `1px solid ${pInfo(task.priority).border}` }}>
                       {task.priority}
                     </span>
-                    <span className="badge" style={{ background: s.bg, color: s.color }}>
-                      {s.label}
-                    </span>
+                    <select
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { e.stopPropagation(); updateStatus(task, e.target.value); }}
+                      value={task.status ?? "not-started"}
+                      className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded cursor-pointer outline-none appearance-none border-none shadow-sm"
+                      style={{ background: s.bg, color: s.color }}
+                    >
+                      {TASK_STATUSES.map(st => (
+                        <option key={st.key} value={st.key} style={{ background: "white", color: "black", fontWeight: "bold" }}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
                     {isOverdue && <span className="badge bg-red-50 text-red-600 border border-red-100">Overdue</span>}
                   </div>
                   {/* Checkbox button */}
@@ -461,36 +471,18 @@ export default function TasksPage() {
                     </div>
                     <span className="text-[11px] font-bold text-slate-600 truncate max-w-[90px]">{task.assignedToName || "Unassigned"}</span>
                   </div>
-                  {task.dueDate && (
-                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md tracking-wider shadow-sm border ${isOverdue ? "bg-red-50 text-red-600 border-red-100" : "bg-white text-slate-500 border-slate-200"}`}>
-                      📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </span>
-                  )}
-                </div>
-
-                {/* Status quick change hidden normally, visible on hover */}
-                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 pointer-events-none group-hover:pointer-events-auto p-5 z-10" onClick={(e) => { e.stopPropagation(); setSelectedDrawerTask(task); }}>
-                  <p className="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">Update Pipeline Stage</p>
-                  <div className="flex flex-wrap gap-2 justify-center w-full mb-2">
-                    {TASK_STATUSES.filter((st) => st.key !== (task.status ?? "not-started")).map((st) => (
-                      <button 
-                        key={st.key} 
-                        onClick={(e) => { e.stopPropagation(); updateStatus(task, st.key); }} 
-                        className="text-[10px] px-3 py-1.5 rounded-lg font-bold transition-all hover:scale-105 shadow-sm" 
-                        style={{ background: st.bg, color: st.color, border: `1px solid ${st.color}40` }}
-                      >
-                        → {st.label}
+                  <div className="flex items-center gap-2">
+                    {task.dueDate && (
+                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md tracking-wider shadow-sm border ${isOverdue ? "bg-red-50 text-red-600 border-red-100" : "bg-white text-slate-500 border-slate-200"}`}>
+                        📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    )}
+                    {crmUser?.role !== "employee" && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="text-slate-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors" title="Delete Task">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
-                    ))}
+                    )}
                   </div>
-                  <button className="px-5 py-2.5 bg-[#0D1B3E] text-[#C9A84C] rounded-xl text-xs font-bold shadow-md w-full transition-transform hover:scale-[1.02]">
-                    Open Workspace ⚡
-                  </button>
-                  {crmUser?.role !== "employee" && (
-                    <button onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="absolute top-3 right-3 text-red-500 hover:text-red-700 font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors">
-                      ✕
-                    </button>
-                  )}
                 </div>
 
               </motion.div>
