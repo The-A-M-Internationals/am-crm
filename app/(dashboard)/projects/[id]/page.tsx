@@ -656,7 +656,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               </div>
 
               {/* Technical Infrastructure Hub */}
-              <div className="crm-card group">
+              <div className="bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl group">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Technical Infrastructure Hub</h3>
                   {(crmUser?.role === "admin" || crmUser?.role === "lead") && !editingTechHub && (
@@ -763,8 +763,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       ].map((urlObj, index) => (
                         <div key={index} className="space-y-1">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{urlObj.label}</span>
-                          <div className="font-mono text-xs text-blue-400 bg-slate-950/90 p-2.5 rounded-lg flex items-center justify-between border border-slate-800">
-                            <span className="truncate mr-2">{urlObj.val || "Not Provisioned"}</span>
+                          <div className="font-mono text-xs bg-slate-950/80 border-l-2 border-amber-500/60 text-slate-400 p-3 rounded-lg flex items-center tracking-wide justify-between shadow-sm">
+                            <span className={`truncate mr-2 ${!urlObj.val ? "text-slate-500/70 italic" : "text-slate-300"}`}>
+                              {urlObj.val || "Not Provisioned"}
+                            </span>
                             {urlObj.val && (
                               <button 
                                 onClick={() => copyToClipboard(urlObj.val)} 
@@ -836,11 +838,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     
                     <div className="relative flex items-center justify-between mt-8 mb-12 px-4">
                       {/* Background Connecting Line */}
-                      <div className="absolute left-4 right-4 h-0.5 bg-slate-200 -z-10" />
+                      <div className="absolute top-4 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-800 -z-10" />
                       
                       {/* Active Fill Connecting Line */}
                       <div 
-                        className="absolute left-4 h-0.5 bg-blue-500 -z-10 transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                        className="absolute left-4 top-4 h-0.5 bg-blue-500 -z-10 transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
                         style={{ width: `${Math.max(0, Math.min(92, progressMean * 0.92))}%` }}
                       />
                       
@@ -856,22 +858,22 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                           <div key={idx} className="flex flex-col items-center relative">
                             {/* Circle Node */}
                             <div 
-                              className={`w-7 h-7 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 relative z-10 bg-white ${
                                 isActive 
-                                  ? "bg-blue-500 border-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.6)]"
+                                  ? "bg-blue-600 text-white ring-4 ring-blue-500/20 shadow-[0_0_15px_rgba(37,99,235,0.4)] border-blue-600"
                                   : isCompleted 
                                     ? "bg-green-500 border-green-500 text-white"
-                                    : "bg-white border-slate-300 text-slate-400"
+                                    : "border-slate-300 text-slate-400"
                               }`}
                             >
                               {idx + 1}
                             </div>
-                            {/* Label */}
-                            <div className="absolute top-9 text-center w-28">
-                              <p className={`text-[10px] font-bold leading-tight ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
+                            {/* Label Vertical Stack */}
+                            <div className="absolute top-10 text-center w-28 flex flex-col items-center justify-start pt-1">
+                              <p className={`text-[10px] font-black tracking-wide leading-tight ${isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-slate-400'}`}>
                                 {phase.label}
                               </p>
-                              <p className="text-[8px] font-semibold text-slate-400 mt-0.5">{phase.range}</p>
+                              <p className="text-[9px] font-semibold text-slate-400 mt-1 opacity-80">{phase.range}</p>
                             </div>
                           </div>
                         );
@@ -895,17 +897,17 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 const pending = projectTasks.filter(t => t.status !== "completed").length;
                 const completed = projectTasks.filter(t => t.status === "completed").length;
                 return (
-                  <div className="flex justify-between items-center bg-slate-900 border border-slate-800 rounded-xl px-4 py-3">
+                  <div className="bg-slate-950 text-slate-200 rounded-xl px-5 py-3 border border-slate-800 flex justify-between items-center shadow-inner">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Runway Velocity:</span>
-                      <span className="text-xs font-bold text-slate-300">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Runway Velocity:</span>
+                      <span className="text-[11px] font-bold text-slate-300">
                         {pending} Pending &middot; {completed} Completed
                       </span>
                     </div>
                     {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                       <button 
                         onClick={() => setShowDelegateModal(true)}
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white hover:opacity-90 transition-opacity"
+                        className="px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-opacity hover:opacity-90"
                         style={{ background: "#C9A84C", color: "#0D1B3E" }}
                       >
                         + Delegate New Task
@@ -934,10 +936,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <div 
                         key={task.id} 
                         onClick={() => setSelectedDrawerTask(task)}
-                        className="group flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-950/50 hover:bg-slate-900/95 border border-slate-800/60 rounded-xl p-4 transition-all duration-200 cursor-pointer"
+                        className="group flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-slate-50 dark:bg-slate-900/50 hover:dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-4 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex items-center gap-4 min-w-0 md:w-1/3">
                           {/* Micro-avatar */}
                           <div 
                             className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-[10px] font-black flex-shrink-0"
@@ -964,17 +966,18 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="w-full md:w-48 flex-shrink-0 flex flex-col gap-1.5" onClick={e => e.stopPropagation()}>
-                          <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                            <span>Status: {task.status.replace("-", " ")}</span>
+                        <div className="w-full md:flex-1 flex flex-col justify-center px-0 md:px-8" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                            <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
                           </div>
-                          <div className="w-full h-1 bg-slate-900 border border-slate-800/80 rounded-full overflow-hidden flex relative">
-                            {/* Milestone Clickable Stepper Segments */}
+                          <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800/80 rounded-full flex relative">
+                            {/* Active segment fill */}
                             <div 
                               className="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.6)]" 
                               style={{ width: `${pct}%` }} 
                             />
+                            {/* Stepper Hitboxes */}
                             {milestoneSteps.map((step, stepIdx) => (
                               <div
                                 key={step.key}
@@ -982,19 +985,19 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                   e.stopPropagation();
                                   updateTaskStatus(task, step.key);
                                 }}
-                                className="flex-1 h-full cursor-pointer z-10 hover:bg-white/10 transition-colors"
+                                className="flex-1 h-full cursor-pointer z-10 hover:bg-blue-400/20 transition-colors"
                                 title={`Set milestone to ${step.label}`}
                               />
                             ))}
                           </div>
                         </div>
 
-                        {/* Hover controls + Inspect trigger */}
-                        <div className="flex items-center gap-3">
+                        {/* Right Section: Hover controls & Inspect trigger */}
+                        <div className="flex items-center justify-end gap-3 md:w-1/4">
                           {/* Management Hover Controls */}
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div 
-                              className="hidden group-hover:flex items-center gap-1.5" 
+                              className="hidden group-hover:flex items-center gap-2" 
                               onClick={e => e.stopPropagation()}
                             >
                               <button 
@@ -1004,7 +1007,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                     updateTaskInstructions(task, note);
                                   }
                                 }}
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[9px] font-black tracking-wider uppercase transition-all"
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[9px] font-black tracking-wider uppercase transition-all shadow-sm"
                                 title="Append Directions"
                               >
                                 📝 Add Note
@@ -1013,7 +1016,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
-                                className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-black px-2 py-1.5 outline-none focus:border-[#C9A84C] cursor-pointer"
+                                className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-black px-2 py-1.5 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm"
                               >
                                 <option value="">Re-allocate Asset...</option>
                                 {users
@@ -1028,7 +1031,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
                           {/* Inspect Layout Deep link */}
                           <button 
-                            className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#0D1B3E] hover:bg-[#1a3070] text-[#C9A84C] border border-[#C9A84C]/20 transition-all"
+                            className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#0D1B3E] hover:bg-[#1a3070] text-[#C9A84C] shadow-md transition-all whitespace-nowrap border border-[#C9A84C]/30"
                           >
                             Inspect Layout 🔍
                           </button>
@@ -1046,24 +1049,24 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               {/* Add File Form */}
               <div className="crm-card">
                 <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Add Shared File</h3>
-                <div className="flex gap-3 items-center flex-wrap md:flex-nowrap">
+                <div className="flex gap-4 items-center flex-wrap md:flex-nowrap">
                   <input 
-                    className="form-input flex-1" 
+                    className="form-input flex-1 bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
                     placeholder="File Name (e.g. Brand Guidelines)" 
                     value={newFile.name}
                     onChange={e => setNewFile({ ...newFile, name: e.target.value })}
                   />
                   <input 
-                    className="form-input flex-1" 
+                    className="form-input flex-1 bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
                     placeholder="URL (Google Drive, Figma, etc.)" 
                     value={newFile.url}
                     onChange={e => setNewFile({ ...newFile, url: e.target.value })}
                   />
                   <select 
-                    className="form-input" 
+                    className="form-input bg-slate-50 border-slate-200 focus:border-[#C9A84C]" 
                     value={fileCategory} 
                     onChange={e => setFileCategory(e.target.value as any)}
-                    style={{ minWidth: "150px", height: "38px" }}
+                    style={{ minWidth: "160px", height: "42px" }}
                   >
                     <option value="Design">Design</option>
                     <option value="Development">Development</option>
@@ -1073,7 +1076,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   <button 
                     onClick={addFile}
                     disabled={addingFile || !newFile.name || !newFile.url}
-                    className="btn-primary whitespace-nowrap disabled:opacity-50 h-[38px] px-6"
+                    className="btn-primary whitespace-nowrap disabled:opacity-50 h-[42px] px-8 rounded-lg shadow-sm"
                   >
                     {addingFile ? "Adding..." : "+ Add"}
                   </button>
@@ -1119,25 +1122,25 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     return filtered.map((file: any, index: number) => {
                       const origIndex = shared.indexOf(file);
                       // Determine category badge colors
-                      let badgeBg = "bg-slate-100 text-slate-600";
+                      let badgeBg = "bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
                       const cat = file.category || "Documentation";
-                      if (cat === "Design") badgeBg = "bg-pink-50 text-pink-600 border border-pink-100";
-                      else if (cat === "Development") badgeBg = "bg-green-50 text-green-600 border border-green-100";
-                      else if (cat === "Credentials") badgeBg = "bg-red-50 text-red-600 border border-red-100";
-                      else if (cat === "Documentation") badgeBg = "bg-blue-50 text-blue-600 border border-blue-100";
+                      if (cat === "Design") badgeBg = "bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
+                      else if (cat === "Development") badgeBg = "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
+                      else if (cat === "Credentials") badgeBg = "bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
+                      else if (cat === "Documentation") badgeBg = "bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md";
 
                       return (
-                        <div key={index} className="flex items-center justify-between p-3 rounded-xl border hover:bg-gray-50 transition-colors" style={{ borderColor: "#f0f0f5" }}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">📎</div>
+                        <div key={index} className="flex items-center justify-between p-4 rounded-xl border bg-white hover:bg-slate-50 transition-all shadow-sm mb-3" style={{ borderColor: "#f0f0f5" }}>
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">📎</div>
                             <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-bold" style={{ color: "#1a1a2e" }}>{file.name}</p>
-                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${badgeBg}`}>
+                              <div className="flex items-center gap-3 flex-wrap mb-1">
+                                <p className="text-sm font-black" style={{ color: "#1a1a2e" }}>{file.name}</p>
+                                <span className={badgeBg}>
                                   {cat}
                                 </span>
                               </div>
-                              <p className="text-[10px] mt-0.5" style={{ color: "#9ca3af" }}>Added by {file.addedBy} · {new Date(file.at).toLocaleDateString("en-GB")}</p>
+                              <p className="text-[11px] font-medium" style={{ color: "#9ca3af" }}>Added by <span className="text-slate-600">{file.addedBy}</span> &middot; {new Date(file.at).toLocaleDateString("en-GB")}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
