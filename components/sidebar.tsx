@@ -30,18 +30,18 @@ const I = {
 
 // Finance tabs visible to ADMIN ONLY
 const NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Dashboard",  roles: ["admin","manager","sales","designer","executive"], icon: I.dashboard,  section: "main" },
-  { href: "/leads",      label: "Leads",      roles: ["admin","manager","sales","executive"],            icon: I.leads,      section: "main" },
-  { href: "/proposals",  label: "Proposals",  roles: ["admin","manager","sales","executive"],            icon: I.proposals,  section: "main" },
-  { href: "/clients",    label: "Clients",    roles: ["admin","manager","sales","designer","executive"], icon: I.clients,    section: "main" },
-  { href: "/projects",   label: "Projects",   roles: ["admin","manager","sales","designer","executive"], icon: I.projects,   section: "main" },
-  { href: "/tasks",      label: "Tasks",      roles: ["admin","manager","sales","designer","executive"], icon: I.tasks,      section: "main" },
-  { href: "/calendar",   label: "Calendar",   roles: ["admin","manager","sales","designer","executive"], icon: I.calendar,   section: "main" },
+  { href: "/dashboard",  label: "Dashboard",  roles: ["admin","lead","employee"], icon: I.dashboard,  section: "main" },
+  { href: "/leads",      label: "Leads",      roles: ["admin","lead"],            icon: I.leads,      section: "main" },
+  { href: "/proposals",  label: "Proposals",  roles: ["admin","lead"],            icon: I.proposals,  section: "main" },
+  { href: "/clients",    label: "Clients",    roles: ["admin","lead","employee"], icon: I.clients,    section: "main" },
+  { href: "/projects",   label: "Projects",   roles: ["admin","lead","employee"], icon: I.projects,   section: "main" },
+  { href: "/tasks",      label: "Tasks",      roles: ["admin","lead","employee"], icon: I.tasks,      section: "main" },
+  { href: "/calendar",   label: "Calendar",   roles: ["admin","lead","employee"], icon: I.calendar,   section: "main" },
   // Finance — ADMIN ONLY
   { href: "/invoice",    label: "Invoices",   roles: ["admin"],                                         icon: I.invoice,    section: "finance" },
   { href: "/revenue",    label: "Revenue",    roles: ["admin"],                                         icon: I.revenue,    section: "finance" },
   // Manage
-  { href: "/team",       label: "Team",       roles: ["admin","manager"],                               icon: I.team,       section: "manage" },
+  { href: "/team",       label: "Team",       roles: ["admin","lead"],                               icon: I.team,       section: "manage" },
   { href: "/settings",   label: "Settings",   roles: ["admin"],                                         icon: I.settings,   section: "manage" },
 ];
 
@@ -51,16 +51,14 @@ function getInitials(name: string) {
 
 const roleColors: Record<UserRole, string> = {
   admin:     "#C9A84C",
-  manager:   "#60a5fa",
-  sales:     "#34d399",
-  designer:  "#f472b6",
-  executive: "#a78bfa",
+  lead:      "#60a5fa",
+  employee:  "#a78bfa",
 };
 
 export default function Sidebar() {
   const { crmUser, signOut } = useAuth();
   const pathname = usePathname();
-  const role = crmUser?.role ?? "designer";
+  const role = crmUser?.role ?? "employee";
   const visible = NAV.filter((item) => item.roles.includes(role));
 
   const mainItems    = visible.filter((i) => i.section === "main");
@@ -122,7 +120,7 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="text-white text-xs font-medium truncate">{crmUser.name}</p>
-              <p className="text-xs capitalize" style={{ color: roleColors[crmUser.role] }}>{crmUser.role}</p>
+              <p className="text-amber-400 font-mono tracking-wider text-[10px] uppercase">{crmUser.role}</p>
             </div>
           </div>
           <button

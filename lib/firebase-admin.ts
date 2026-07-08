@@ -76,4 +76,12 @@ export const getAdminAuth = (): Auth => {
 
 // Export actual instances for compatibility
 export const adminDb = null; // Used by some compatibility endpoints, or we can get them dynamically:
-export const adminAuth = getAdminAuth();
+
+let adminAuthInstance: Auth | null = null;
+try {
+  adminAuthInstance = getAdminAuth();
+} catch (err) {
+  console.warn("Firebase Admin SDK is not initialized (missing environment keys). Admin endpoints will fail if called.");
+}
+
+export const adminAuth = adminAuthInstance as Auth;

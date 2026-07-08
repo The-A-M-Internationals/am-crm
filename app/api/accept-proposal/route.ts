@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, writeBatch } from "firebase/firestore";
 
 export async function POST(req: Request) {
   try {
@@ -12,18 +13,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const adminDb = getAdminDb();
     const now = new Date().toISOString();
 
-    const proposalRef = adminDb.collection("proposals").doc(proposalId);
-    const proposalSnap = await proposalRef.get();
-    if (!proposalSnap.exists) {
+    const proposalRef = doc(db, "proposals", proposalId);
+    const proposalSnap = await getDoc(proposalRef);
+    if (!proposalSnap.exists()) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
 
     const proposal = proposalSnap.data() as any;
 
-    const batch = adminDb.batch();
+    const batch = writeBatch(db);
 
     // 1. Update the proposal status and signature details
     batch.update(proposalRef, {
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     // 2. Sync Lead stage if fromLeadId exists
     if (proposal.fromLeadId) {
-      const leadRef = adminDb.collection("leads").doc(proposal.fromLeadId);
+      const leadRef = doc(db, "leads", proposal.fromLeadId);
       batch.update(leadRef, {
         stage: "won",
         active: true,

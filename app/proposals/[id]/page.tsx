@@ -100,17 +100,13 @@ export default function ProposalDetailPage() {
     async function fetchProposal() {
       if (!id) return;
       try {
-        const res = await fetch(`/api/proposals/${id}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Proposal not found.");
-          } else {
-            throw new Error("Failed to fetch proposal details");
-          }
+        const docRef = doc(db, "proposals", id);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          setError("Proposal not found.");
           return;
         }
-        const data = await res.json();
-        setProposal(data as Proposal);
+        setProposal({ id: docSnap.id, ...docSnap.data() } as Proposal);
       } catch (err) {
         console.error("Error fetching proposal:", err);
         setError("Failed to load proposal details.");
@@ -247,6 +243,7 @@ export default function ProposalDetailPage() {
         body: JSON.stringify({
           proposalId: proposal.id,
           clientEmail: proposal.clientEmail,
+          proposalData: proposal, // Send the full proposal data to the server
         }),
       });
 
@@ -291,7 +288,7 @@ export default function ProposalDetailPage() {
 
   async function handleSignProposal(e: React.FormEvent) {
     e.preventDefault();
-    if (!id || !signingName || !signingTitle || !isAgreed) return;
+    if (!id || !signingName || !signingTitle || !isAgreed || !proposal) return;
 
     setSubmittingSign(true);
     try {
@@ -299,23 +296,25 @@ export default function ProposalDetailPage() {
         ? sigPad.current.getCanvas().toDataURL("image/png") 
         : null;
 
-      const res = await fetch("/api/accept-proposal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposalId: id,
-          clientSignatureName: signingName,
-          clientSignatureTitle: signingTitle,
-          clientSignatureImage: signatureData,
-        }),
+      const now = new Date().toISOString();
+      const proposalRef = doc(db, "proposals", id);
+      await updateDoc(proposalRef, {
+        status: "accepted" as ProposalStatus,
+        clientSignatureName: signingName,
+        clientSignatureTitle: signingTitle,
+        clientSignatureImage: signatureData || null,
+        signedAt: now,
+        updatedAt: now,
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to sign proposal");
+      if (proposal.fromLeadId) {
+        const leadRef = doc(db, "leads", proposal.fromLeadId);
+        await updateDoc(leadRef, {
+          stage: "won",
+          active: true,
+          updatedAt: now,
+        });
       }
-
-      if (!proposal) throw new Error("Proposal not loaded");
 
       // Update local state so changes render immediately
       const acceptedState: Proposal = {
@@ -324,7 +323,8 @@ export default function ProposalDetailPage() {
         clientSignatureName: signingName,
         clientSignatureTitle: signingTitle,
         clientSignatureImage: signatureData,
-        signedAt: new Date().toISOString(),
+        signedAt: now,
+        updatedAt: now,
       };
       
       setProposal(acceptedState);
@@ -342,20 +342,36 @@ export default function ProposalDetailPage() {
   }
 
   async function handleRejectProposal() {
-    if (!id) return;
+    if (!id || !proposal) return;
     if (!confirm("Are you sure you want to reject this proposal?")) return;
     
     setSubmittingSign(true);
     try {
-      const res = await fetch("/api/reject-proposal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalId: id }),
+      const now = new Date().toISOString();
+      const proposalRef = doc(db, "proposals", id);
+      await updateDoc(proposalRef, {
+        status: "rejected" as ProposalStatus,
+        updatedAt: now,
       });
 
-      if (!res.ok) throw new Error("Failed to reject proposal");
+      if (proposal.fromLeadId) {
+        const leadRef = doc(db, "leads", proposal.fromLeadId);
+        await updateDoc(leadRef, {
+          stage: "lost",
+          active: false,
+          updatedAt: now,
+        });
+      }
 
-      if (!proposal) throw new Error("Proposal not loaded");
+      // Query and update associated client status to inactive
+      const email = proposal.clientEmail.toLowerCase().trim();
+      const { collection, query, where, getDocs } = await import("firebase/firestore");
+      const clientQ = query(collection(db, "clients"), where("email", "==", email));
+      const clientSnap = await getDocs(clientQ);
+      const updatePromises = clientSnap.docs.map(docSnap => 
+        updateDoc(doc(db, "clients", docSnap.id), { status: "inactive", active: false, updatedAt: now })
+      );
+      await Promise.all(updatePromises);
 
       const rejectedState: Proposal = {
         ...proposal,
@@ -368,9 +384,9 @@ export default function ProposalDetailPage() {
 
       setShowSignModal(false);
       alert("Proposal has been rejected.");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error rejecting proposal:", err);
-      alert("Error rejecting proposal. Please try again.");
+      alert("Error rejecting proposal. Please try again: " + (err.message || String(err)));
     } finally {
       setSubmittingSign(false);
     }

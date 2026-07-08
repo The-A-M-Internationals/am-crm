@@ -7,6 +7,7 @@ import { Task, TaskPriority } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 const PRIORITIES = [
   { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
@@ -45,6 +46,8 @@ export default function TasksPage() {
   const [filter, setFilter]     = useState<"all" | "pending" | "completed">("pending");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [creatingProject, setCreatingProject] = useState(false);
+  const [selectedDrawerTask, setSelectedDrawerTask] = useState<any | null>(null);
+  const [logInputText, setLogInputText] = useState("");
 
   useEffect(() => {
     const unsubTasks = onSnapshot(query(collection(db, "tasks"), orderBy("createdAt", "desc")), snap => {
@@ -219,6 +222,49 @@ export default function TasksPage() {
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status, done: status === "completed" } : t));
   }
 
+  const milestoneSteps = [
+    { key: "not-started", label: "START" },
+    { key: "dev", label: "DEV" },
+    { key: "test", label: "TEST" },
+    { key: "review", label: "REVIEW" },
+    { key: "completed", label: "DONE" },
+  ];
+
+  const getMilestoneIndex = (status: string) => {
+    switch (status) {
+      case "not-started": return 0;
+      case "dev": case "in-progress": return 1;
+      case "test": return 2;
+      case "review": return 3;
+      case "completed": case "done": return 4;
+      default: return 0;
+    }
+  };
+
+  async function commitLogEntry() {
+    if (!selectedDrawerTask || !logInputText.trim()) return;
+    try {
+      const newLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        text: logInputText,
+        timestamp: new Date().toISOString(),
+        authorName: crmUser?.name || "Team Member",
+        authorUid: crmUser?.uid || ""
+      };
+      const updatedLogs = [...(selectedDrawerTask.logs || []), newLog];
+      
+      await updateDoc(doc(db, "tasks", selectedDrawerTask.id), { logs: updatedLogs });
+      
+      setSelectedDrawerTask({ ...selectedDrawerTask, logs: updatedLogs });
+      setTasks(prev => prev.map(t => t.id === selectedDrawerTask.id ? { ...t, logs: updatedLogs } : t));
+      setLogInputText("");
+      alert("Log committed successfully!");
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to commit log entry: " + (err.message || String(err)));
+    }
+  }
+
   const filtered = tasks
     .filter((t) => filter === "all" ? true : filter === "completed" ? t.status === "completed" : t.status !== "completed")
     .filter((t) => priorityFilter === "all" || t.priority === priorityFilter)
@@ -271,44 +317,100 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((task) => {
-            const p = pInfo(task.priority);
             const s = sInfo(task.status ?? "not-started");
             const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
             return (
-              <div key={task.id} className="crm-card flex items-start gap-4" style={{ opacity: task.status === "completed" ? 0.65 : 1 }}>
-                <button onClick={() => toggleDone(task)} className="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all" style={{ borderColor: task.status === "completed" ? "#22c55e" : "#d1d5db", background: task.status === "completed" ? "#22c55e" : "white" }}>
-                  {task.status === "completed" && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </button>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(task)}>
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <p className="text-sm font-semibold flex-1" style={{ color: "#1a1a2e", textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</p>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                      <span className="badge" style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>{task.priority}</span>
-                      <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                      {isOverdue && <span className="badge badge-overdue">Overdue</span>}
+              <div 
+                key={task.id} 
+                className="crm-card flex items-center justify-between gap-6 hover:shadow-md transition-shadow cursor-pointer" 
+                style={{ opacity: task.status === "completed" ? 0.65 : 1 }}
+                onClick={() => setSelectedDrawerTask(task)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-4">
+                    {/* Circle checkbox for completion */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toggleDone(task); }} 
+                      className="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all focus:outline-none" 
+                      style={{ borderColor: task.status === "completed" ? "#22c55e" : "#d1d5db", background: task.status === "completed" ? "#22c55e" : "white" }}
+                    >
+                      {task.status === "completed" && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate text-[#1a1a2e]" style={{ textDecoration: task.status === "completed" ? "line-through" : "none" }}>
+                        {task.title}
+                      </p>
+                      
+                      {/* Meta badges and status badge */}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {task.clientName && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            🏢 {task.clientName}
+                          </span>
+                        )}
+                        {task.dueDate && (
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>
+                            📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: s.bg, color: s.color }}>
+                          {s.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {task.description && <p className="text-xs mt-1 truncate" style={{ color: "#9ca3af" }}>{task.description}</p>}
-                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                    {task.assignedToName && <span className="text-xs font-medium" style={{ color: "#6b7280" }}>👤 {task.assignedToName}</span>}
-                    {task.clientName && <span className="text-xs" style={{ color: "#6b7280" }}>🏢 {task.clientName}</span>}
-                    {task.dueDate && <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 Due {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
-                  </div>
-                  {/* Status quick change */}
-                  <div className="flex gap-1 mt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                    {TASK_STATUSES.filter((st) => st.key !== (task.status ?? "not-started")).map((st) => (
-                      <button key={st.key} onClick={() => updateStatus(task, st.key)} className="text-xs px-2 py-0.5 rounded-lg font-semibold transition-all hover:opacity-80" style={{ background: `${st.color}12`, color: st.color, fontSize: "10px" }}>
-                        → {st.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
-                <button onClick={() => deleteTask(task.id)} className="btn-danger flex-shrink-0">✕ Delete</button>
+
+                {/* Unified progress pipeline track */}
+                <div className="w-64 flex-shrink-0 relative flex items-center justify-between px-1" onClick={e => e.stopPropagation()}>
+                  {/* Connecting track line */}
+                  <div className="absolute left-2 right-2 h-0.5 bg-slate-200 -z-10" />
+                  
+                  {/* Active glowing fill track */}
+                  <div 
+                    className="absolute left-2 h-0.5 bg-blue-500 -z-10 transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                    style={{ 
+                      width: `${(getMilestoneIndex(task.status) / (milestoneSteps.length - 1)) * 92}%` 
+                    }}
+                  />
+
+                  {milestoneSteps.map((step, idx) => {
+                    const currentActiveIdx = getMilestoneIndex(task.status);
+                    const isCurrent = idx === currentActiveIdx;
+                    const isDone = idx < currentActiveIdx;
+                    return (
+                      <button
+                        key={step.key}
+                        onClick={() => updateStatus(task, step.key)}
+                        className="flex flex-col items-center group/node relative focus:outline-none"
+                      >
+                        <div 
+                          className={`w-5 h-5 rounded-full flex items-center justify-center border-2 text-[8px] font-black transition-all duration-300 ${
+                            isCurrent 
+                              ? "bg-blue-500 border-blue-500 text-white shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+                              : isDone 
+                                ? "bg-green-500 border-green-500 text-white" 
+                                : "bg-white border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500"
+                          }`}
+                        >
+                          {idx + 1}
+                        </div>
+                        <span className={`text-[7px] font-black uppercase mt-1 tracking-wider ${
+                          isCurrent ? "text-blue-600 font-bold" : isDone ? "text-green-600" : "text-slate-400 group-hover/node:text-blue-400"
+                        }`}>
+                          {step.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
 
       {/* Modal */}
       {showModal && (
@@ -391,6 +493,167 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* Inside View Drill-Down Drawer */}
+      <AnimatePresence>
+        {selectedDrawerTask && (() => {
+          const isLeadOrAdmin = crmUser?.role === "admin" || crmUser?.role === "lead";
+          const isAssignedEmployee = crmUser?.uid === selectedDrawerTask.assignedTo;
+          
+          const summary = selectedDrawerTask.projectSummary || "No master brief provided by Admin.";
+          const instructions = selectedDrawerTask.taskInstructions || selectedDrawerTask.description || "No specific instructions provided by Lead.";
+          const logs = selectedDrawerTask.logs || [];
+
+          return (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] transition-opacity"
+                onClick={() => setSelectedDrawerTask(null)}
+              />
+              
+              {/* Sliding Panel */}
+              <motion.div 
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="fixed right-0 top-0 bottom-0 w-full max-w-[700px] bg-slate-50 shadow-2xl border-l border-slate-200 z-[101] flex flex-col"
+              >
+                {/* Header */}
+                <div className="p-6 bg-white border-b border-slate-200 flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#0D1B3E]">{selectedDrawerTask.title}</h3>
+                    <div className="flex items-center gap-2 mt-2">
+                      {selectedDrawerTask.clientName && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                          🏢 {selectedDrawerTask.clientName}
+                        </span>
+                      )}
+                      {selectedDrawerTask.assignedToName && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-600">
+                          👤 Assignee: {selectedDrawerTask.assignedToName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedDrawerTask(null)} 
+                    className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Two Column Layout Body */}
+                <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Column A (Scope) */}
+                  <div className="space-y-6">
+                    {/* Admin's Project Summary */}
+                    <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Project Execution Strategy</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                        {summary}
+                      </p>
+                    </div>
+
+                    {/* Lead's Task Instructions */}
+                    <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Lead Directions & Scope</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                        {instructions}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Column B (Execution Log) */}
+                  <div className="space-y-6 flex flex-col h-full">
+                    {/* Log Console for Employee */}
+                    {isAssignedEmployee && !isLeadOrAdmin ? (
+                      <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150 flex flex-col">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Status Log Entry</h4>
+                        <textarea 
+                          rows={4}
+                          value={logInputText}
+                          onChange={(e) => setLogInputText(e.target.value)}
+                          placeholder="Type log entry update here..."
+                          className="form-input resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
+                        />
+                        <button 
+                          onClick={commitLogEntry}
+                          disabled={!logInputText.trim()}
+                          className="mt-3 py-2 px-4 rounded-xl text-xs font-bold text-white bg-[#0D1B3E] hover:opacity-90 disabled:opacity-50 transition-all self-end"
+                        >
+                          Commit to Log Sheet
+                        </button>
+                      </div>
+                    ) : (
+                      isAssignedEmployee && (
+                        <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
+                          Leads and Admins do not log status entries.
+                        </div>
+                      )
+                    )}
+
+                    {/* Log Timeline for Lead/Admin */}
+                    {isLeadOrAdmin ? (
+                      <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150 flex-1 flex flex-col">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Chronological Log Stream</h4>
+                        
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[300px]">
+                          {logs.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic text-center py-8">No committed log entries found.</p>
+                          ) : (
+                            logs.slice().reverse().map((log: any) => (
+                              <div key={log.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-slate-600">{log.authorName}</span>
+                                  <span className="text-[8px] text-slate-400">{new Date(log.timestamp).toLocaleString("en-GB")}</span>
+                                </div>
+                                <p className="text-xs text-slate-700 leading-relaxed font-medium">{log.text}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      !isAssignedEmployee && (
+                        <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
+                          Logs are private to project assignees and managers.
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Drawer Action items (Edit/Delete options) */}
+                {isLeadOrAdmin && (
+                  <div className="p-4 bg-white border-t border-slate-200 flex gap-3 justify-end">
+                    <button 
+                      onClick={() => {
+                        openEdit(selectedDrawerTask);
+                        setSelectedDrawerTask(null);
+                      }} 
+                      className="px-4 py-2 border rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 border-blue-200 transition-all"
+                    >
+                      ✏️ Edit Details
+                    </button>
+                    <button 
+                      onClick={() => {
+                        deleteTask(selectedDrawerTask.id);
+                        setSelectedDrawerTask(null);
+                      }} 
+                      className="px-4 py-2 border rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border-red-200 transition-all"
+                    >
+                      ✕ Delete Task
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

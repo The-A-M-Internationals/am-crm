@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
-    const { proposalId, clientEmail } = await req.json();
+    const { proposalId, clientEmail, proposalData } = await req.json();
 
     console.log(`[Proposal] Sending to: ${clientEmail} | Proposal ID: ${proposalId}`);
 
@@ -29,14 +30,17 @@ export async function POST(req: Request) {
       origin = process.env.NEXT_PUBLIC_APP_URL;
     }
 
-    const adminDb = getAdminDb();
-    const docSnap = await adminDb.collection("proposals").doc(proposalId).get();
-    
-    if (!docSnap.exists) {
-      return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
-    }
+    let proposal = proposalData;
+    if (!proposal) {
+      const docRef = doc(db, "proposals", proposalId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
+      }
 
-    const proposal = docSnap.data() as any;
+      proposal = docSnap.data() as any;
+    }
     const currency = proposal.currency || "AED";
 
     let htmlBody = "";

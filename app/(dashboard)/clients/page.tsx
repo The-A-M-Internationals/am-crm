@@ -60,7 +60,7 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
-  const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
+  const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
 
   useEffect(() => {
     const q = query(collection(db, "clients"), orderBy("createdAt", "desc"));

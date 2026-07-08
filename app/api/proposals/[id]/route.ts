@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export async function GET(
   req: Request,
@@ -11,10 +12,10 @@ export async function GET(
       return NextResponse.json({ error: "Missing proposal ID" }, { status: 400 });
     }
 
-    const adminDb = getAdminDb();
-    const docSnap = await adminDb.collection("proposals").doc(id).get();
+    const docRef = doc(db, "proposals", id);
+    const docSnap = await getDoc(docRef);
 
-    if (!docSnap.exists) {
+    if (!docSnap.exists()) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
 

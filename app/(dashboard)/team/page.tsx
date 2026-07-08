@@ -28,41 +28,25 @@ const ROLES: {
     canSeeFinance: true,
   },
   {
-    key: "manager",
-    label: "Manager",
-    color: "#3b82f6",
+    key: "lead",
+    label: "Lead",
+    color: "#60a5fa",
     bg: "#eff6ff",
     desc: "Manage leads, clients & team",
     canSeeFinance: false,
   },
   {
-    key: "executive",
-    label: "Executive",
+    key: "employee",
+    label: "Employee",
     color: "#a78bfa",
     bg: "#f5f3ff",
-    desc: "All modules except Finance",
-    canSeeFinance: false,
-  },
-  {
-    key: "sales",
-    label: "Sales",
-    color: "#22c55e",
-    bg: "#f0fdf4",
-    desc: "Leads, proposals & tasks",
-    canSeeFinance: false,
-  },
-  {
-    key: "designer",
-    label: "Designer",
-    color: "#f472b6",
-    bg: "#fdf2f8",
     desc: "Projects & assigned tasks only",
     canSeeFinance: false,
   },
 ];
 
 function roleInfo(key: string) {
-  return ROLES.find((r) => r.key === key) ?? ROLES[3];
+  return ROLES.find((r) => r.key === key) ?? ROLES[2];
 }
 
 function Initials({ name }: { name: string }) {
@@ -86,7 +70,7 @@ const EMPTY_FORM = {
   name: "",
   email: "",
   password: "",
-  role: "executive" as UserRole,
+  role: "employee" as UserRole,
 };
 
 export default function TeamPage() {
@@ -98,7 +82,7 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
-  const [editRole, setEditRole] = useState<UserRole>("executive");
+  const [editRole, setEditRole] = useState<UserRole>("employee");
 
   const isAdmin = crmUser?.role === "admin";
 
