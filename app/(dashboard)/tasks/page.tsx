@@ -9,6 +9,19 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 const PRIORITIES = [
   { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
   { key: "medium", label: "Medium", color: "#92400e", bg: "#fef3c7", border: "#fde68a" },
@@ -50,8 +63,35 @@ export default function TasksPage() {
   const [logInputText, setLogInputText] = useState("");
 
   useEffect(() => {
-    const unsubTasks = onSnapshot(query(collection(db, "tasks"), orderBy("createdAt", "desc")), snap => {
-      setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    if (!crmUser) return;
+    const tasksRef = collection(db, "tasks");
+    const tasksQuery = crmUser.role === "employee"
+      ? query(tasksRef, where("assignedTo", "==", crmUser.uid), orderBy("createdAt", "desc"))
+      : query(tasksRef, orderBy("createdAt", "desc"));
+
+    const unsubTasks = onSnapshot(tasksQuery, snap => {
+      setTasks(prev => {
+        let next = [...prev];
+        snap.docChanges().forEach(change => {
+          if (change.type === "added") {
+            if (!next.find(t => t.id === change.doc.id)) {
+              next.push({ id: change.doc.id, ...change.doc.data() });
+            }
+          }
+          if (change.type === "modified") {
+            const index = next.findIndex(t => t.id === change.doc.id);
+            if (index !== -1) {
+              next[index] = { id: change.doc.id, ...change.doc.data() };
+            } else {
+              next.push({ id: change.doc.id, ...change.doc.data() });
+            }
+          }
+          if (change.type === "removed") {
+            next = next.filter(t => t.id !== change.doc.id);
+          }
+        });
+        return next.sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      });
       setLoading(false);
     });
     const unsubUsers = onSnapshot(collection(db, "users"), snap => {
@@ -255,6 +295,7 @@ export default function TasksPage() {
       
       await updateDoc(doc(db, "tasks", selectedDrawerTask.id), { logs: updatedLogs });
       
+      // Update local state instantly for optimistic UI
       setSelectedDrawerTask({ ...selectedDrawerTask, logs: updatedLogs });
       setTasks(prev => prev.map(t => t.id === selectedDrawerTask.id ? { ...t, logs: updatedLogs } : t));
       setLogInputText("");
@@ -316,11 +357,17 @@ export default function TasksPage() {
         <div className="text-center py-16 crm-card"><p className="text-sm" style={{ color: "#9ca3af" }}>{filter === "completed" ? "No completed tasks yet." : "No pending tasks! 🎉"}</p></div>
       ) : (
         <div className="space-y-2">
+          <AnimatePresence>
           {filtered.map((task) => {
             const s = sInfo(task.status ?? "not-started");
             const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
             return (
-              <div 
+              <motion.div 
+                layout
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
                 key={task.id} 
                 className="crm-card flex items-center justify-between gap-6 hover:shadow-md transition-shadow cursor-pointer" 
                 style={{ opacity: task.status === "completed" ? 0.65 : 1 }}
@@ -405,9 +452,10 @@ export default function TasksPage() {
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
       )}
 
@@ -569,30 +617,12 @@ export default function TasksPage() {
                   {/* Column B (Execution Log) */}
                   <div className="space-y-6 flex flex-col h-full">
                     {/* Log Console for Employee */}
-                    {isAssignedEmployee && !isLeadOrAdmin ? (
-                      <div className="crm-card bg-white p-4 rounded-2xl border border-slate-150 flex flex-col">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Status Log Entry</h4>
-                        <textarea 
-                          rows={4}
-                          value={logInputText}
-                          onChange={(e) => setLogInputText(e.target.value)}
-                          placeholder="Type log entry update here..."
-                          className="form-input resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
-                        />
-                        <button 
-                          onClick={commitLogEntry}
-                          disabled={!logInputText.trim()}
-                          className="mt-3 py-2 px-4 rounded-xl text-xs font-bold text-white bg-[#0D1B3E] hover:opacity-90 disabled:opacity-50 transition-all self-end"
-                        >
-                          Commit to Log Sheet
-                        </button>
-                      </div>
+                    {isAssignedEmployee ? (
+                      <EmployeeTaskWorkspace task={selectedDrawerTask} crmUser={crmUser} updateStatus={updateStatus} />
                     ) : (
-                      isAssignedEmployee && (
-                        <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
-                          Leads and Admins do not log status entries.
-                        </div>
-                      )
+                      <div className="text-xs text-slate-400 italic p-4 bg-white rounded-2xl border text-center">
+                        Only the assigned employee can update live progress.
+                      </div>
                     )}
 
                     {/* Log Timeline for Lead/Admin */}
@@ -654,6 +684,87 @@ export default function TasksPage() {
           );
         })()}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function EmployeeTaskWorkspace({ task, crmUser, updateStatus }: { task: any; crmUser: any; updateStatus: (task: any, status: string) => void }) {
+  const [localProgress, setLocalProgress] = useState(task.progress || 0);
+  const [localDesc, setLocalDesc] = useState(task.liveDescription || "");
+  const [localStatus, setLocalStatus] = useState(task.status || "not-started");
+  
+  const debouncedProgress = useDebounce(localProgress, 300);
+  const debouncedDesc = useDebounce(localDesc, 300);
+
+  // Optimistic UI updates to Firestore via Debounce
+  useEffect(() => {
+    if (debouncedProgress !== (task.progress || 0)) {
+      updateDoc(doc(db, "tasks", task.id), { progress: debouncedProgress });
+    }
+  }, [debouncedProgress, task.id, task.progress]);
+
+  useEffect(() => {
+    if (debouncedDesc !== (task.liveDescription || "")) {
+      updateDoc(doc(db, "tasks", task.id), { liveDescription: debouncedDesc });
+    }
+  }, [debouncedDesc, task.id, task.liveDescription]);
+
+  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStatus = e.target.value;
+    setLocalStatus(newStatus);
+    updateStatus(task, newStatus);
+  };
+
+  return (
+    <div className="crm-card bg-white p-4 rounded-2xl border border-blue-100 flex flex-col shadow-sm">
+      <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+        Live Workspace
+      </h4>
+      
+      <div className="space-y-4">
+        {/* Progress Slider */}
+        <div>
+          <div className="flex justify-between items-center mb-1 text-xs font-bold text-slate-600">
+            <label>Progress</label>
+            <span className="text-blue-600">{localProgress}%</span>
+          </div>
+          <input 
+            type="range" 
+            min="0" max="100" step="5"
+            value={localProgress}
+            onChange={(e) => setLocalProgress(Number(e.target.value))}
+            className="w-full accent-blue-600 cursor-pointer"
+          />
+        </div>
+
+        {/* Live Status Dropdown */}
+        <div>
+          <label className="text-xs font-bold text-slate-600 block mb-1">Live Status</label>
+          <select 
+            value={localStatus}
+            onChange={handleStatusChange}
+            className="w-full p-2 rounded-lg text-xs font-medium border border-slate-200 outline-none focus:border-blue-400 bg-slate-50"
+          >
+            {TASK_STATUSES.map(s => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Real-time Status Description */}
+        <div>
+          <label className="text-xs font-bold text-slate-600 block mb-1">Status Description</label>
+          <textarea 
+            rows={3}
+            value={localDesc}
+            onChange={(e) => setLocalDesc(e.target.value)}
+            placeholder="Type your real-time status update..."
+            className="w-full resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-blue-400 bg-slate-50 transition-colors"
+          />
+          <p className="text-[9px] text-slate-400 mt-1 italic text-right">Auto-saves as you type...</p>
+        </div>
+      </div>
     </div>
   );
 }

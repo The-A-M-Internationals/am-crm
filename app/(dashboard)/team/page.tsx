@@ -32,7 +32,7 @@ const ROLES: {
     label: "Lead",
     color: "#60a5fa",
     bg: "#eff6ff",
-    desc: "Manage leads, clients & team",
+    desc: "Projects & Tasks management only",
     canSeeFinance: false,
   },
   {
@@ -40,7 +40,7 @@ const ROLES: {
     label: "Employee",
     color: "#a78bfa",
     bg: "#f5f3ff",
-    desc: "Projects & assigned tasks only",
+    desc: "Assigned tasks only",
     canSeeFinance: false,
   },
 ];

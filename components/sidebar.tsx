@@ -28,20 +28,19 @@ const I = {
   logout: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
 };
 
-// Finance tabs visible to ADMIN ONLY
 const NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Dashboard",  roles: ["admin","lead","employee"], icon: I.dashboard,  section: "main" },
-  { href: "/leads",      label: "Leads",      roles: ["admin","lead"],            icon: I.leads,      section: "main" },
-  { href: "/proposals",  label: "Proposals",  roles: ["admin","lead"],            icon: I.proposals,  section: "main" },
-  { href: "/clients",    label: "Clients",    roles: ["admin","lead","employee"], icon: I.clients,    section: "main" },
-  { href: "/projects",   label: "Projects",   roles: ["admin","lead","employee"], icon: I.projects,   section: "main" },
+  { href: "/dashboard",  label: "Dashboard",  roles: ["admin"], icon: I.dashboard,  section: "main" },
+  { href: "/leads",      label: "Leads",      roles: ["admin"],            icon: I.leads,      section: "main" },
+  { href: "/proposals",  label: "Proposals",  roles: ["admin"],            icon: I.proposals,  section: "main" },
+  { href: "/clients",    label: "Clients",    roles: ["admin"], icon: I.clients,    section: "main" },
+  { href: "/projects",   label: "Projects",   roles: ["admin","lead"], icon: I.projects,   section: "main" },
   { href: "/tasks",      label: "Tasks",      roles: ["admin","lead","employee"], icon: I.tasks,      section: "main" },
-  { href: "/calendar",   label: "Calendar",   roles: ["admin","lead","employee"], icon: I.calendar,   section: "main" },
+  { href: "/calendar",   label: "Calendar",   roles: ["admin"], icon: I.calendar,   section: "main" },
   // Finance — ADMIN ONLY
   { href: "/invoice",    label: "Invoices",   roles: ["admin"],                                         icon: I.invoice,    section: "finance" },
   { href: "/revenue",    label: "Revenue",    roles: ["admin"],                                         icon: I.revenue,    section: "finance" },
   // Manage
-  { href: "/team",       label: "Team",       roles: ["admin","lead"],                               icon: I.team,       section: "manage" },
+  { href: "/team",       label: "Team",       roles: ["admin"],                               icon: I.team,       section: "manage" },
   { href: "/settings",   label: "Settings",   roles: ["admin"],                                         icon: I.settings,   section: "manage" },
 ];
 
