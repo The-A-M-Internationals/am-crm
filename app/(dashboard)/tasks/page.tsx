@@ -1,12 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Task, TaskPriority } from "@/types";
+import { Task, TaskPriority, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 const PRIORITIES = [
   { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
@@ -15,10 +25,17 @@ const PRIORITIES = [
 ];
 
 const TASK_STATUSES = [
-  { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f3f4f6" },
+  { key: "not-started", label: "To Do", color: "#6b7280", bg: "#f3f4f6" },
   { key: "in-progress", label: "In Progress", color: "#1d4ed8", bg: "#eff6ff" },
-  { key: "on-hold",     label: "On Hold",     color: "#92400e", bg: "#fef3c7" },
   { key: "completed",   label: "Completed",   color: "#065f46", bg: "#d1fae5" },
+];
+
+const TASK_TYPES = [
+  { key: "follow-up", label: "Follow-up", icon: "⏰", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
+  { key: "meeting", label: "Meeting", icon: "🤝", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
+  { key: "internal-task", label: "Internal Task", icon: "⚡", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" },
+  { key: "admin-action", label: "Admin Action", icon: "⚙️", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" },
+  { key: "project-task", label: "Project Task", icon: "🔨", color: "text-cyan-600", bg: "bg-cyan-50", border: "border-cyan-200" },
 ];
 
 const EMPTY_FORM = {
@@ -26,6 +43,7 @@ const EMPTY_FORM = {
   clientId: "", clientName: "", dueDate: "",
   priority: "medium" as TaskPriority,
   status: "not-started",
+  taskType: "admin-action" as SystemTaskType,
   relatedTo: "",
   relatedType: "" as "project" | "lead" | "client" | "",
 };
@@ -33,131 +51,80 @@ const EMPTY_FORM = {
 export default function TasksPage() {
   const { crmUser } = useAuth();
   const router = useRouter();
-  const [tasks, setTasks]     = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing]   = useState<any | null>(null);
-  const [form, setForm]         = useState({ ...EMPTY_FORM });
-  const [saving, setSaving]     = useState(false);
-  const [filter, setFilter]     = useState<"all" | "pending" | "completed">("pending");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [editing, setEditing] = useState<any | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
 
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+
   useEffect(() => {
-    const unsubTasks = onSnapshot(query(collection(db, "tasks"), orderBy("createdAt", "desc")), snap => {
-      setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    if (!crmUser) return;
+    const tasksRef = collection(db, "tasks");
+    const tasksQuery = crmUser.role === "employee"
+      ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
+      : query(tasksRef);
+
+    const unsubTasks = onSnapshot(tasksQuery, snap => {
+      setTasks(prev => {
+        let next = [...prev];
+        snap.docChanges().forEach(change => {
+          if (change.type === "added") {
+            if (!next.find(t => t.id === change.doc.id)) next.push({ id: change.doc.id, ...change.doc.data() });
+          }
+          if (change.type === "modified") {
+            const index = next.findIndex(t => t.id === change.doc.id);
+            if (index !== -1) next[index] = { id: change.doc.id, ...change.doc.data() };
+            else next.push({ id: change.doc.id, ...change.doc.data() });
+          }
+          if (change.type === "removed") next = next.filter(t => t.id !== change.doc.id);
+        });
+        return next.sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      });
       setLoading(false);
     });
-    const unsubUsers = onSnapshot(collection(db, "users"), snap => {
-      setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
-      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    const unsubProjects = onSnapshot(collection(db, "projects"), snap => {
-      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => setClients(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubProjects = onSnapshot(collection(db, "projects"), snap => setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
-    return () => {
-      unsubTasks();
-      unsubUsers();
-      unsubClients();
-      unsubProjects();
-    };
-  }, []);
+    return () => { unsubTasks(); unsubUsers(); unsubClients(); unsubProjects(); };
+  }, [crmUser]);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
   function openEdit(t: any) {
     setEditing(t);
     setForm({ 
-      title: t.title, 
-      description: t.description ?? "", 
-      assignedTo: t.assignedTo ?? "", 
-      assignedToName: t.assignedToName ?? "", 
-      clientId: t.clientId ?? "", 
-      clientName: t.clientName ?? "", 
-      dueDate: t.dueDate ?? "", 
-      priority: t.priority, 
-      status: t.status ?? "not-started", 
-      relatedTo: t.relatedTo ?? "",
-      relatedType: t.relatedType ?? ""
+      title: t.title, description: t.description ?? "", assignedTo: t.assignedTo ?? "", 
+      assignedToName: t.assignedToName ?? "", clientId: t.clientId ?? "", clientName: t.clientName ?? "", 
+      dueDate: t.dueDate ?? "", priority: t.priority, status: t.status ?? "not-started", 
+      taskType: t.taskType ?? "admin-action", relatedTo: t.relatedTo ?? "", relatedType: t.relatedType ?? ""
     });
     setShowModal(true);
   }
 
   async function quickCreateProject() {
-    if (!form.clientId || !form.title) {
-      alert("Please select a client and give the task a title first.");
-      return;
-    }
+    if (!form.clientId || !form.title) return alert("Please select a client and give the task a title first.");
     setCreatingProject(true);
     try {
       const now = new Date().toISOString();
       const docRef = await addDoc(collection(db, "projects"), {
-        title: form.title,
-        clientName: form.clientName,
-        clientId: form.clientId,
-        status: "in-progress",
-        service: "web-development",
-        createdAt: now,
-        updatedAt: now,
+        title: form.title, clientName: form.clientName, clientId: form.clientId,
+        status: "in-progress", service: "web-development", createdAt: now, updatedAt: now,
         assignedTo: form.assignedTo ? [form.assignedTo] : []
       });
-      
-      const newProjId = docRef.id;
-      setForm(f => ({ ...f, relatedTo: newProjId, relatedType: "project" }));
+      setForm(f => ({ ...f, relatedTo: docRef.id, relatedType: "project" }));
       alert("✅ Project created and linked!");
-    } catch (e) {
-      console.error(e);
-      alert("Failed to create project");
-    } finally {
-      setCreatingProject(false);
-    }
-  }
-
-  async function sendReminderEmail(task: any, memberEmail: string, memberName: string) {
-    try {
-      const html = `
-        <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
-          <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-            <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
-              <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
-              <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Reminder</p>
-            </div>
-            <div style="padding:32px;">
-              <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${memberName}</strong>,</p>
-              <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">This is a reminder that a task assigned to you is due <strong>tomorrow</strong>.</p>
-
-              <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
-                <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${task.title}</h3>
-                ${task.description ? `<p style="color:#4b5563;font-size:13px;margin:8px 0;">${task.description}</p>` : ""}
-                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Priority:</strong> ${task.priority}</p>
-                <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due Date:</strong> ${new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
-              </div>
-              
-              <div style="text-align:center;margin-top:30px;">
-                <a href="https://crm.theaminternational.com/tasks" style="background:#0D1B3E;color:#C9A84C;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">View Task List</a>
-              </div>
-
-              <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
-            </div>
-          </div>
-        </div>
-      `;
-
-      await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: [memberEmail, "am@theaminternational.com"],
-          subject: `⏰ Task Due Tomorrow: ${task.title}`,
-          html,
-        }),
-      });
-    } catch (err) { console.error("Email error:", err); }
+    } catch (e) { console.error(e); alert("Failed to create project"); } 
+    finally { setCreatingProject(false); }
   }
 
   async function handleSave() {
@@ -168,32 +135,16 @@ export default function TasksPage() {
       const member = members.find((m) => m.uid === form.assignedTo);
       const payload = { ...form, assignedToName: member?.name ?? form.assignedToName, assignedBy: crmUser?.uid ?? "" };
 
-      if (editing) {
-        await updateDoc(doc(db, "tasks", editing.id), payload);
-      } else {
-        await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
-      }
-
-      // Check if due date is tomorrow — send reminder
-      if (form.dueDate && member?.email) {
-        const due = new Date(form.dueDate);
-        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-        if (due.toDateString() === tomorrow.toDateString()) {
-          await sendReminderEmail({ ...form }, member.email, member.name);
-        }
-      }
-
+      if (editing) await updateDoc(doc(db, "tasks", editing.id), payload);
+      else await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
       setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function toggleDone(task: any) {
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
-    if (newStatus === "completed") {
-      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
-    } else {
-      await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress" });
-    }
+    if (newStatus === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    else await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress" });
   }
 
   async function deleteTask(id: string) {
@@ -202,191 +153,269 @@ export default function TasksPage() {
   }
 
   async function updateStatus(task: any, status: string) {
-    if (status === "completed") {
-      await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
-    } else {
+    if (status === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
+    else {
       await updateDoc(doc(db, "tasks", task.id), { status, done: false });
-      
-      // Inverse State Synchronization
-      // If a task is set to 'not-started', push that status up to the parent project
       if (status === "not-started" && task.relatedType === "project" && task.relatedTo) {
-        await updateDoc(doc(db, "projects", task.relatedTo), { 
-          status: "not-started",
-          updatedAt: new Date().toISOString()
-        });
+        await updateDoc(doc(db, "projects", task.relatedTo), { status: "not-started", updatedAt: new Date().toISOString() });
       }
     }
-    setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status, done: status === "completed" } : t));
   }
 
-  const filtered = tasks
-    .filter((t) => filter === "all" ? true : filter === "completed" ? t.status === "completed" : t.status !== "completed")
-    .filter((t) => priorityFilter === "all" || t.priority === priorityFilter)
-    .filter((t) => {
-      // Conditional Task Visibility
-      // Hide tasks immediately if their parent project is 'not-started'
-      if (t.relatedType === "project" && t.relatedTo) {
-        const proj = projects.find(p => p.id === t.relatedTo);
-        if (proj && proj.status === "not-started") {
-          return false;
-        }
-      }
-      return true;
-    });
+  const filteredTasks = tasks.filter((t) => {
+    if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
+    if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
+    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+    // Hide tasks immediately if their parent project is 'not-started'
+    if (t.relatedType === "project" && t.relatedTo) {
+      const proj = projects.find(p => p.id === t.relatedTo);
+      if (proj && proj.status === "not-started") return false;
+    }
+    return true;
+  });
 
-  const pInfo = (key: string) => PRIORITIES.find((p) => p.key === key) ?? PRIORITIES[1];
-  const sInfo = (key: string) => TASK_STATUSES.find((s) => s.key === key) ?? TASK_STATUSES[0];
+  const getColTasks = (statusKey: string) => {
+    if (statusKey === "not-started") return filteredTasks.filter(t => !["in-progress", "dev", "test", "review", "completed", "done"].includes(t.status));
+    if (statusKey === "in-progress") return filteredTasks.filter(t => ["in-progress", "dev", "test", "review"].includes(t.status));
+    if (statusKey === "completed") return filteredTasks.filter(t => ["completed", "done"].includes(t.status));
+    return [];
+  };
+
+  const pInfo = (key: string) => PRIORITIES.find(p => p.key === key) ?? PRIORITIES[1];
+  const tInfo = (key: string) => TASK_TYPES.find(t => t.key === key) ?? TASK_TYPES.find(t => t.key === "admin-action")!;
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-8 h-screen flex flex-col bg-[#f8fafc] overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
         <div className="page-header mb-0">
-          <h1 className="page-title">Tasks</h1>
-          <p className="page-subtitle">{tasks.filter(t => t.status !== "completed").length} pending · {tasks.filter(t => t.status === "completed").length} completed</p>
+          <h1 className="text-3xl font-black text-[#0D1B3E] tracking-tight">Operations Board</h1>
+          <p className="text-sm text-slate-500 mt-1">{filteredTasks.length} total tasks • Structured Workflow</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><span className="text-base">+</span> Add Task</button>
+        <div className="flex items-center gap-3">
+          <input 
+            type="text" 
+            placeholder="Search tasks..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] w-64 shadow-sm" 
+          />
+          {crmUser?.role !== "employee" && (
+            <button onClick={openAdd} className="bg-[#0D1B3E] hover:bg-[#1a2b5e] text-white px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-md">
+              + New Task
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "#f0f2f8" }}>
-          {[{ key: "pending", label: "Pending" }, { key: "completed", label: "Completed" }, { key: "all", label: "All" }].map((f) => (
-            <button key={f.key} onClick={() => setFilter(f.key as any)} className="px-3 py-1 rounded-lg text-xs font-semibold transition-all" style={{ background: filter === f.key ? "white" : "transparent", color: filter === f.key ? "#0D1B3E" : "#9ca3af", boxShadow: filter === f.key ? "0 1px 4px rgba(0,0,0,0.1)" : "none" }}>
-              {f.label}
+      {/* Segmented Filters */}
+      <div className="flex flex-wrap gap-2 mb-6 shrink-0 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+        <button onClick={() => setTypeFilter("all")} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${typeFilter === "all" ? "bg-slate-800 text-white shadow" : "text-slate-500 hover:bg-slate-50"}`}>
+          All Types
+        </button>
+        {TASK_TYPES.map(tt => {
+          const count = tasks.filter(t => t.taskType === tt.key).length;
+          return (
+            <button 
+              key={tt.key} 
+              onClick={() => setTypeFilter(tt.key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${typeFilter === tt.key ? "bg-white shadow border border-slate-200 text-slate-900" : "text-slate-500 hover:bg-slate-50 border border-transparent"}`}
+            >
+              <span>{tt.icon}</span> {tt.label}
+              <span className={`px-1.5 py-0.5 rounded text-[10px] ${typeFilter === tt.key ? tt.bg + " " + tt.color : "bg-slate-100 text-slate-400"}`}>{count}</span>
             </button>
-          ))}
-        </div>
-        {PRIORITIES.map((p) => (
-          <button key={p.key} onClick={() => setPriorityFilter(priorityFilter === p.key ? "all" : p.key)} className="badge cursor-pointer transition-all hover:opacity-80" style={{ background: priorityFilter === p.key ? p.bg : "white", color: priorityFilter === p.key ? p.color : "#9ca3af", border: `1px solid ${priorityFilter === p.key ? p.border : "#e5e7eb"}` }}>
+          )
+        })}
+        <div className="w-px h-6 bg-slate-200 mx-2 self-center" />
+        {PRIORITIES.map(p => (
+          <button key={p.key} onClick={() => setPriorityFilter(priorityFilter === p.key ? "all" : p.key)} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border" style={{ background: priorityFilter === p.key ? p.bg : "white", color: priorityFilter === p.key ? p.color : "#9ca3af", borderColor: priorityFilter === p.key ? p.border : "transparent" }}>
             {p.label}
           </button>
         ))}
       </div>
 
-      {/* Task list */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3,4].map((i) => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 crm-card"><p className="text-sm" style={{ color: "#9ca3af" }}>{filter === "completed" ? "No completed tasks yet." : "No pending tasks! 🎉"}</p></div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((task) => {
-            const p = pInfo(task.priority);
-            const s = sInfo(task.status ?? "not-started");
-            const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
-            return (
-              <div key={task.id} className="crm-card flex items-start gap-4" style={{ opacity: task.status === "completed" ? 0.65 : 1 }}>
-                <button onClick={() => toggleDone(task)} className="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all" style={{ borderColor: task.status === "completed" ? "#22c55e" : "#d1d5db", background: task.status === "completed" ? "#22c55e" : "white" }}>
-                  {task.status === "completed" && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </button>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(task)}>
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <p className="text-sm font-semibold flex-1" style={{ color: "#1a1a2e", textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</p>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                      <span className="badge" style={{ background: p.bg, color: p.color, border: `1px solid ${p.border}` }}>{task.priority}</span>
-                      <span className="badge" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                      {isOverdue && <span className="badge badge-overdue">Overdue</span>}
-                    </div>
-                  </div>
-                  {task.description && <p className="text-xs mt-1 truncate" style={{ color: "#9ca3af" }}>{task.description}</p>}
-                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                    {task.assignedToName && <span className="text-xs font-medium" style={{ color: "#6b7280" }}>👤 {task.assignedToName}</span>}
-                    {task.clientName && <span className="text-xs" style={{ color: "#6b7280" }}>🏢 {task.clientName}</span>}
-                    {task.dueDate && <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 Due {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
-                  </div>
-                  {/* Status quick change */}
-                  <div className="flex gap-1 mt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                    {TASK_STATUSES.filter((st) => st.key !== (task.status ?? "not-started")).map((st) => (
-                      <button key={st.key} onClick={() => updateStatus(task, st.key)} className="text-xs px-2 py-0.5 rounded-lg font-semibold transition-all hover:opacity-80" style={{ background: `${st.color}12`, color: st.color, fontSize: "10px" }}>
-                        → {st.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => deleteTask(task.id)} className="btn-danger flex-shrink-0">✕ Delete</button>
+      {/* Kanban Board */}
+      <div className="flex-1 flex gap-6 overflow-x-auto pb-4 min-h-0">
+        {TASK_STATUSES.map(col => {
+          const colTasks = getColTasks(col.key);
+          return (
+            <div key={col.key} className="flex-1 min-w-[320px] max-w-[400px] flex flex-col bg-slate-50/50 rounded-3xl border border-slate-200 overflow-hidden">
+              <div className="p-4 border-b border-slate-200 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
+                <h3 className="font-black text-slate-700 uppercase tracking-widest text-xs flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
+                  {col.label}
+                </h3>
+                <span className="bg-white border border-slate-200 text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full">{colTasks.length}</span>
               </div>
-            );
-          })}
-        </div>
-      )}
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {loading ? (
+                  [1,2].map(i => <div key={i} className="h-32 bg-white rounded-2xl animate-pulse border border-slate-100" />)
+                ) : colTasks.length === 0 ? (
+                  <div className="text-center py-10 text-sm font-medium text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">Drop tasks here</div>
+                ) : (
+                  <AnimatePresence>
+                    {colTasks.map(task => {
+                      const prio = pInfo(task.priority);
+                      const tType = tInfo(task.taskType || "admin-action");
+                      const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
+                      
+                      return (
+                        <motion.div 
+                          layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+                          key={task.id} 
+                          onClick={() => openEdit(task)}
+                          className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col"
+                        >
+                          <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
+                          
+                          <div className="flex justify-between items-start mb-2 pl-2">
+                            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1 ${tType.bg} ${tType.color} ${tType.border}`}>
+                              {tType.icon} {tType.label}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {isOverdue && <span className="bg-red-50 text-red-600 border border-red-100 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Overdue</span>}
+                              <button onClick={(e) => { e.stopPropagation(); toggleDone(task); }} className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${task.status === "completed" ? "bg-emerald-500 border-emerald-600 text-white" : "bg-slate-50 border-slate-200 text-transparent hover:border-emerald-400 hover:text-emerald-200"}`}>
+                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4L3.5 6.5L9 1"/></svg>
+                              </button>
+                            </div>
+                          </div>
 
-      {/* Modal */}
+                          <h4 className="font-bold text-slate-800 text-sm mb-2 pl-2 leading-tight group-hover:text-[#0D1B3E] transition-colors" style={{ textDecoration: task.status === "completed" ? "line-through" : "none", opacity: task.status === "completed" ? 0.6 : 1 }}>
+                            {task.title}
+                          </h4>
+
+                          <div className="pl-2 mb-3 space-y-1">
+                            {task.relatedType === "project" && task.relatedTo && (
+                              <div className="text-[11px] font-bold text-[#C9A84C] flex items-center gap-1">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                                <span className="truncate">{projects.find(p => p.id === task.relatedTo)?.title || "Unknown Project"}</span>
+                              </div>
+                            )}
+                            {task.clientName && (
+                              <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                <span className="truncate">{task.clientName}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pl-2 mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5" title={task.assignedToName}>
+                              <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border border-indigo-200">
+                                {task.assignedToName ? task.assignedToName.charAt(0) : "?"}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {task.dueDate && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${isOverdue ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"}`}>
+                                  📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                              <select
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => { e.stopPropagation(); updateStatus(task, e.target.value); }}
+                                value={col.key}
+                                className="text-[10px] font-bold uppercase border-none bg-transparent text-slate-400 cursor-pointer outline-none hover:text-[#0D1B3E]"
+                              >
+                                {TASK_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Add/Edit Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="modal-title mb-0">{editing ? "Edit Task" : "Add Task"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h2 className="text-xl font-black text-[#0D1B3E]">{editing ? "Edit Operation Task" : "New Operation Task"}</h2>
+              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors">✕</button>
             </div>
-            <div className="space-y-4">
-              <div><label className="form-label">Task Title *</label><input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Follow up with client..." /></div>
-              <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-3">
+            
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Task Type</label>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {TASK_TYPES.map(tt => (
+                    <button
+                      key={tt.key}
+                      onClick={() => setForm({ ...form, taskType: tt.key as SystemTaskType })}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${form.taskType === tt.key ? "border-[#C9A84C] bg-[#C9A84C]/5 shadow-sm" : "border-slate-100 hover:border-slate-200 bg-white"}`}
+                    >
+                      <span className="text-xl mb-1">{tt.icon}</span>
+                      <span className={`text-[10px] font-black uppercase text-center ${form.taskType === tt.key ? "text-[#0D1B3E]" : "text-slate-400"}`}>{tt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Title *</label>
+                <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="E.g., Call client regarding proposal..." />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
+                <textarea className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors resize-none" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Add detailed notes or context..." />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="form-label">Assign To</label>
-                  <select className="form-input" value={form.assignedTo} onChange={(e) => { const m = members.find(x => x.uid === e.target.value); setForm({ ...form, assignedTo: e.target.value, assignedToName: m?.name ?? "" }); }}>
-                    <option value="">Select team member...</option>
-                    {members.map((m) => <option key={m.uid} value={m.uid}>{m.name} ({m.role})</option>)}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Client Link</label>
+                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.clientId} onChange={e => { const c = clients.find(x => x.id === e.target.value); setForm({ ...form, clientId: e.target.value, clientName: c?.company ?? c?.name ?? "" }); }}>
+                    <option value="">No Client Linked</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Client</label>
-                  <select className="form-input" value={form.clientId} onChange={(e) => { const c = clients.find(x => x.id === e.target.value); setForm({ ...form, clientId: e.target.value, clientName: c?.company ?? c?.name ?? "" }); }}>
-                    <option value="">Select client...</option>
-                    {clients.map((c) => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Project Link (Optional)</label>
+                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.relatedTo} onChange={e => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
+                    <option value="">No Project Linked</option>
+                    {projects.filter(p => p.status !== "completed").map(p => <option key={p.id} value={p.id}>[{p.clientName}] {p.title}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <label className="form-label">Priority</label>
-                  <select className="form-input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}>
-                    {PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owner</label>
+                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.assignedTo} onChange={e => { const m = members.find(x => x.uid === e.target.value); setForm({ ...form, assignedTo: e.target.value, assignedToName: m?.name ?? "" }); }}>
+                    <option value="">Unassigned</option>
+                    {members.map(m => <option key={m.uid} value={m.uid}>{m.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Status</label>
-                  <select className="form-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                    {TASK_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
+                  <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value as TaskPriority })}>
+                    {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="form-label">Due Date</label><input className="form-input" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
                 <div>
-                  <label className="form-label">Link to Project</label>
-                  <div className="flex gap-2">
-                    <select className="form-input flex-1" value={form.relatedTo} onChange={(e) => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
-                      <option value="">No Project</option>
-                      {projects
-                        .filter(p => p.status !== "completed")
-                        .map((p) => <option key={p.id} value={p.id}>[{p.clientName}] {p.title}</option>)}
-                    </select>
-                    {form.clientId && !form.relatedTo && (
-                      <button 
-                        onClick={quickCreateProject}
-                        disabled={creatingProject || !form.title}
-                        className="px-2 py-1 rounded-lg border text-[10px] font-bold whitespace-nowrap transition-all hover:bg-gray-50 disabled:opacity-30"
-                        style={{ borderColor: "#e5e7eb", color: "#0D1B3E" }}
-                        title="Create a new project from this task"
-                      >
-                        {creatingProject ? "..." : "➕ New Project"}
-                      </button>
-                    )}
-                  </div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
+                  <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
                 </div>
               </div>
-              {form.dueDate && (() => { const due = new Date(form.dueDate); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); return due.toDateString() === tomorrow.toDateString(); })() && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}>
-                  ⚡ Due date is tomorrow — assignee will receive an email reminder when you save!
-                </div>
-              )}
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 justify-center disabled:opacity-50">
-                {saving ? "Saving..." : editing ? "Update" : "Add Task"}
-              </button>
+            
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+              {editing && crmUser?.role !== "employee" ? (
+                <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">Delete Task</button>
+              ) : <div/>}
+              <div className="flex gap-3">
+                <button onClick={() => setShowModal(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                <button onClick={handleSave} disabled={saving || !form.title} className="bg-[#C9A84C] hover:bg-[#b0923e] text-white px-8 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50">
+                  {saving ? "Saving..." : editing ? "Save Changes" : "Create Task"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

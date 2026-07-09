@@ -7,7 +7,7 @@ import { Client, ServiceTag } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PhoneInput } from "@/components/phone-input";
 import { PipelineService } from "@/lib/pipeline-service";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
   { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
@@ -51,6 +51,8 @@ export default function ClientsPage() {
   const { crmUser } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
@@ -60,15 +62,32 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
-  const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
+  const canEdit = crmUser?.role === "admin";
+
+  if (crmUser && crmUser.role === "employee") {
+    return (
+      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <h2 className="text-2xl font-black text-red-500 mb-2">Access Denied</h2>
+        <p className="text-slate-500 mb-6">The clients directory is strictly restricted to administrators.</p>
+        <button onClick={() => router.push("/")} className="px-6 py-2 bg-[#0D1B3E] text-white rounded-lg font-bold">Return to Dashboard</button>
+      </div>
+    );
+  }
+
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const q = query(collection(db, "clients"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snap) => {
+    const unsubClients = onSnapshot(query(collection(db, "clients"), orderBy("createdAt", "desc")), (snap) => {
       setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
       setLoading(false);
     });
-    return () => unsubscribe();
+    const unsubProjects = onSnapshot(collection(db, "projects"), (snap) => {
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    const unsubTasks = onSnapshot(collection(db, "tasks"), (snap) => {
+      setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => { unsubClients(); unsubProjects(); unsubTasks(); };
   }, []);
 
   function openAdd() {
@@ -101,6 +120,7 @@ export default function ClientsPage() {
         : [...f.services, svc],
     }));
   }
+
 
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
@@ -161,6 +181,7 @@ export default function ClientsPage() {
       alert("Failed to archive client properly.");
     }
   }
+
 
   async function toggleLostStatus(client: Client) {
     if (client.active === false) {
@@ -248,98 +269,115 @@ export default function ClientsPage() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="crm-card p-0 overflow-hidden">
+      {/* Client List */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {loading ? (
-          <div className="p-6 space-y-3">
-            {[1, 2, 3, 4].map((i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: "#f3f4f6" }} />)}
-          </div>
+          [1, 2, 3, 4].map((i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: "#f3f4f6" }} />)
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-sm" style={{ color: "#9ca3af" }}>No clients found</p>
+          <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
+            <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </div>
+            <p className="text-sm font-semibold" style={{ color: "#9ca3af" }}>No clients found</p>
             {canEdit && (
-              <button onClick={openAdd} className="mt-3 px-4 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#0D1B3E" }}>
-                + Add Client
+              <button onClick={openAdd} className="mt-4 px-6 py-2 rounded-xl text-sm font-bold text-white shadow-md hover:shadow-lg transition-all" style={{ background: "#0D1B3E" }}>
+                Add New Client
               </button>
             )}
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #f0f0f5" }}>
-                {["Client", "Email", "Phone", "Services", "Status", "Actions"].map((h) => (
-                  <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#9ca3af" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((client) => (
-                <tr key={client.id} className="border-b hover:bg-gray-50 transition-colors cursor-pointer" style={{ borderColor: "#f0f0f5" }} onClick={() => canEdit && openEdit(client)}>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <Initials name={client.name} />
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: "#1a1a2e" }}>{client.name}</p>
-                        <p className="text-xs" style={{ color: "#6b7280" }}>{client.company}</p>
-                      </div>
+          filtered.map((client) => {
+            const clientProjects = projects.filter(p => p.clientId === client.id && p.status !== "completed");
+            const clientTasks = tasks.filter(t => t.clientId === client.id && !t.done);
+            
+            return (
+              <div 
+                key={client.id} 
+                onClick={() => router.push(`/clients/${client.id}`)}
+                className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-md hover:border-[#C9A84C]/40 transition-all cursor-pointer group flex flex-col"
+              >
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-4">
+                    <Initials name={client.name} />
+                    <div>
+                      <h3 className="text-lg font-black text-[#0D1B3E] group-hover:text-[#1a3070] transition-colors">{client.name}</h3>
+                      <p className="text-sm font-semibold text-slate-500">{client.company}</p>
                     </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm" style={{ color: "#6b7280", wordBreak: "break-all", maxWidth: "200px" }}>{client.email}</td>
-                  <td className="px-5 py-3.5 text-sm" style={{ color: "#6b7280" }}>{client.phone || "—"}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex gap-1 flex-wrap">
-                      {(client.services ?? []).map((svc) => {
-                        const s = SERVICES.find((x) => x.key === svc);
-                        return s ? (
-                          <span key={svc} className="badge text-xs" style={{ background: s.bg, color: s.text }}>
-                            {s.label.split(" ")[0]}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="badge capitalize" style={{
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg" style={{
                       background: client.status === "active" ? "#f0fdf4" : "#f9fafb",
                       color: client.status === "active" ? "#15803d" : "#6b7280",
                     }}>
                       {client.status}
                     </span>
-                  </td>
-                  <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2 whitespace-nowrap flex-nowrap">
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                       {canEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/projects?new=true&clientId=${client.id}&clientName=${encodeURIComponent(client.company || client.name)}`);
-                          }}
-                          className="text-xs font-semibold px-3 py-1 rounded text-white transition-colors"
-                          style={{ background: "#0D1B3E" }}
-                        >
-                          ➕ Create Project
+                        <button onClick={() => openEdit(client)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition-colors">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                       )}
-                      <button 
-                        onClick={() => toggleLostStatus(client)}
-                        className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors"
-                      >
-                        {client.active === false ? "Recover" : "Archive"}
+                      <button onClick={() => toggleLostStatus(client)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition-colors">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => deleteClient(client.id)}
-                          className="btn-danger"
-                        >
-                          🗑 Delete
-                        </button>
-                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contact</p>
+                    <p className="text-sm font-semibold text-slate-700 truncate">{client.email}</p>
+                    <p className="text-sm text-slate-500">{client.phone || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Core Services</p>
+                    <div className="flex flex-wrap gap-1">
+                      {(client.services ?? []).map((svc) => {
+                        const s = SERVICES.find((x) => x.key === svc);
+                        return s ? (
+                          <span key={svc} className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: s.bg, color: s.text }}>
+                            {s.label.split(" ")[0]}
+                          </span>
+                        ) : null;
+                      })}
+                      {(!client.services || client.services.length === 0) && <span className="text-sm text-slate-400">—</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-6 h-6 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">{clientProjects.length}</span>
+                      <span className="text-xs font-bold text-slate-500">Projects</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-bold">{clientTasks.length}</span>
+                      <span className="text-xs font-bold text-slate-500">Tasks</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {canEdit && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/projects?new=true&clientId=${client.id}&clientName=${encodeURIComponent(client.company || client.name)}`);
+                        }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        + Project
+                      </button>
+                    )}
+                    <button className="text-xs font-bold px-4 py-1.5 rounded-lg text-white transition-colors" style={{ background: "#C9A84C" }}>
+                      Open Profile &rarr;
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 

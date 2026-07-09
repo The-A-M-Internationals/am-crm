@@ -45,23 +45,25 @@ export function PhoneInput({ value, onChange, className = "form-input", placehol
   }, [value, isPreset]);
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const cleanNumber = localNumber.replace(/[^\d]/g, "").slice(0, 10);
     if (e.target.value === "custom") {
       setIsCustomMode(true);
-      onChange("+" + localNumber.replace(/[^\d\s-]/g, ""));
+      onChange("+" + cleanNumber);
     } else {
       setIsCustomMode(false);
-      onChange(e.target.value + localNumber.replace(/[^\d\s-]/g, ""));
+      onChange(e.target.value + cleanNumber);
     }
   };
 
   const handleCustomCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newCode = e.target.value.replace(/[^\+\d]/g, "");
     if (!newCode.startsWith("+") && newCode.length > 0) newCode = "+" + newCode.replace(/\+/g, "");
-    onChange(newCode + localNumber.replace(/[^\d\s-]/g, ""));
+    const cleanNumber = localNumber.replace(/[^\d]/g, "").slice(0, 10);
+    onChange(newCode + cleanNumber);
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const cleaned = e.target.value.replace(/[^\d\s-]/g, "");
+    const cleaned = e.target.value.replace(/[^\d]/g, "").slice(0, 10);
     onChange(activeCode + cleaned);
   };
 

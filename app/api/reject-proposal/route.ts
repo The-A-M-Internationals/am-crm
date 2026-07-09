@@ -1,5 +1,6 @@
-﻿import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
 
 export async function POST(req: Request) {
   try {
@@ -9,25 +10,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing proposalId" }, { status: 400 });
     }
 
-    const adminDb = getAdminDb();
     const now = new Date().toISOString();
-    const proposalRef = adminDb.collection("proposals").doc(proposalId);
-    const proposalSnap = await proposalRef.get();
-    if (!proposalSnap.exists) { return NextResponse.json({ error: "Proposal not found" }, { status: 404 }); }
+    const proposalRef = doc(db, "proposals", proposalId);
+    const proposalSnap = await getDoc(proposalRef);
+    if (!proposalSnap.exists()) { return NextResponse.json({ error: "Proposal not found" }, { status: 404 }); }
 
     const proposal = proposalSnap.data() as any;
-    const batch = adminDb.batch();
+    const batch = writeBatch(db);
 
     batch.update(proposalRef, { status: "rejected", updatedAt: now });
 
     if (proposal.fromLeadId) {
-      batch.update(adminDb.collection("leads").doc(proposal.fromLeadId), { stage: "lost", active: false, updatedAt: now });
+      batch.update(doc(db, "leads", proposal.fromLeadId), { stage: "lost", active: false, updatedAt: now });
     }
 
     const email = proposal.clientEmail.toLowerCase().trim();
-    const clientsSnap = await adminDb.collection("clients").where("email", "==", email).get();
+    const clientsSnap = await getDocs(query(collection(db, "clients"), where("email", "==", email)));
     clientsSnap.forEach(docSnap => {
-      batch.update(docSnap.ref, { status: "inactive", active: false, updatedAt: now });
+      batch.update(doc(db, "clients", docSnap.id), { status: "inactive", active: false, updatedAt: now });
     });
 
     await batch.commit();

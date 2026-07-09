@@ -26,22 +26,23 @@ const I = {
   team: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/><path d="M12 14c-7 0-7 3-7 3v2h14v-2s0-3-7-3z"/></svg>,
   settings: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   logout: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  contacts: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
 };
 
-// Finance tabs visible to ADMIN ONLY
 const NAV: NavItem[] = [
-  { href: "/dashboard",  label: "Dashboard",  roles: ["admin","manager","sales","designer","executive"], icon: I.dashboard,  section: "main" },
-  { href: "/leads",      label: "Leads",      roles: ["admin","manager","sales","executive"],            icon: I.leads,      section: "main" },
-  { href: "/proposals",  label: "Proposals",  roles: ["admin","manager","sales","executive"],            icon: I.proposals,  section: "main" },
-  { href: "/clients",    label: "Clients",    roles: ["admin","manager","sales","designer","executive"], icon: I.clients,    section: "main" },
-  { href: "/projects",   label: "Projects",   roles: ["admin","manager","sales","designer","executive"], icon: I.projects,   section: "main" },
-  { href: "/tasks",      label: "Tasks",      roles: ["admin","manager","sales","designer","executive"], icon: I.tasks,      section: "main" },
-  { href: "/calendar",   label: "Calendar",   roles: ["admin","manager","sales","designer","executive"], icon: I.calendar,   section: "main" },
+  { href: "/dashboard",  label: "Dashboard",  roles: ["admin"], icon: I.dashboard,  section: "main" },
+  { href: "/leads",      label: "Leads",      roles: ["admin"],            icon: I.leads,      section: "main" },
+  { href: "/proposals",  label: "Proposals",  roles: ["admin"],            icon: I.proposals,  section: "main" },
+  { href: "/clients",    label: "Clients",    roles: ["admin"], icon: I.clients,    section: "main" },
+  { href: "/projects",   label: "Projects",   roles: ["admin","lead"], icon: I.projects,   section: "main" },
+  { href: "/tasks",      label: "Tasks",      roles: ["admin","lead","employee"], icon: I.tasks,      section: "main" },
+  { href: "/contacts",   label: "Contacts",   roles: ["admin"],                   icon: I.contacts,   section: "main" },
+  { href: "/calendar",   label: "Calendar",   roles: ["admin","lead","employee"], icon: I.calendar,   section: "main" },
   // Finance — ADMIN ONLY
   { href: "/invoice",    label: "Invoices",   roles: ["admin"],                                         icon: I.invoice,    section: "finance" },
   { href: "/revenue",    label: "Revenue",    roles: ["admin"],                                         icon: I.revenue,    section: "finance" },
   // Manage
-  { href: "/team",       label: "Team",       roles: ["admin","manager"],                               icon: I.team,       section: "manage" },
+  { href: "/team",       label: "Team",       roles: ["admin"],                               icon: I.team,       section: "manage" },
   { href: "/settings",   label: "Settings",   roles: ["admin"],                                         icon: I.settings,   section: "manage" },
 ];
 
@@ -51,16 +52,14 @@ function getInitials(name: string) {
 
 const roleColors: Record<UserRole, string> = {
   admin:     "#C9A84C",
-  manager:   "#60a5fa",
-  sales:     "#34d399",
-  designer:  "#f472b6",
-  executive: "#a78bfa",
+  lead:      "#60a5fa",
+  employee:  "#a78bfa",
 };
 
 export default function Sidebar() {
   const { crmUser, signOut } = useAuth();
   const pathname = usePathname();
-  const role = crmUser?.role ?? "designer";
+  const role = crmUser?.role ?? "employee";
   const visible = NAV.filter((item) => item.roles.includes(role));
 
   const mainItems    = visible.filter((i) => i.section === "main");
@@ -122,7 +121,7 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="text-white text-xs font-medium truncate">{crmUser.name}</p>
-              <p className="text-xs capitalize" style={{ color: roleColors[crmUser.role] }}>{crmUser.role}</p>
+              <p className="font-mono tracking-wider text-[10px] uppercase" style={{ color: "#C9A84C" }}>{crmUser.role}</p>
             </div>
           </div>
           <button

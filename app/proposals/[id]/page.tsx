@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Proposal, ProposalStatus, ProposalPackage, ProposalCustomSection } from "@/types";
 import Link from "next/link";
@@ -89,6 +89,14 @@ export default function ProposalDetailPage() {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const sigPad = useRef<any>(null);
 
+  // Feature modals state
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpNote, setFollowUpNote] = useState("");
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
   // Close menu on click outside
   useEffect(() => {
     const handleClickOutside = () => setShowStatusMenu(false);
@@ -100,20 +108,25 @@ export default function ProposalDetailPage() {
     async function fetchProposal() {
       if (!id) return;
       try {
-        const res = await fetch(`/api/proposals/${id}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Proposal not found.");
-          } else {
-            throw new Error("Failed to fetch proposal details");
-          }
+        const docRef = doc(db, "proposals", id);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          setError("Proposal not found.");
           return;
         }
-        const data = await res.json();
-        setProposal(data as Proposal);
-      } catch (err) {
-        console.error("Error fetching proposal:", err);
-        setError("Failed to load proposal details.");
+        setProposal({ id: docSnap.id, ...docSnap.data() } as Proposal);
+      } catch (err: any) {
+        console.warn("Client SDK fetch failed, falling back to API:", err.message);
+        try {
+          const res = await fetch(`/api/proposals/${id}`);
+          if (!res.ok) throw new Error("API fallback failed");
+          const data = await res.json();
+          setProposal(data as Proposal);
+          setError(null);
+        } catch (fallbackErr: any) {
+          console.error("Error fetching proposal:", fallbackErr);
+          setError("Failed to load proposal details. ERROR: " + (err.message || String(err)));
+        }
       } finally {
         setLoading(false);
       }
@@ -199,7 +212,32 @@ export default function ProposalDetailPage() {
         cleanedProposal.status = "proposal";
       }
       
+      // Update Proposal
       await updateDoc(docRef, cleanedProposal);
+      
+      // Sync dynamic data back to Client if linked
+      if (cleanedProposal.clientId) {
+        const clientRef = doc(db, "clients", cleanedProposal.clientId);
+        await updateDoc(clientRef, {
+          name: cleanedProposal.clientName,
+          company: cleanedProposal.company || cleanedProposal.clientName,
+          email: cleanedProposal.clientEmail,
+          phone: cleanedProposal.phone || "",
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      
+      // Sync dynamic data back to Lead if linked (and not already synced to a client)
+      if (cleanedProposal.fromLeadId && !cleanedProposal.clientId) {
+        const leadRef = doc(db, "leads", cleanedProposal.fromLeadId);
+        await updateDoc(leadRef, {
+          name: cleanedProposal.clientName,
+          company: cleanedProposal.company || cleanedProposal.clientName,
+          email: cleanedProposal.clientEmail,
+          phone: cleanedProposal.phone || "",
+          updatedAt: new Date().toISOString(),
+        });
+      }
       
       if (proposal.status !== "accepted" && proposal.status !== "rejected" && proposal.status !== "proposal") {
         const updatedState = { ...proposal, status: "proposal" as ProposalStatus };
@@ -208,7 +246,7 @@ export default function ProposalDetailPage() {
         setHistoryIndex(prev => prev + 1);
       }
       
-      alert("Changes saved successfully!");
+      setIsEditing(false);
     } catch (err) {
       console.error("Error saving proposal changes:", err);
       alert("Failed to save changes. Please try again.");
@@ -247,6 +285,7 @@ export default function ProposalDetailPage() {
         body: JSON.stringify({
           proposalId: proposal.id,
           clientEmail: proposal.clientEmail,
+          proposalData: proposal, // Send the full proposal data to the server
         }),
       });
 
@@ -266,6 +305,68 @@ export default function ProposalDetailPage() {
       alert("Error sending proposal. Please try again.");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleDeleteProposal() {
+    if (!proposal) return;
+    if (!confirm("Are you sure you want to delete this proposal? This action cannot be undone.")) return;
+    try {
+      await PipelineService.deleteProposal(proposal);
+      router.push("/proposals");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete proposal.");
+    }
+  }
+
+  async function handleDuplicateProposal() {
+    if (!proposal) return;
+    if (!confirm("Are you sure you want to duplicate this proposal?")) return;
+    try {
+      const { id: _, ...data } = proposal;
+      const docRef = await addDoc(collection(db, "proposals"), {
+        ...data,
+        status: "draft",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      router.push(`/proposals/${docRef.id}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to duplicate proposal.");
+    }
+  }
+
+  async function handleSaveFollowUp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!followUpDate || !user) return;
+    setSavingFollowUp(true);
+    try {
+      await addDoc(collection(db, "tasks"), {
+        title: `Follow up on proposal for ${proposal?.clientName}`,
+        description: followUpNote || `Follow up on proposal #${proposal?.id.slice(-8)}`,
+        assignedTo: user.uid,
+        assignedToName: user.displayName || user.email || "Agent",
+        assignedBy: user.uid,
+        clientId: proposal?.clientId || "",
+        clientName: proposal?.clientName || "",
+        relatedTo: proposal?.id || "",
+        relatedType: "proposal",
+        taskType: "follow-up",
+        dueDate: followUpDate,
+        priority: "high",
+        status: "not-started",
+        done: false,
+        createdAt: new Date().toISOString(),
+      });
+      setShowFollowUpModal(false);
+      alert("✅ Follow-up task successfully added to your Operations Board!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to set follow-up.");
+    } finally {
+      setSavingFollowUp(false);
     }
   }
 
@@ -291,7 +392,7 @@ export default function ProposalDetailPage() {
 
   async function handleSignProposal(e: React.FormEvent) {
     e.preventDefault();
-    if (!id || !signingName || !signingTitle || !isAgreed) return;
+    if (!id || !signingName || !signingTitle || !isAgreed || !proposal) return;
 
     setSubmittingSign(true);
     try {
@@ -299,23 +400,23 @@ export default function ProposalDetailPage() {
         ? sigPad.current.getCanvas().toDataURL("image/png") 
         : null;
 
-      const res = await fetch("/api/accept-proposal", {
+      const res = await fetch(`/api/proposals/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proposalId: id,
-          clientSignatureName: signingName,
-          clientSignatureTitle: signingTitle,
-          clientSignatureImage: signatureData,
+          signingName,
+          signingTitle,
+          signatureData,
         }),
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to sign proposal");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to sign proposal via API");
       }
 
-      if (!proposal) throw new Error("Proposal not loaded");
+      const { updated } = await res.json();
+      const now = updated.updatedAt || new Date().toISOString();
 
       // Update local state so changes render immediately
       const acceptedState: Proposal = {
@@ -324,7 +425,8 @@ export default function ProposalDetailPage() {
         clientSignatureName: signingName,
         clientSignatureTitle: signingTitle,
         clientSignatureImage: signatureData,
-        signedAt: new Date().toISOString(),
+        signedAt: now,
+        updatedAt: now,
       };
       
       setProposal(acceptedState);
@@ -342,24 +444,29 @@ export default function ProposalDetailPage() {
   }
 
   async function handleRejectProposal() {
-    if (!id) return;
+    if (!id || !proposal) return;
     if (!confirm("Are you sure you want to reject this proposal?")) return;
     
     setSubmittingSign(true);
     try {
-      const res = await fetch("/api/reject-proposal", {
+      const res = await fetch(`/api/proposals/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalId: id }),
+        body: JSON.stringify({ action: "reject" }),
       });
 
-      if (!res.ok) throw new Error("Failed to reject proposal");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to reject proposal via API");
+      }
 
-      if (!proposal) throw new Error("Proposal not loaded");
+      const { updated } = await res.json();
+      const now = updated.updatedAt || new Date().toISOString();
 
       const rejectedState: Proposal = {
         ...proposal,
         status: "rejected" as ProposalStatus,
+        updatedAt: now,
       };
       
       setProposal(rejectedState);
@@ -368,9 +475,9 @@ export default function ProposalDetailPage() {
 
       setShowSignModal(false);
       alert("Proposal has been rejected.");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error rejecting proposal:", err);
-      alert("Error rejecting proposal. Please try again.");
+      alert("Error rejecting proposal. Please try again: " + (err.message || String(err)));
     } finally {
       setSubmittingSign(false);
     }
@@ -439,106 +546,243 @@ export default function ProposalDetailPage() {
         )}
       </div>
 
-      {/* Header */}
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12">
-        <div className="flex items-center gap-3 mb-2 relative">
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">{proposal.clientName}</h1>
-            <span className="badge rounded-full px-4 py-1 text-xs font-bold flex items-center shadow-sm select-none" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>
-              {st.label}
-            </span>
-            {!showAsClient && (
-              <>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleSendProposal(); }}
-                  className="px-4 py-1 bg-[#0D1B3E] text-white text-xs font-bold rounded-full hover:bg-[#1a3070] transition-colors shadow-sm select-none"
-                >
-                  ✉ Send Proposal
+      {/* Sales Command Center Header (Internal Users Only) */}
+      {!showAsClient && (
+        <div className="max-w-7xl mx-auto mb-8 bg-white border border-slate-200 rounded-3xl shadow-sm font-sans">
+          {/* Top Info Bar */}
+          <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/50">
+            <div>
+              <h1 className="text-2xl font-black text-[#0D1B3E] tracking-tight">{proposal.clientName} Proposal</h1>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border shadow-sm" style={{ background: st.bg, color: st.color, borderColor: st.border }}>{st.label}</span>
+                <span className="text-sm font-bold text-slate-600">{proposal.currency || "AED"} {proposal.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <span className="text-sm text-slate-300">|</span>
+                <span className="text-sm font-medium text-slate-500">Created {new Date(proposal.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            
+            {/* Prominent Action Bar */}
+            <div className="flex flex-wrap items-center gap-2">
+               <button onClick={handleSendProposal} disabled={sending} className="btn-primary py-2.5 px-5 shadow-md flex items-center gap-2 rounded-xl text-sm hover:-translate-y-0.5 transition-transform">
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                 {sending ? "Sending..." : "Send Proposal"}
+               </button>
+               <button onClick={downloadPDF} className="bg-white border-2 border-slate-200 hover:bg-slate-50 py-2.5 px-4 rounded-xl text-sm font-bold text-slate-700 flex items-center gap-2 shadow-sm transition-colors">
+                 Download PDF
+               </button>
+               
+               <div className="relative">
+                 <button onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }} className="bg-white border-2 border-slate-200 hover:bg-slate-50 py-2.5 px-3 rounded-xl text-slate-600 flex items-center gap-1 shadow-sm transition-colors">
+                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                 </button>
+                 {showStatusMenu && (
+                   <div className="absolute right-0 top-14 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl w-64 py-2 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                     <button onClick={() => { setIsEditing(!isEditing); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-slate-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
+                       <span className="text-lg opacity-70">✏️</span> {isEditing ? "Exit Edit Mode" : "Edit Details"}
+                     </button>
+                     <button onClick={() => { setShowFollowUpModal(true); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-amber-50 flex items-center gap-3 font-semibold text-amber-700 transition-colors">
+                       <span className="text-lg">⏰</span> Add Follow-up
+                     </button>
+                     <div className="border-t border-slate-100 my-1" />
+                     <button onClick={() => { handleStatusChange("accepted"); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-emerald-50 flex items-center gap-3 font-bold text-emerald-700 transition-colors">
+                       <span className="text-lg">✓</span> Mark as Accepted
+                     </button>
+                     <button onClick={() => { handleStatusChange("rejected"); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-red-50 flex items-center gap-3 font-bold text-red-700 transition-colors">
+                       <span className="text-lg">✕</span> Mark as Rejected
+                     </button>
+                     <div className="border-t border-slate-100 my-1" />
+                     <button onClick={() => { handleDuplicateProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-slate-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
+                       <span className="text-lg opacity-70">📄</span> Duplicate Proposal
+                     </button>
+                     <div className="border-t border-slate-100 my-1" />
+                     <button onClick={() => { handleDeleteProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-red-50 flex items-center gap-3 font-bold text-red-700 transition-colors">
+                       <span className="text-lg">🗑️</span> Delete Proposal
+                     </button>
+                   </div>
+                 )}
+               </div>
+            </div>
+          </div>
+          
+          {/* Dashboard Panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+            
+            {/* Next Best Action */}
+            <div className="p-6 bg-blue-50/40 relative">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                </span>
+                Next Best Action
+              </h3>
+              {proposal.status === "draft" || proposal.status === "proposal" ? (
+                <div>
+                  <p className="text-base font-bold text-slate-900 mb-1">Send to Client</p>
+                  <p className="text-sm text-slate-500 mb-4 leading-relaxed">This proposal is ready. Send it to {proposal.clientName} to start the negotiation process.</p>
+                  <button onClick={handleSendProposal} disabled={sending} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm w-full sm:w-auto">
+                    {sending ? "Sending..." : "Send Now"}
+                  </button>
+                </div>
+              ) : proposal.status === "sent" ? (
+                <div>
+                  <p className="text-base font-bold text-slate-900 mb-1">Follow up on Proposal</p>
+                  <p className="text-sm text-slate-500 mb-4 leading-relaxed">It's been sent. Set a reminder to follow up in 2 days to maintain momentum.</p>
+                  <button onClick={() => setShowFollowUpModal(true)} className="text-sm bg-amber-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm w-full sm:w-auto">
+                    Set Follow-up
+                  </button>
+                </div>
+              ) : proposal.status === "accepted" ? (
+                <div>
+                  <p className="text-base font-bold text-slate-900 mb-1">Start Onboarding</p>
+                  <p className="text-sm text-slate-500 mb-4 leading-relaxed">Client has signed. Move them to the onboarding phase and initiate the project.</p>
+                  <button onClick={async () => {
+                    if (proposal.clientId) {
+                      router.push(`/clients/${proposal.clientId}`);
+                    } else if (proposal.clientEmail) {
+                      const snap = await getDocs(query(collection(db, "clients"), where("email", "==", proposal.clientEmail.trim().toLowerCase())));
+                      if (!snap.empty) {
+                        router.push(`/clients/${snap.docs[0].id}`);
+                      } else {
+                        router.push(`/clients`);
+                      }
+                    } else {
+                      router.push(`/clients`);
+                    }
+                  }} className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-sm w-full sm:w-auto">
+                    View Client Profile
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center py-4 opacity-70">
+                  <p className="text-base font-bold text-slate-700 mb-1">Archived</p>
+                  <p className="text-sm text-slate-500">This proposal is no longer active.</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Engagement / Activity */}
+            <div className="p-6 bg-white">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Engagement Activity</h3>
+              <div className="space-y-5 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+                
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-slate-400 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-slate-700 text-sm">Created</div>
+                      <div className="text-[11px] font-bold text-slate-400">{new Date(proposal.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {proposal.status !== "draft" && proposal.status !== "proposal" && (
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-blue-500 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
+                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-blue-100 bg-blue-50 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-blue-800 text-sm">Sent</div>
+                        <div className="text-[11px] font-bold text-blue-500">Viewed</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {proposal.status === "accepted" && (
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-emerald-500 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
+                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-emerald-100 bg-emerald-50 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-emerald-800 text-sm">Signed</div>
+                        {proposal.signedAt && <div className="text-[11px] font-bold text-emerald-600">{new Date(proposal.signedAt).toLocaleDateString()}</div>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Internal Notes / Version History */}
+            <div className="p-6 bg-slate-50/50 flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Internal Notes</h3>
+                <span className="text-[10px] font-bold bg-white border border-slate-200 shadow-sm px-2.5 py-1 rounded-md text-slate-500">v{history.length}</span>
+              </div>
+              <textarea 
+                className="w-full flex-1 min-h-[100px] p-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none bg-white shadow-sm transition-all"
+                placeholder="Add private team notes or mentions here..."
+                defaultValue={proposal.notes || ""}
+                onBlur={(e) => updateProposalState({...proposal, notes: e.target.value})}
+              ></textarea>
+              <div className="mt-4 flex justify-between items-center">
+                <button className="text-xs font-bold text-slate-500 hover:text-[#0D1B3E] transition-colors flex items-center gap-1" onClick={() => setShowHistoryModal(true)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  Version History
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }}
-                  className="px-4 py-1 bg-[#0D1B3E] text-white text-xs font-bold rounded-full hover:bg-[#1a3070] transition-colors flex items-center gap-2 shadow-sm select-none"
+                {isEditing && (
+                  <button 
+                    onClick={handleSaveChanges}
+                    disabled={savingChanges}
+                    className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {savingChanges ? "Saving..." : "Save"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Editing Controls Bar (Visible only when editing) */}
+          {isEditing && (
+            <div className="bg-emerald-50 border-t border-emerald-100 p-3 flex justify-between items-center px-6">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Edit Mode Active
+                </span>
+                <span className="text-xs text-emerald-600/70 ml-2 hidden sm:block">Click on any text in the document below to edit it directly.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { if (historyIndex > 0) { const prevIdx = historyIndex - 1; setHistoryIndex(prevIdx); setProposal(history[prevIdx]); } }} disabled={historyIndex <= 0} className="px-3 py-1.5 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-bold text-emerald-800 shadow-sm" title="Undo (Ctrl+Z)">↩ Undo</button>
+                <button onClick={() => { if (historyIndex < history.length - 1) { const nextIdx = historyIndex + 1; setHistoryIndex(nextIdx); setProposal(history[nextIdx]); } }} disabled={historyIndex >= history.length - 1} className="px-3 py-1.5 bg-white border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-xs font-bold text-emerald-800 shadow-sm" title="Redo (Ctrl+Y)">↪ Redo</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* If it's the client view, show a simpler header */}
+      {showAsClient && (
+        <div className="max-w-7xl mx-auto mb-8 bg-white border border-slate-200 rounded-3xl shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="text-center md:text-left">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] block mb-1">Proposal For</span>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{proposal.clientName}</h1>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3 w-full md:w-auto">
+            {proposal.status !== "accepted" && proposal.status !== "won" && proposal.status !== "rejected" ? (
+              <>
+                <button 
+                  onClick={() => setShowSignModal(true)}
+                  className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20"
                 >
-                  Actions ▼
+                  Sign & Accept Proposal
+                </button>
+                <button onClick={downloadPDF} className="w-full md:w-auto px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all">
+                  Download PDF
                 </button>
               </>
-            )}
-            {showStatusMenu && !showAsClient && (
-              <div className="absolute left-[calc(100%+0.5rem)] top-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-56 py-2" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => { setIsEditing(false); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
-                  <span className="text-lg">👁</span> View Proposal
-                </button>
-                <button onClick={() => { setIsEditing(true); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
-                  <span className="text-lg">✏️</span> Edit Proposal
-                </button>
-                <button onClick={() => { downloadPDF(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
-                  <span className="text-lg">⬇️</span> Download PDF
-                </button>
-                <div className="border-t border-slate-100 my-1" />
-                <button onClick={() => { handleRejectProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-bold transition-colors">
-                  <span className="text-lg">🗑️</span> Delete Proposal
-                </button>
+            ) : proposal.status === "rejected" ? (
+              <div className="px-6 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm flex items-center gap-2">
+                <span className="text-lg">✕</span> Proposal Declined
+              </div>
+            ) : (
+              <div className="px-6 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm flex items-center gap-2">
+                <span className="text-lg">✓</span> Signed & Accepted
               </div>
             )}
           </div>
-        
-        <div className="flex flex-wrap gap-4 w-full sm:w-auto">
-          {isEditing && (
-            <div className="flex items-center gap-2 mr-2 select-none">
-              <button
-                onClick={() => {
-                  if (historyIndex > 0) {
-                    const prevIdx = historyIndex - 1;
-                    setHistoryIndex(prevIdx);
-                    setProposal(history[prevIdx]);
-                  }
-                }}
-                disabled={historyIndex <= 0}
-                className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
-                title="Undo (Ctrl+Z)"
-              >
-                ↩ Undo
-              </button>
-              <button
-                onClick={() => {
-                  if (historyIndex < history.length - 1) {
-                    const nextIdx = historyIndex + 1;
-                    setHistoryIndex(nextIdx);
-                    setProposal(history[nextIdx]);
-                  }
-                }}
-                disabled={historyIndex >= history.length - 1}
-                className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs font-bold"
-                title="Redo (Ctrl+Y)"
-              >
-                ↪ Redo
-              </button>
-            </div>
-          )}
-
-          {!showAsClient && isEditing && (
-            <button 
-              onClick={handleSaveChanges}
-              disabled={savingChanges}
-              className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed select-none"
-            >
-              {savingChanges ? "Saving..." : "Save Changes"}
-            </button>
-          )}
-          
-          {showAsClient && (proposal.status !== "accepted" && proposal.status !== "won" ? (
-            <button 
-              onClick={() => setShowSignModal(true)}
-              className="flex-1 sm:flex-initial px-8 py-4 rounded-2xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-widest hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20 select-none"
-            >
-              Sign & Accept Proposal
-            </button>
-          ) : (
-            <div className="px-6 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs uppercase tracking-widest flex items-center gap-2 select-none">
-              <span className="text-base">✓</span> Signed & Accepted
-            </div>
-          ))}
         </div>
-      </div>
+      )}
 
       {/* Main Document Content */}
       <div id="proposal-document-area" className="bg-white border border-[#CCCCCC] rounded-[3rem] shadow-xl relative overflow-hidden max-w-7xl mx-auto font-sans text-[#222222]">
@@ -782,29 +1026,89 @@ export default function ProposalDetailPage() {
                   type="button" 
                   onClick={handleRejectProposal}
                   disabled={submittingSign}
-                  className="w-1/3 py-3 rounded-xl border border-red-200 text-red-600 font-bold text-xs uppercase tracking-wider hover:bg-red-50 transition-all text-xs"
+                  className="w-1/3 py-3 rounded-xl border border-red-200 text-red-600 font-bold text-xs uppercase tracking-wider hover:bg-red-50 transition-all"
                 >
                   Decline / Reject
                 </button>
                 <button 
-                  type="button" 
-                  onClick={() => setShowSignModal(false)}
-                  className="w-1/3 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all text-xs"
-                >
-                  Cancel
-                </button>
-                <button 
                   type="submit" 
-                  disabled={submittingSign || !isAgreed || !signingName || !signingTitle}
-                  className="w-1/3 py-3 rounded-xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-md shadow-[#0D1B3E]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isAgreed || !signingName || !signingTitle || submittingSign}
+                  className="w-2/3 py-3 rounded-xl bg-[#0D1B3E] text-[#C9A84C] font-black text-xs uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submittingSign ? "Signing..." : "Sign Agreement"}
+                  {submittingSign ? "Processing..." : "Sign & Accept"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Follow Up Modal */}
+      {showFollowUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 select-none">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-sm w-full overflow-hidden">
+            <div className="bg-amber-500 p-5 text-white flex justify-between items-center">
+              <h3 className="text-lg font-black tracking-tight">Set Follow-up</h3>
+              <button onClick={() => setShowFollowUpModal(false)} className="text-amber-100 hover:text-white text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={handleSaveFollowUp} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Due Date</label>
+                <input 
+                  type="date" 
+                  required
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Notes (Optional)</label>
+                <textarea 
+                  value={followUpNote}
+                  onChange={(e) => setFollowUpNote(e.target.value)}
+                  placeholder="Ask about the pricing..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm font-medium h-24 resize-none"
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={savingFollowUp || !followUpDate}
+                className="w-full py-3 rounded-xl bg-amber-500 text-white font-black text-xs uppercase tracking-wider hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              >
+                {savingFollowUp ? "Saving..." : "Save Reminder"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Version History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 select-none">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="bg-[#0D1B3E] p-5 text-white flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-black tracking-tight">Version History</h3>
+              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white text-xl font-bold">✕</button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-4">
+              {history.map((h, i) => (
+                <div key={i} className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${i === historyIndex ? "border-[#C9A84C] bg-amber-50/30" : "border-slate-100 bg-slate-50 hover:border-slate-300"}`} onClick={() => { setHistoryIndex(i); setProposal(h); setShowHistoryModal(false); }}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-black text-slate-800">Version {i + 1} {i === historyIndex && "(Current)"}</span>
+                    <span className="text-xs font-bold text-slate-400">{new Date(h.updatedAt || h.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 flex gap-2 flex-wrap">
+                    <span className="bg-white px-2 py-1 rounded shadow-sm border border-slate-200">Total: {h.currency || "AED"} {h.total?.toLocaleString()}</span>
+                    <span className="bg-white px-2 py-1 rounded shadow-sm border border-slate-200">Status: {h.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 

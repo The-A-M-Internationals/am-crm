@@ -1,6 +1,5 @@
 import { ProposalDocument } from "./proposal-doc";
-
-export type UserRole = "admin" | "manager" | "sales" | "designer" | "executive";
+export type UserRole = "admin" | "lead" | "employee";
 
 export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development" | "seo" | "social-media" | "branding" | "other";
 
@@ -89,6 +88,8 @@ export interface Project {
   paid?: number;
   remaining?: number;
   currency?: string;
+  masterBlueprint?: string;
+  leadInstructions?: string;
   tasks?: ProjectTask[];
   customFields?: { id: string; label: string; value: string }[];
   milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
@@ -244,6 +245,8 @@ export interface Proposal {
   createdAt: string;
 }
 
+export type SystemTaskType = "follow-up" | "meeting" | "internal-task" | "admin-action" | "project-task";
+
 export interface Task {
   id: string;
   title: string;
@@ -254,7 +257,8 @@ export interface Task {
   clientId?: string;
   clientName?: string;
   relatedTo?: string;
-  relatedType?: "lead" | "client" | "project";
+  relatedType?: "lead" | "client" | "project" | "proposal";
+  taskType?: SystemTaskType;
   dueDate?: string;
   priority: TaskPriority;
   status: string;

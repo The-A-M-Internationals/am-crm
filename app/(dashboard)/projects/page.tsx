@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -17,9 +18,13 @@ const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }
 ];
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
-  { key: "digital-marketing", label: "Digital Marketing", bg: "#e8f4ff", text: "#1a6bc4" },
-  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fff3e0", text: "#b35a00" },
-  { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
+  { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
+  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fef3c7", text: "#92400e" },
+  { key: "web-development",   label: "Web Development",   bg: "#d1fae5", text: "#065f46" },
+  { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
+  { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
+  { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
 const CURRENCIES = [
@@ -34,6 +39,15 @@ const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
   description: "", budget: "", due: "", remaining: "", paid: "", currency: "AED",
+  masterBlueprint: "",
+  leadInstructions: "",
+  projectSummary: "",
+  techStack: [] as string[],
+  figmaUrl: "",
+  repoUrl: "",
+  stagingUrl: "",
+  productionUrl: "",
+  coreFocus: "Dynamic Web App",
 };
 
 function statusInfo(key: string) {
@@ -41,6 +55,13 @@ function statusInfo(key: string) {
 }
 function serviceInfo(key: string) {
   return SERVICES.find((s) => s.key === key) ?? SERVICES[2];
+}
+
+function getInitials(name: string) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
 export default function ProjectsPage() {
@@ -54,14 +75,35 @@ export default function ProjectsPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM, assignedTo: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [activeDropdownProjectId, setActiveDropdownProjectId] = useState<string | null>(null);
 
-  const canEdit = crmUser?.role === "admin" || crmUser?.role === "manager";
+  // Task Delegation State for Projects Page
+  const [delegateProject, setDelegateProject] = useState<Project | null>(null);
+  const [delegateForm, setDelegateForm] = useState({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
+  const [delegating, setDelegating] = useState(false);
+
+  const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
 
   const searchParams = useSearchParams();
 
   useEffect(() => { 
     const unsubProjects = onSnapshot(query(collection(db, "projects"), orderBy("createdAt", "desc")), snap => {
-      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+      let list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
+      if (crmUser && crmUser.role !== "admin") {
+        list = list.map(p => {
+          const clean = { ...p };
+          delete clean.budget;
+          delete (clean as any).contractValue;
+          delete (clean as any).pipelineValue;
+          delete (clean as any).due;
+          delete (clean as any).paid;
+          delete (clean as any).remaining;
+          delete (clean as any).balance;
+          delete (clean as any).payments;
+          return clean;
+        });
+      }
+      setProjects(list);
       setLoading(false);
     });
 
@@ -69,13 +111,73 @@ export default function ProjectsPage() {
       setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     
-    // Handle redirect from Clients page
+    // Handle redirect from Clients page with smart prefill
     if (searchParams.get("new") === "true") {
       const clientId = searchParams.get("clientId") || "";
-      const clientName = searchParams.get("clientName") || "";
-      setForm({ ...EMPTY_FORM, clientId, clientName, assignedTo: [] });
-      setEditing(null);
-      setShowModal(true);
+      const clientNameFromUrl = searchParams.get("clientName") || "";
+      
+      const prefillData = async () => {
+        let prefill = { ...EMPTY_FORM, clientId, clientName: decodeURIComponent(clientNameFromUrl), assignedTo: [] as string[] };
+        
+        try {
+          if (clientId) {
+            const clientDoc = await getDoc(doc(db, "clients", clientId));
+            if (clientDoc.exists()) {
+              const cData = clientDoc.data();
+              prefill.clientName = cData.company || cData.name || prefill.clientName;
+              prefill.service = (cData.services && cData.services.length > 0) ? cData.services[0] : "web-development";
+              
+              // Smart prefill from accepted proposal
+              if (cData.email) {
+                const propQ = query(
+                  collection(db, "proposals"), 
+                  where("clientEmail", "==", cData.email),
+                  where("status", "in", ["accepted", "won"])
+                );
+                const propsSnap = await getDocs(propQ);
+                
+                if (!propsSnap.empty) {
+                  // Get the latest accepted proposal
+                  const latestProp = propsSnap.docs
+                  .map(d => d.data())
+                  .sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
+                  
+                prefill.title = `${prefill.clientName} - ${latestProp.service ? latestProp.service.replace(/-/g, " ") : "Project"}`;
+                prefill.budget = latestProp.total?.toString() || "";
+                prefill.due = latestProp.total?.toString() || "";
+                
+                // Smart deadline (e.g. 30 days from now if not specified)
+                const date = new Date();
+                date.setDate(date.getDate() + 30);
+                prefill.deadline = date.toISOString().split("T")[0];
+                
+                // Construct a rich Master Blueprint from proposal scope
+                let scope = [];
+                if (latestProp.introduction) scope.push(`## Introduction\n${latestProp.introduction}`);
+                if (latestProp.approachDescription) scope.push(`## Approach\n${latestProp.approachDescription}`);
+                if (latestProp.executiveSummary) scope.push(`## Executive Summary\n${latestProp.executiveSummary}`);
+                if (latestProp.packages && Array.isArray(latestProp.packages)) {
+                  const pkgs = latestProp.packages.map((p: any) => `- ${p.name}: ${p.description || "Included"}`).join("\n");
+                  if (pkgs) scope.push(`## Selected Packages\n${pkgs}`);
+                }
+                prefill.masterBlueprint = scope.join("\n\n");
+                
+                // We no longer use prefill.description
+                prefill.description = "";
+              }
+            }
+          }
+          }
+        } catch (err) {
+          console.error("Error prefilling project data:", err);
+        }
+
+        setForm(prefill);
+        setEditing(null);
+        setShowModal(true);
+      };
+      
+      prefillData(); // Execute async prefill
       router.replace("/projects"); // Clean up URL
     }
 
@@ -83,7 +185,7 @@ export default function ProjectsPage() {
       unsubProjects();
       unsubUsers();
     };
-  }, [searchParams, router]);
+  }, [searchParams, router, crmUser]);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: [] }); setShowModal(true); }
   function openEdit(p: Project) {
@@ -101,7 +203,14 @@ export default function ProjectsPage() {
       remaining: p.remaining?.toString() ?? p.balance?.toString() ?? "",
       paid: p.paid?.toString() ?? "",
       currency: p.currency ?? "AED",
-      assignedTo: p.assignedTo || []
+      assignedTo: p.assignedTo || [],
+      projectSummary: (p as any).projectSummary ?? "",
+      techStack: (p as any).techStack || [],
+      figmaUrl: (p as any).figmaUrl ?? "",
+      repoUrl: (p as any).repoUrl ?? "",
+      stagingUrl: (p as any).stagingUrl ?? "",
+      productionUrl: (p as any).productionUrl ?? "",
+      coreFocus: (p as any).coreFocus ?? "Dynamic Web App",
     });
     setShowModal(true);
   }
@@ -131,7 +240,9 @@ export default function ProjectsPage() {
         status: "not-started",
         done: false,
         createdAt: now,
-        dueDate: projectData.deadline || now
+        dueDate: projectData.deadline || now,
+        masterBlueprint: projectData.masterBlueprint || "",
+        leadInstructions: projectData.leadInstructions || ""
       });
     }
   }
@@ -197,6 +308,45 @@ export default function ProjectsPage() {
     if (!confirm("Delete this project? This will also remove associated tasks.")) return;
     await deleteDoc(doc(db, "projects", id));
     await deleteTasksForProject(id);
+  }
+
+  async function handleDelegateTask() {
+    if (!delegateProject || !delegateForm.employeeId || !delegateForm.title) {
+      alert("Please specify employee and task title."); return;
+    }
+    setDelegating(true);
+    try {
+      const employee = members.find(m => m.uid === delegateForm.employeeId);
+      const now = new Date().toISOString();
+      await addDoc(collection(db, "tasks"), {
+        title: delegateForm.title,
+        description: delegateForm.instructions || `Task for project: ${delegateProject.title}`,
+        assignedTo: delegateForm.employeeId,
+        assignedToName: employee?.name || "Team Member",
+        assignedBy: crmUser?.uid || "System",
+        clientId: delegateProject.clientId || "",
+        clientName: delegateProject.clientName || "",
+        relatedTo: delegateProject.id,
+        relatedType: "project",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: delegateForm.deadline || delegateProject.deadline || now,
+        taskInstructions: delegateForm.instructions || "",
+        masterBlueprint: (delegateProject as any).masterBlueprint || "",
+        leadInstructions: (delegateProject as any).leadInstructions || "",
+        taskType: delegateForm.taskType
+      });
+      alert("Task successfully delegated and assigned!");
+      setDelegateProject(null);
+      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
+    } catch (e: any) {
+      console.error(e);
+      alert("Failed to delegate task: " + e.message);
+    } finally {
+      setDelegating(false);
+    }
   }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
@@ -268,14 +418,20 @@ export default function ProjectsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnimatePresence>
                 {filteredActive.map((project) => {
                   const st = statusInfo(project.status);
                   const svc = serviceInfo(project.service);
                   const isOverdue = project.deadline && new Date(project.deadline) < new Date();
                   return (
-                    <div 
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2 }}
                       key={project.id} 
-                      className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col" 
+                      className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col relative" 
                       onClick={() => router.push(`/projects/${project.id}`)}
                     >
                       <div className="flex items-start justify-between mb-3">
@@ -296,9 +452,23 @@ export default function ProjectsPage() {
                         <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                       </div>
 
-                      {project.description && (
-                        <p className="text-xs mb-3 line-clamp-2" style={{ color: "#9ca3af" }}>{project.description}</p>
-                      )}
+                      {/* Overlapping circular avatar badges of assigned employees */}
+                      <div className="flex -space-x-2 overflow-hidden mb-3">
+                        {(project.assignedTo || []).map((uid) => {
+                          const member = members.find((m) => m.uid === uid);
+                          if (!member) return null;
+                          return (
+                            <div 
+                              key={uid} 
+                              className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white shadow-sm flex-shrink-0"
+                              style={{ background: "#0D1B3E" }}
+                              title={member.name}
+                            >
+                              {member.name ? getInitials(member.name) : "?"}
+                            </div>
+                          );
+                        })}
+                      </div>
 
                       <div className="flex flex-col gap-2 mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
                         <div className="flex items-center justify-between">
@@ -307,28 +477,69 @@ export default function ProjectsPage() {
                               {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                             </span>
                           ) : <span className="text-xs text-slate-400">No deadline</span>}
-                          <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {(project.budget)?.toLocaleString()}</span>
+                          {crmUser?.role === "admin" && (
+                            <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {(project.budget)?.toLocaleString()}</span>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
-                          <span className="text-slate-500">Paid: <strong className="text-green-600">{project.currency} {(project.paid)?.toLocaleString() || "0"}</strong></span>
-                          <span className="text-slate-500">Due: <strong className="text-orange-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</strong></span>
-                          <span className="text-slate-500">Remaining: <strong className="text-red-600">{project.currency} {(project.remaining ?? project.balance)?.toLocaleString() || "0"}</strong></span>
-                        </div>
+                        {crmUser?.role === "admin" && (
+                          <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
+                            <span className="text-slate-500">Paid: <strong className="text-green-600">{project.currency} {(project.paid)?.toLocaleString() || "0"}</strong></span>
+                            <span className="text-slate-500">Due: <strong className="text-orange-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</strong></span>
+                            <span className="text-slate-500">Remaining: <strong className="text-red-600">{project.currency} {(project.remaining ?? project.balance)?.toLocaleString() || "0"}</strong></span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Quick status change */}
+                      {/* Quick status change & Delegate Menu */}
                       {canEdit && (
-                        <div className="flex gap-1 mt-3 pt-2" onClick={(e) => e.stopPropagation()}>
-                          {STATUSES.filter((s) => s.key !== project.status).map((s) => (
-                            <button key={s.key} onClick={() => updateStatus(project, s.key)} className="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all hover:scale-105" style={{ background: `${s.color}12`, color: s.color, border: `1px solid ${s.color}25` }}>
-                              → {s.label}
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t" style={{ borderColor: "#f0f0f5" }} onClick={(e) => e.stopPropagation()}>
+                          <div className="relative">
+                            <button 
+                              onClick={() => setActiveDropdownProjectId(activeDropdownProjectId === project.id ? null : project.id)}
+                              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border bg-white flex items-center gap-1 transition-colors hover:bg-slate-50"
+                              style={{ color: "#0D1B3E", borderColor: "#e5e7eb" }}
+                            >
+                              Change Status ▼
                             </button>
-                          ))}
+                            {activeDropdownProjectId === project.id && (
+                              <div className="absolute left-0 bottom-full mb-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-50">
+                                {STATUSES.map((s) => (
+                                  <button
+                                    key={s.key}
+                                    onClick={() => {
+                                      updateStatus(project, s.key);
+                                      setActiveDropdownProjectId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                    style={{ color: s.color }}
+                                  >
+                                    <span className="w-2 h-2 rounded-full" style={{ background: s.color }}></span>
+                                    {s.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setDelegateProject(project);
+                              setDelegateForm({ 
+                                employeeId: "", 
+                                title: "", 
+                                deadline: project.deadline || "", 
+                                instructions: "" 
+                              });
+                            }}
+                            className="text-xs font-bold text-[#C9A84C] hover:underline flex items-center gap-1"
+                          >
+                            Delegate
+                          </button>
                         </div>
                       )}
-                    </div>
+                    </motion.div>
                   );
                 })}
+                </AnimatePresence>
               </div>
             )}
           </div>
@@ -357,10 +568,13 @@ export default function ProjectsPage() {
                       <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">DONE</span>
                     </div>
                     <p className="text-[10px] text-slate-400 font-medium mb-3">{p.clientName}</p>
-                    <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
-                      <span className="text-slate-400 uppercase">Valued at</span>
-                      <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
-                    </div>
+                    
+                    {crmUser?.role === "admin" && (
+                      <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
+                        <span className="text-slate-400 uppercase">Valued at</span>
+                        <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
+                      </div>
+                    )}
                     
                     {/* Revert option */}
                     {canEdit && (
@@ -404,78 +618,171 @@ export default function ProjectsPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={crmUser?.role === "admin" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
                 <div><label className="form-label">Deadline</label><input className="form-input" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
-                <div className="flex gap-2">
-                  <div className="w-24">
-                    <label className="form-label">Currency</label>
-                    <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
-                    </select>
+                {crmUser?.role === "admin" && (
+                  <div className="flex gap-2">
+                    <div className="w-24">
+                      <label className="form-label">Currency</label>
+                      <select className="form-input" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                        {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="form-label">Budget</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={Number(form.budget) === 0 ? "" : form.budget}
+                        onChange={(e) => {
+                          const budgetVal = Number(e.target.value) || 0;
+                          const paidVal = Number(form.paid) || 0;
+                          setForm({
+                            ...form,
+                            budget: e.target.value,
+                            remaining: (budgetVal - paidVal).toString()
+                          });
+                        }}
+                        placeholder="Total Budget"
+                      />
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <label className="form-label">Budget</label>
+                )}
+              </div>
+              {crmUser?.role === "admin" && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="form-label">Due</label>
                     <input
                       className="form-input"
                       type="number"
-                      value={Number(form.budget) === 0 ? "" : form.budget}
+                      value={Number(form.due) === 0 ? "" : form.due}
+                      onChange={(e) => setForm({ ...form, due: e.target.value })}
+                      placeholder="Amount Due"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Paid</label>
+                    <input
+                      className="form-input"
+                      type="number"
+                      value={Number(form.paid) === 0 ? "" : form.paid}
                       onChange={(e) => {
-                        const budgetVal = Number(e.target.value) || 0;
-                        const paidVal = Number(form.paid) || 0;
+                        const paidVal = Number(e.target.value) || 0;
+                        const budgetVal = Number(form.budget) || 0;
                         setForm({
                           ...form,
-                          budget: e.target.value,
+                          paid: e.target.value,
                           remaining: (budgetVal - paidVal).toString()
                         });
                       }}
-                      placeholder="Total Budget"
+                      placeholder="Amount Paid"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Remaining</label>
+                    <input
+                      className="form-input bg-gray-50 text-gray-500"
+                      type="number"
+                      value={Number(form.remaining) === 0 ? "" : form.remaining}
+                      readOnly
+                      placeholder="Remaining"
                     />
                   </div>
                 </div>
+              )}
+              <div className="col-span-full">
+                <label className="form-label">Master Blueprint</label>
+                <textarea 
+                  className="form-input resize-none" 
+                  rows={4} 
+                  value={form.masterBlueprint} 
+                  onChange={(e) => setForm({ ...form, masterBlueprint: e.target.value })} 
+                  placeholder="Enter the comprehensive project blueprint (e.g. phases, milestones, architecture)..." 
+                />
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="form-label">Due</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.due) === 0 ? "" : form.due}
-                    onChange={(e) => setForm({ ...form, due: e.target.value })}
-                    placeholder="Amount Due"
-                  />
+
+              {/* Environment Provisioning Section */}
+              <div className="border-t pt-4 mt-4" style={{ borderColor: "#f0f0f5" }}>
+                <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-500">Environment Provisioning</h4>
+                
+                {/* Tech Stack Pills */}
+                <div className="mb-4">
+                  <label className="form-label">Core Architecture Stack (Select framework environments)</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"].map((tech) => {
+                      const selected = form.techStack.includes(tech);
+                      return (
+                        <button
+                          key={tech}
+                          type="button"
+                          onClick={() => {
+                            const newStack = selected
+                              ? form.techStack.filter((t) => t !== tech)
+                              : [...form.techStack, tech];
+                            setForm({ ...form, techStack: newStack });
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                            selected 
+                              ? "bg-[#0D1B3E] text-white border-[#0D1B3E]" 
+                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          {tech}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <label className="form-label">Paid</label>
-                  <input
-                    className="form-input"
-                    type="number"
-                    value={Number(form.paid) === 0 ? "" : form.paid}
-                    onChange={(e) => {
-                      const paidVal = Number(e.target.value) || 0;
-                      const budgetVal = Number(form.budget) || 0;
-                      setForm({
-                        ...form,
-                        paid: e.target.value,
-                        remaining: (budgetVal - paidVal).toString()
-                      });
-                    }}
-                    placeholder="Amount Paid"
-                  />
+
+                {/* Core Focus Toggle */}
+                <div className="mb-4">
+                  <label className="form-label">Primary Core Focus</label>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {["Dynamic Web App", "Static Branding", "E-Commerce Build"].map((focus) => {
+                      const selected = form.coreFocus === focus;
+                      return (
+                        <button
+                          key={focus}
+                          type="button"
+                          onClick={() => setForm({ ...form, coreFocus: focus })}
+                          className={`py-2 px-1.5 rounded-lg text-xs font-semibold border transition-all text-center ${
+                            selected
+                              ? "bg-[#C9A84C] text-[#0D1B3E] border-[#C9A84C] shadow-sm"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          {focus}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div>
-                  <label className="form-label">Remaining</label>
-                  <input
-                    className="form-input bg-gray-50 text-gray-500"
-                    type="number"
-                    value={Number(form.remaining) === 0 ? "" : form.remaining}
-                    readOnly
-                    placeholder="Remaining"
-                  />
+
+                {/* URL Inputs */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="form-label">Figma Canvas URL</label>
+                    <input className="form-input" value={form.figmaUrl} onChange={(e) => setForm({ ...form, figmaUrl: e.target.value })} placeholder="https://figma.com/file/..." />
+                  </div>
+                  <div>
+                    <label className="form-label">Repository Endpoint</label>
+                    <input className="form-input" value={form.repoUrl} onChange={(e) => setForm({ ...form, repoUrl: e.target.value })} placeholder="https://github.com/..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="form-label">Staging Environment Link</label>
+                      <input className="form-input" value={form.stagingUrl} onChange={(e) => setForm({ ...form, stagingUrl: e.target.value })} placeholder="https://staging.domain.com" />
+                    </div>
+                    <div>
+                      <label className="form-label">Production Endpoint</label>
+                      <input className="form-input" value={form.productionUrl} onChange={(e) => setForm({ ...form, productionUrl: e.target.value })} placeholder="https://domain.com" />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div><label className="form-label">Description</label><textarea className="form-input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
               
-              <div>
+              <div className="border-t pt-4 mt-4" style={{ borderColor: "#f0f0f5" }}>
                 <label className="form-label">Assign Team Members</label>
                 <div className="grid grid-cols-2 gap-2 mt-2 p-3 rounded-xl border" style={{ borderColor: "#f0f0f5" }}>
                   {members.map((m) => (
@@ -501,6 +808,78 @@ export default function ProjectsPage() {
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#0D1B3E" }}>
                 {saving ? "Saving..." : editing ? "Update" : "Create Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delegate Modal */}
+      {delegateProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "white" }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Delegate Task</h2>
+              <button onClick={() => setDelegateProject(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">Task Title *</label>
+                <input 
+                  className="form-input" 
+                  value={delegateForm.title} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, title: e.target.value })} 
+                  placeholder="e.g. Design Homepage UI" 
+                />
+              </div>
+              <div>
+                <label className="form-label">Task Type *</label>
+                <select 
+                  className="form-input mb-4"
+                  value={delegateForm.taskType}
+                  onChange={(e) => setDelegateForm({ ...delegateForm, taskType: e.target.value as SystemTaskType })}
+                >
+                  <option value="project-task">Project Task</option>
+                  <option value="meeting">Internal Meeting</option>
+                  <option value="follow-up">Follow-up</option>
+                  <option value="internal-task">Internal Task</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Assign To *</label>
+                <select 
+                  className="form-input" 
+                  value={delegateForm.employeeId} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, employeeId: e.target.value })}
+                >
+                  <option value="">Select team member...</option>
+                  {members.map((m) => <option key={m.uid} value={m.uid}>{m.name} ({m.role})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Deadline</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  value={delegateForm.deadline} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, deadline: e.target.value })} 
+                />
+              </div>
+              <div>
+                <label className="form-label">Task Instructions / Notes</label>
+                <textarea 
+                  className="form-input resize-none" 
+                  rows={4} 
+                  value={delegateForm.instructions} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, instructions: e.target.value })} 
+                  placeholder="Provide specific directions, scope constraints, and expectations..." 
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setDelegateProject(null)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
+              <button onClick={handleDelegateTask} disabled={delegating} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#C9A84C", color: "#0D1B3E" }}>
+                {delegating ? "Assigning..." : "Assign Task"}
               </button>
             </div>
           </div>

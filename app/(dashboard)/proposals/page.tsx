@@ -198,8 +198,22 @@ function ProposalsContent() {
   }
 
   async function updateStatus(p: Proposal, status: ProposalStatus) {
-    if (status === "accepted" && p.fromLeadId) {
-      await PipelineService.acceptProposal(p.id, p.fromLeadId);
+    if (status === "accepted") {
+      try {
+        const res = await fetch(`/api/proposals/${p.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signingName: "Admin",
+            signingTitle: "Admin Acceptance",
+            signatureData: null
+          }),
+        });
+        if (!res.ok) throw new Error("API fallback failed");
+      } catch (err) {
+        console.error(err);
+        alert("Failed to update status. Check console.");
+      }
     } else if (p.status === "accepted" && status !== "accepted" && p.fromLeadId) {
       await PipelineService.withdrawProposal(p.id, p.fromLeadId, "proposal");
     } else {
@@ -214,37 +228,66 @@ function ProposalsContent() {
   const totalValue = proposals.reduce((s, p) => s + (p.total || 0), 0);
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="page-header mb-0">
-          <h1 className="page-title">Proposals</h1>
-          <p className="page-subtitle">
-            {proposals.filter(p => p.status === "accepted").length} accepted · {proposals.length} total · AED {totalValue.toLocaleString()} pipeline
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Header & Summary */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: "#0D1B3E" }}>Sales Proposals</h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">Manage and track your proposal pipeline</p>
+        </div>
+        <button onClick={startAdding} className="btn-primary shadow-lg shadow-blue-900/20 py-2.5 px-6 rounded-xl hover:-translate-y-0.5 transition-all" disabled={isAddingNew}>
+          <span className="text-lg font-bold mr-1">+</span> Create Proposal
+        </button>
+      </div>
+
+      {/* Top Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-10">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 p-8 bg-blue-50 text-blue-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/></svg></div>
+          <p className="text-sm font-bold text-slate-500 mb-2 z-10">Total Proposals</p>
+          <p className="text-4xl font-black text-[#0D1B3E] z-10">{proposals.length}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 p-8 bg-emerald-50 text-emerald-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <p className="text-sm font-bold text-slate-500 mb-2 z-10">Accepted</p>
+          <p className="text-4xl font-black text-emerald-600 z-10">{proposals.filter(p => p.status === "accepted").length}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 p-8 bg-amber-50 text-amber-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <p className="text-sm font-bold text-slate-500 mb-2 z-10">Pipeline Value</p>
+          <p className="text-4xl font-black text-[#C9A84C] z-10 tracking-tight"><span className="text-xl font-bold text-amber-600/70 mr-1">AED</span>{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
+          <div className="absolute -right-4 -top-4 p-8 bg-purple-50 text-purple-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg></div>
+          <p className="text-sm font-bold text-slate-500 mb-2 z-10">Win Rate</p>
+          <p className="text-4xl font-black text-purple-600 z-10">
+            {proposals.length > 0 ? Math.round((proposals.filter(p => p.status === "accepted").length / proposals.length) * 100) : 0}%
           </p>
         </div>
-        <button onClick={startAdding} className="btn-primary" disabled={isAddingNew}>
-          <span className="text-base">+</span> New Proposal
-        </button>
       </div>
 
       {/* Inline Editor for New/Edit Proposal */}
       {(isAddingNew || editingId) && (
-        <div ref={activeRef} className="crm-card mb-6 border-2 font-sans" style={{ borderColor: "#C9A84C" }}>
-          <h2 className="text-lg font-bold mb-4" style={{ color: "#0D1B3E" }}>{editingId ? "Edit Proposal Details" : "New Proposal"}</h2>
+        <div ref={activeRef} className="bg-white p-6 rounded-2xl shadow-xl mb-8 border border-slate-200 font-sans relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-[#C9A84C] rounded-t-2xl"></div>
+          <h2 className="text-xl font-bold mb-6" style={{ color: "#0D1B3E" }}>{editingId ? "Edit Proposal Details" : "Create New Proposal"}</h2>
           <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} isEditing={!!editingId} />
         </div>
       )}
 
       {/* Proposals list */}
       {loading ? (
-        <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: "#f0f2f8" }} />)}
+        <div className="space-y-4">
+          {[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl animate-pulse bg-slate-100" />)}
         </div>
       ) : proposals.length === 0 && !isAddingNew ? (
-        <div className="text-center py-16 crm-card">
-          <p className="text-sm" style={{ color: "#9ca3af" }}>No proposals yet</p>
-          <button onClick={startAdding} className="btn-primary mt-3 mx-auto">+ Create Proposal</button>
+        <div className="text-center py-24 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-50 flex items-center justify-center">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-700 mb-1">No proposals found</h3>
+          <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">Get started by creating your first sales proposal. It only takes a minute.</p>
+          <button onClick={startAdding} className="btn-primary mx-auto py-2.5 px-6">Create Proposal</button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -253,29 +296,42 @@ function ProposalsContent() {
             const svc = SERVICES.find((s) => s.key === p.service);
 
             return (
-              <div key={p.id} className="crm-card transition-all hover:shadow-md border border-transparent hover:border-slate-200">
-                <div className="flex items-center justify-between flex-wrap gap-3 cursor-pointer" onClick={() => viewProposal(p.id)}>
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#0D1B3E0d" }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D1B3E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                      </svg>
+              <div key={p.id} className="bg-white rounded-2xl transition-all hover:shadow-lg border border-slate-200 hover:border-[#C9A84C] relative group">
+                <div className="absolute top-0 left-0 w-1.5 h-full rounded-l-2xl" style={{ background: st.color }}></div>
+                
+                <div className="p-5 pl-7 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 cursor-pointer" onClick={() => viewProposal(p.id)}>
+                  
+                  {/* Left: Client & Core Info */}
+                  <div className="flex items-center gap-5 flex-1 min-w-0">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-black text-xl shadow-sm" style={{ background: `linear-gradient(135deg, ${st.color} 0%, #0D1B3E 100%)` }}>
+                      {p.clientName?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: "#1a1a2e" }}>{p.clientName}</p>
-                      <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{p.clientEmail} {p.phone && `· ${p.phone}`}</p>
-                      <p className="text-xs mt-0.5" style={{ color: "#c4c7d0" }}>{svc?.label} · {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                      <h3 className="text-lg font-bold truncate text-[#0D1B3E] group-hover:text-blue-700 transition-colors">{p.clientName}</h3>
+                      <p className="text-sm text-slate-500 font-medium truncate mt-0.5">{p.clientEmail} {p.phone && <span className="text-slate-300 mx-1">|</span>} {p.phone}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider" style={{ background: svc?.bg || "#f3f4f6", color: svc?.text || "#374151" }}>{svc?.label || "Unknown Service"}</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0 relative" onClick={e => e.stopPropagation()}>
-                    <div className="text-right mr-2">
-                      <p className="text-base font-bold" style={{ color: "#C9A84C" }}>{p.currency || "AED"} {p.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  {/* Middle: Value & Status */}
+                  <div className="flex flex-col items-start lg:items-end justify-center min-w-[140px]">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-slate-400">{p.currency || "AED"}</span>
+                      <span className="text-2xl font-black text-[#0D1B3E]">{p.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                     </div>
-                    <span className="badge" style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>{st.label}</span>
-                    
+                    <span className="text-xs font-bold px-3 py-1 rounded-full mt-1.5 border" style={{ background: st.bg, color: st.color, borderColor: st.border }}>{st.label}</span>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity w-full lg:w-auto" onClick={e => e.stopPropagation()}>
                     <button
-                      className="btn-primary"
+                      className="flex-1 lg:flex-none btn-primary py-2 px-4 flex items-center justify-center gap-2 rounded-xl shadow-sm hover:shadow"
+                      style={{ background: "#0D1B3E", color: "white" }}
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {
@@ -294,63 +350,86 @@ function ProposalsContent() {
                         }
                       }}
                     >
-                      ✉ Send Proposal
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                      Send
                     </button>
                     
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenu(openMenu === p.id ? null : p.id);
-                      }}
-                      className="btn-primary"
+                      onClick={(e) => { e.stopPropagation(); viewProposal(p.id); }}
+                      className="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors hidden sm:block"
                     >
-                      Actions ▼
+                      View
+                    </button>
+                    
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEditing(p); }}
+                      className="px-4 py-2 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors hidden sm:block"
+                    >
+                      Edit
                     </button>
 
-                    {openMenu === p.id && (
-                      <div 
-                        className="absolute right-0 top-12 z-50 bg-white border rounded-xl shadow-lg w-56 py-1"
-                        onClick={(e) => e.stopPropagation()}
+                    <div className="relative ml-auto lg:ml-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === p.id ? null : p.id); }}
+                        className="p-2 border-2 border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
                       >
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
-                          onClick={() => {
-                            setOpenMenu(null);
-                            startEditing(p);
-                          }}
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                      </button>
+
+                      {openMenu === p.id && (
+                        <div 
+                          className="absolute right-0 top-12 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-48 py-1 overflow-hidden"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          ✏ Edit Details
-                        </button>
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
-                          onClick={() => {
-                            setOpenMenu(null);
-                            viewProposal(p.id);
-                          }}
-                        >
-                          👁 View Proposal
-                        </button>
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
-                          onClick={() => {
-                            setOpenMenu(null);
-                            router.push(`/proposals/${p.id}?action=download`);
-                          }}
-                        >
-                          ⬇ Download PDF
-                        </button>
-                        <div className="border-t border-slate-100 my-1" />
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-bold transition-colors"
-                          onClick={() => {
-                            setOpenMenu(null);
-                            deleteProposal(p);
-                          }}
-                        >
-                          🗑 Delete Proposal
-                        </button>
-                      </div>
-                    )}
+                          <div className="sm:hidden">
+                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); viewProposal(p.id); }}>👁 View Proposal</button>
+                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); startEditing(p); }}>✏ Edit Details</button>
+                            <div className="border-t border-slate-100 my-1"></div>
+                          </div>
+                          
+                          <button
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            onClick={() => { setOpenMenu(null); router.push(`/proposals/${p.id}?action=download`); }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download PDF
+                          </button>
+                          
+                          <button
+                            className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            onClick={async () => {
+                              setOpenMenu(null);
+                              if (!confirm("Duplicate this proposal?")) return;
+                              try {
+                                const { id: _, ...data } = p;
+                                const docRef = await addDoc(collection(db, "proposals"), {
+                                  ...data,
+                                  status: "draft",
+                                  createdAt: new Date().toISOString(),
+                                  updatedAt: new Date().toISOString(),
+                                });
+                                router.push(`/proposals/${docRef.id}`);
+                              } catch (err) {
+                                console.error(err);
+                                alert("Failed to duplicate proposal");
+                              }
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            Duplicate
+                          </button>
+
+                          <div className="border-t border-slate-100 my-1" />
+                          <button
+                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 font-bold hover:bg-red-50 flex items-center gap-2"
+                            onClick={() => { setOpenMenu(null); deleteProposal(p); }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            Delete Proposal
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -364,28 +443,48 @@ function ProposalsContent() {
 
 function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem, removeItem, handleSave, cancelEdit, saving, isEditing }: any) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="form-label">Client Name *</label><input className="form-input" value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} placeholder="Client name" /></div>
-        <div>
-          <label className="form-label">Service</label>
-          <select 
-            className="form-input" 
-            value={form.service} 
-            onChange={e => {
-              const newService = e.target.value as ServiceTag;
-              const template = getMasterTemplate(newService, form.clientName || form.company || "");
-              setForm({ ...form, service: newService, ...template });
-            }}
-          >
-            {SERVICES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
+    <div className="space-y-6">
+      
+      {/* Service Selection Cards */}
+      <div>
+        <label className="text-sm font-bold text-slate-800 mb-3 block">1. Select Service Package</label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {SERVICES.map(s => {
+            const isSelected = form.service === s.key;
+            return (
+              <div 
+                key={s.key} 
+                onClick={() => {
+                  const template = getMasterTemplate(s.key, form.clientName || form.company || "");
+                  setForm({ ...form, service: s.key, ...template });
+                }}
+                className={`cursor-pointer rounded-2xl p-4 border-2 transition-all flex flex-col items-center justify-center text-center gap-3 relative ${isSelected ? "border-blue-600 shadow-md bg-blue-50/50" : "border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm"}`}
+              >
+                {isSelected && (
+                  <div className="absolute top-2 right-2 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-[10px] text-white">✓</span>
+                  </div>
+                )}
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow-sm" style={{ background: s.bg, color: s.text }}>
+                  {s.label.charAt(0)}
+                </div>
+                <span className={`text-[11px] font-bold ${isSelected ? "text-blue-900" : "text-slate-600"}`}>{s.label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div><label className="form-label">Client Email *</label><input className="form-input" value={form.clientEmail} onChange={e => setForm({ ...form, clientEmail: e.target.value })} placeholder="email@example.com" /></div>
-        <div><label className="form-label">Phone</label><PhoneInput value={form.phone || ""} onChange={(val) => setForm({ ...form, phone: val })} /></div>
-        <div><label className="form-label">Company</label><input className="form-input" value={form.company || ""} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Company Ltd" /></div>
+
+      <div className="border-t border-slate-100 pt-4">
+        <label className="text-sm font-bold text-slate-800 mb-3 block">2. Client Details</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div><label className="form-label text-xs">Client Name *</label><input className="form-input py-2.5" value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} placeholder="John Doe" /></div>
+          <div><label className="form-label text-xs">Company</label><input className="form-input py-2.5" value={form.company || ""} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Company Ltd" /></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label className="form-label text-xs">Client Email *</label><input className="form-input py-2.5" value={form.clientEmail} onChange={e => setForm({ ...form, clientEmail: e.target.value })} placeholder="email@example.com" /></div>
+          <div><label className="form-label text-xs">Phone</label><PhoneInput value={form.phone || ""} onChange={(val) => setForm({ ...form, phone: val })} /></div>
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-3 mt-3">
         <div><label className="form-label">Status</label><select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as ProposalStatus })}>{STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
