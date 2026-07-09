@@ -24,6 +24,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const PIE_COLORS = [
   "#0D1B3E",
@@ -78,12 +82,14 @@ export default function RevenuePage() {
   const [expForm, setExpForm] = useState({ ...EMPTY_EXP });
   const [saving, setSaving] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [rates, setRates] = useState<Record<string, number>>({
     AED: 1,
     USD: 3.67,
     GBP: 4.95,
     INR: 0.043,
   });
+
   //live excahnge rate
 
   if (crmUser?.role !== "admin") {
@@ -320,6 +326,495 @@ export default function RevenuePage() {
     await deleteDoc(doc(db, "expenses", id));
     fetchData();
   }
+  const downloadExcelReport = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const summaryData = [
+      {
+        TotalRevenue: totalRevenue,
+        PendingRevenue: totalPending,
+        TotalExpenses: totalExpenses,
+        NetProfit: netProfit,
+        ProfitMargin: `${profitMargin}%`,
+      },
+    ];
+
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    const invoiceSheet = XLSX.utils.json_to_sheet(invoices);
+    const expenseSheet = XLSX.utils.json_to_sheet(expenses);
+    const monthlySheet = XLSX.utils.json_to_sheet(monthlyData);
+
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+    XLSX.utils.book_append_sheet(workbook, invoiceSheet, "Invoices");
+    XLSX.utils.book_append_sheet(workbook, expenseSheet, "Expenses");
+    XLSX.utils.book_append_sheet(workbook, monthlySheet, "Monthly");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(
+      blob,
+      `Revenue_Report_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
+  };
+  const downloadPDFReport = async () => {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    // Load Logo
+
+    const response = await fetch("/logo.jpg");
+    const blob = await response.blob();
+
+    const reader = new FileReader();
+
+    const logoData = await new Promise<string>((resolve) => {
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+
+    // Header Background
+    doc.setFillColor(13, 27, 62);
+    doc.rect(0, 0, 210, 35, "F");
+
+    // Gold Line
+    doc.setFillColor(201, 168, 76);
+    doc.rect(0, 35, 210, 2, "F");
+
+    // Company Logo
+    doc.addImage(logoData, "JPEG", 15, 8, 45, 18);
+
+    // Report Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+
+    doc.text("REVENUE REPORT", 105, 18, {
+      align: "center",
+    });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+
+    doc.text("Financial Performance Dashboard", 105, 25, {
+      align: "center",
+    });
+
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 31, {
+      align: "center",
+    });
+
+    // Executive Summary Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Executive Summary", 15, 48);
+
+    // Card 1 - Revenue
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(15, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(201, 168, 76);
+    doc.roundedRect(15, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Revenue", 20, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(201, 168, 76);
+
+    doc.text(`AED ${totalRevenue.toLocaleString()}`, 20, 75);
+    // Card 2 - Expenses
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(62, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(220, 53, 69);
+    doc.roundedRect(62, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Expenses", 67, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(220, 53, 69);
+
+    doc.text(`AED ${totalExpenses.toLocaleString()}`, 67, 75);
+    // Card 3 - Profit
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(109, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(34, 197, 94);
+    doc.roundedRect(109, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Net Profit", 114, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(34, 197, 94);
+
+    doc.text(`AED ${netProfit.toLocaleString()}`, 114, 75);
+
+    // Card 4 - Margin
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(156, 55, 39, 28, 3, 3, "F");
+
+    doc.setDrawColor(13, 27, 62);
+    doc.roundedRect(156, 55, 39, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Margin", 161, 64);
+
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text(`${profitMargin}%`, 161, 75);
+
+    // Client Financial Summary Title
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Client Financial Summary", 15, 98);
+    // =====================================
+    // Build Client Table Data
+    // =====================================
+
+    const clientRows = clients.map((client) => {
+      const revenue = paidInvoices
+        .filter((i) => i.clientName === client)
+        .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+
+      const expense = expenses
+        .filter((e) => e.clientName === client)
+        .reduce(
+          (sum, e) =>
+            sum + convertToAED(Number(e.amount) || 0, e.currency || "AED"),
+          0,
+        );
+
+      const profit = revenue - expense;
+
+      const margin =
+        revenue > 0 ? `${Math.round((profit / revenue) * 100)}%` : "0%";
+
+      return [
+        client || "-",
+        `AED ${revenue.toLocaleString()}`,
+        `AED ${expense.toLocaleString()}`,
+        `AED ${profit.toLocaleString()}`,
+        margin,
+      ];
+    });
+
+    // =====================================
+    // Client Financial Table
+    // =====================================
+
+    autoTable(doc, {
+      startY: 105,
+
+      head: [["Client", "Revenue", "Expense", "Profit", "Margin"]],
+
+      body: clientRows,
+
+      theme: "grid",
+
+      headStyles: {
+        fillColor: [13, 27, 62],
+        textColor: 255,
+        fontStyle: "bold",
+        halign: "center",
+        valign: "middle",
+        fontSize: 10,
+      },
+
+      bodyStyles: {
+        fontSize: 9,
+        textColor: 60,
+        halign: "center",
+        valign: "middle",
+      },
+
+      alternateRowStyles: {
+        fillColor: [247, 247, 247],
+      },
+
+      styles: {
+        cellPadding: 4,
+        lineColor: [230, 230, 230],
+        lineWidth: 0.2,
+      },
+
+      columnStyles: {
+        0: {
+          halign: "left",
+          cellWidth: 50,
+        },
+
+        1: {
+          cellWidth: 35,
+        },
+
+        2: {
+          cellWidth: 35,
+        },
+
+        3: {
+          cellWidth: 35,
+        },
+
+        4: {
+          cellWidth: 25,
+        },
+      },
+    });
+
+    // =====================================
+    // Position after table
+    // =====================================
+
+    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    // =====================================
+    // Financial Highlights
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Financial Highlights", 15, finalY);
+
+    // Background Box
+    doc.setFillColor(248, 248, 248);
+    doc.roundedRect(15, finalY + 5, 180, 55, 3, 3, "F");
+
+    // Left Column
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Paid Invoices", 22, finalY + 18);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(34, 197, 94);
+
+    doc.text(paidInvoices.length.toString(), 22, finalY + 28);
+
+    // Pending Revenue
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Pending Revenue", 22, finalY + 42);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(245, 158, 11);
+
+    doc.text(`AED ${totalPending.toLocaleString()}`, 22, finalY + 51);
+
+    // ============================
+    // Middle Column
+    // ============================
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Active Clients", 80, finalY + 18);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(59, 130, 246);
+
+    doc.text(clients.length.toString(), 80, finalY + 28);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Expense Records", 80, finalY + 42);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(239, 68, 68);
+
+    doc.text(expenses.length.toString(), 80, finalY + 51);
+
+    // ============================
+    // Right Column
+    // ============================
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Profit Margin", 145, finalY + 18);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+
+    if (profitMargin >= 50) {
+      doc.setTextColor(34, 197, 94);
+    } else if (profitMargin >= 20) {
+      doc.setTextColor(245, 158, 11);
+    } else {
+      doc.setTextColor(239, 68, 68);
+    }
+
+    doc.text(`${profitMargin}%`, 145, finalY + 31);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Overall Business Performance", 145, finalY + 44);
+
+    doc.setFont("helvetica", "bold");
+
+    if (profitMargin >= 50) {
+      doc.setTextColor(34, 197, 94);
+      doc.text("Excellent", 145, finalY + 52);
+    } else if (profitMargin >= 20) {
+      doc.setTextColor(245, 158, 11);
+      doc.text("Good", 145, finalY + 52);
+    } else {
+      doc.setTextColor(239, 68, 68);
+      doc.text("Needs Attention", 145, finalY + 52);
+    }
+
+    // =====================================
+    // Executive Notes
+    // =====================================
+
+    const notesY = finalY + 72;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Executive Notes", 15, notesY);
+
+    doc.setFillColor(255, 252, 243);
+    doc.roundedRect(15, notesY + 5, 180, 38, 3, 3, "F");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+
+    doc.text(
+      "• This report summarizes revenue, expenses and profitability based on paid invoices.",
+      20,
+      notesY + 16,
+    );
+
+    doc.text(
+      "• Revenue values are normalized into AED for consistent financial reporting.",
+      20,
+      notesY + 24,
+    );
+
+    doc.text(
+      "• Generated automatically from the A&M International CRM.",
+      20,
+      notesY + 32,
+    );
+
+    doc.text(
+      "• Intended for Management, Finance Team and Founders.",
+      20,
+      notesY + 40,
+    );
+
+    // Position for Footer
+    const footerY = notesY + 55;
+    // =====================================
+    // Footer Line
+    // =====================================
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(15, footerY, 195, footerY);
+
+    // =====================================
+    // Footer Left
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("A&M International", 15, footerY + 8);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+
+    doc.text("Revenue & Financial Report", 15, footerY + 13);
+
+    // =====================================
+    // Footer Center
+    // =====================================
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+
+    doc.text("Generated automatically by CRM", 105, footerY + 11, {
+      align: "center",
+    });
+
+    // =====================================
+    // Footer Right
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(239, 68, 68);
+
+    doc.text("CONFIDENTIAL", 195, footerY + 8, {
+      align: "right",
+    });
+
+    // =====================================
+    // Page Number
+    // =====================================
+
+    const totalPages = doc.getNumberOfPages();
+
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+
+      doc.setFontSize(8);
+
+      doc.setTextColor(150);
+
+      doc.text(`Page ${i} of ${totalPages}`, 195, 290, {
+        align: "right",
+      });
+    }
+
+    // =====================================
+    // Save PDF
+    // =====================================
+
+    doc.save(`Revenue_Report_${new Date().toISOString().split("T")[0]}.pdf`);
+  };
 
   return (
     <div className="p-8">
@@ -331,9 +826,48 @@ export default function RevenuePage() {
             Financial overview — Admin only · {year}
           </p>
         </div>
-        <button onClick={openAddExpense} className="btn-primary">
-          <span className="text-base">+</span> Add Expense
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              className="px-4 py-2 rounded-xl text-white font-semibold"
+              style={{ background: "#22c55e" }}
+            >
+              📥 Download Report
+            </button>
+
+            {showDownloadMenu && (
+              <div
+                className="absolute right-0 mt-2 bg-white border rounded-xl shadow-lg z-50"
+                style={{ minWidth: "180px" }}
+              >
+                <button
+                  onClick={() => {
+                    downloadExcelReport();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                >
+                  📊 Excel Report
+                </button>
+
+                <button
+                  onClick={() => {
+                    downloadPDFReport();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                >
+                  📄 PDF Report
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button onClick={openAddExpense} className="btn-primary">
+            <span className="text-base">+</span> Add Expense
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
