@@ -47,80 +47,103 @@ export async function POST(
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
 
-    const updateData = {
-      status: "accepted",
-      clientSignatureName: data.signingName,
-      clientSignatureTitle: data.signingTitle,
-      clientSignatureImage: data.signatureData || null,
-      signedAt: now,
-      updatedAt: now,
-    };
+    const action = data.action || "accept";
+    let updateData: any = { updatedAt: now };
+
+    if (action === "accept") {
+      updateData = {
+        ...updateData,
+        status: "accepted",
+        clientSignatureName: data.signingName,
+        clientSignatureTitle: data.signingTitle,
+        clientSignatureImage: data.signatureData || null,
+        signedAt: now,
+      };
+    } else if (action === "reject") {
+      updateData = {
+        ...updateData,
+        status: "rejected",
+      };
+    } else {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
 
     await proposalRef.update(updateData);
 
     const proposalData = docSnap.data();
     if (proposalData) {
-      console.log(`[API] Processing proposal: ${id}. fromLeadId: ${proposalData.fromLeadId}, clientEmail: ${proposalData.clientEmail}`);
+      console.log(`[API] Processing proposal: ${id}. action: ${action}`);
       
       if (proposalData.fromLeadId) {
-        console.log(`[API] Upgrading lead ${proposalData.fromLeadId} to won`);
+        console.log(`[API] Upgrading lead ${proposalData.fromLeadId} to ${action === "accept" ? "won" : "lost"}`);
         const leadRef = adminDb.collection("leads").doc(proposalData.fromLeadId);
         await leadRef.update({
-          stage: "won",
-          active: true,
+          stage: action === "accept" ? "won" : "lost",
+          active: action === "accept" ? true : false,
           updatedAt: now,
         });
       }
 
-      // 3. Client Creation / Synchronization
       const normEmail = (proposalData.clientEmail || "").trim().toLowerCase();
-      console.log(`[API] Normalized email: '${normEmail}'`);
       
-      if (normEmail) {
-        const clientsRef = adminDb.collection("clients");
-        const existingClients = await clientsRef.where("email", "==", normEmail).get();
-        console.log(`[API] Found ${existingClients.size} existing clients for email: ${normEmail}`);
-        
-        if (existingClients.empty) {
-          console.log(`[API] Creating new client seamlessly`);
-          await clientsRef.add({
-            name: proposalData.clientName || "Unknown",
-            company: proposalData.company || proposalData.clientName || "Unknown",
-            email: normEmail,
-            phone: proposalData.phone || "",
-            services: proposalData.service ? [proposalData.service] : [],
-            status: "active",
-            active: true,
-            currency: proposalData.currency || "AED",
-            fromLeadId: proposalData.fromLeadId || "",
-            createdAt: now,
-            updatedAt: now
-          });
-          console.log(`[API] Client creation successful`);
-        } else {
-          console.log(`[API] Updating existing client`);
-          const existingClient = existingClients.docs[0];
-          const cData = existingClient.data();
-          const services = new Set(cData.services || []);
-          if (proposalData.service) services.add(proposalData.service);
+      if (action === "accept") {
+        if (normEmail) {
+          const clientsRef = adminDb.collection("clients");
+          const existingClients = await clientsRef.where("email", "==", normEmail).get();
           
-          await existingClient.ref.update({
-            active: true,
-            status: "active",
-            services: Array.from(services),
-            updatedAt: now
-          });
-          console.log(`[API] Client update successful`);
+          let clientId = "";
+          
+          if (existingClients.empty) {
+            const newClientRef = await clientsRef.add({
+              name: proposalData.clientName || "Unknown",
+              company: proposalData.company || proposalData.clientName || "Unknown",
+              email: normEmail,
+              phone: proposalData.phone || "",
+              services: proposalData.service ? [proposalData.service] : [],
+              status: "active",
+              active: true,
+              currency: proposalData.currency || "AED",
+              fromLeadId: proposalData.fromLeadId || "",
+              createdAt: now,
+              updatedAt: now
+            });
+            clientId = newClientRef.id;
+          } else {
+            const existingClient = existingClients.docs[0];
+            const cData = existingClient.data();
+            const services = new Set(cData.services || []);
+            if (proposalData.service) services.add(proposalData.service);
+            
+            await existingClient.ref.update({
+              active: true,
+              status: "active",
+              services: Array.from(services),
+              updatedAt: now
+            });
+            clientId = existingClient.id;
+          }
+          
+          // Attach the clientId to the proposal so the handoff works
+          await proposalRef.update({ clientId });
         }
-      } else {
-        console.warn(`[API] WARNING: No clientEmail found on proposal ${id}! Cannot create client.`);
+      } else if (action === "reject") {
+        if (normEmail) {
+          const clientsRef = adminDb.collection("clients");
+          const existingClients = await clientsRef.where("email", "==", normEmail).get();
+          if (!existingClients.empty) {
+            const updatePromises = existingClients.docs.map(docSnap => 
+              docSnap.ref.update({ status: "inactive", active: false, updatedAt: now })
+            );
+            await Promise.all(updatePromises);
+          }
+        }
       }
     }
 
     return NextResponse.json({ success: true, updated: updateData });
   } catch (error: any) {
-    console.error("Error signing proposal:", error);
-    return NextResponse.json({ error: error.message || "Failed to sign proposal" }, { status: 500 });
+    console.error("Error updating proposal:", error);
+    return NextResponse.json({ error: error.message || "Failed to update proposal" }, { status: 500 });
   }
 }
 

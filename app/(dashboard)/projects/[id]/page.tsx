@@ -69,6 +69,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     employeeId: "",
     title: "",
     instructions: "",
+    taskType: "project-task" as SystemTaskType,
   });
   const [delegating, setDelegating] = useState(false);
   const [selectedDrawerTask, setSelectedDrawerTask] = useState<any | null>(null);
@@ -359,15 +360,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         // Documentation cascade fields:
         masterBlueprint: project.masterBlueprint || "",
         leadInstructions: project.leadInstructions || "",
-        taskInstructions: delegateForm.instructions || ""
+        taskInstructions: delegateForm.instructions || "",
+        taskType: delegateForm.taskType
       };
 
       const docRef = await addDoc(collection(db, "tasks"), payload);
       
-      // Update local task state
-      setProjectTasks(prev => [...prev, { id: docRef.id, ...payload }]);
       setShowDelegateModal(false);
-      setDelegateForm({ employeeId: "", title: "", instructions: "" });
+      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" as SystemTaskType });
       alert("Task successfully delegated and assigned!");
     } catch (err: any) {
       console.error(err);
@@ -1677,6 +1677,19 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
             
             <div className="space-y-4">
               <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Task Type *</label>
+                <select 
+                  className="form-input mb-4"
+                  value={delegateForm.taskType}
+                  onChange={e => setDelegateForm({...delegateForm, taskType: e.target.value as SystemTaskType})}
+                >
+                  <option value="project-task">Project Task</option>
+                  <option value="meeting">Internal Meeting</option>
+                  <option value="follow-up">Follow-up</option>
+                  <option value="internal-task">Internal Task</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Task Title *</label>
                 <input 
                   type="text" 
@@ -1766,7 +1779,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
-                      setDelegateForm({ employeeId: "", title: "", instructions: "" });
+                      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" });
                     } catch(e) {
                       console.error(e);
                       alert("Failed to append note");

@@ -18,9 +18,13 @@ const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }
 ];
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
-  { key: "digital-marketing", label: "Digital Marketing", bg: "#e8f4ff", text: "#1a6bc4" },
-  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fff3e0", text: "#b35a00" },
-  { key: "web-development",   label: "Web Development",   bg: "#e8fff3", text: "#0a7a3e" },
+  { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
+  { key: "ui-ux",             label: "UI/UX Design",      bg: "#fef3c7", text: "#92400e" },
+  { key: "web-development",   label: "Web Development",   bg: "#d1fae5", text: "#065f46" },
+  { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
+  { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
+  { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
 const CURRENCIES = [
@@ -75,7 +79,7 @@ export default function ProjectsPage() {
 
   // Task Delegation State for Projects Page
   const [delegateProject, setDelegateProject] = useState<Project | null>(null);
-  const [delegateForm, setDelegateForm] = useState({ employeeId: "", title: "", deadline: "", instructions: "" });
+  const [delegateForm, setDelegateForm] = useState({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
   const [delegating, setDelegating] = useState(false);
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
@@ -331,11 +335,12 @@ export default function ProjectsPage() {
         dueDate: delegateForm.deadline || delegateProject.deadline || now,
         taskInstructions: delegateForm.instructions || "",
         masterBlueprint: (delegateProject as any).masterBlueprint || "",
-        leadInstructions: (delegateProject as any).leadInstructions || ""
+        leadInstructions: (delegateProject as any).leadInstructions || "",
+        taskType: delegateForm.taskType
       });
       alert("Task successfully delegated and assigned!");
       setDelegateProject(null);
-      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "" });
+      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
     } catch (e: any) {
       console.error(e);
       alert("Failed to delegate task: " + e.message);
@@ -826,6 +831,19 @@ export default function ProjectsPage() {
                   onChange={(e) => setDelegateForm({ ...delegateForm, title: e.target.value })} 
                   placeholder="e.g. Design Homepage UI" 
                 />
+              </div>
+              <div>
+                <label className="form-label">Task Type *</label>
+                <select 
+                  className="form-input mb-4"
+                  value={delegateForm.taskType}
+                  onChange={(e) => setDelegateForm({ ...delegateForm, taskType: e.target.value as SystemTaskType })}
+                >
+                  <option value="project-task">Project Task</option>
+                  <option value="meeting">Internal Meeting</option>
+                  <option value="follow-up">Follow-up</option>
+                  <option value="internal-task">Internal Task</option>
+                </select>
               </div>
               <div>
                 <label className="form-label">Assign To *</label>
