@@ -20,15 +20,8 @@ export async function POST(req: Request) {
 
     batch.update(proposalRef, { status: "rejected", updatedAt: now });
 
-    if (proposal.fromLeadId) {
-      batch.update(doc(db, "leads", proposal.fromLeadId), { stage: "lost", active: false, updatedAt: now });
-    }
-
-    const email = proposal.clientEmail.toLowerCase().trim();
-    const clientsSnap = await getDocs(query(collection(db, "clients"), where("email", "==", email)));
-    clientsSnap.forEach(docSnap => {
-      batch.update(doc(db, "clients", docSnap.id), { status: "inactive", active: false, updatedAt: now });
-    });
+    // Do not automatically mark leads as lost or clients as inactive here.
+    // A rejection of one proposal does not mean the entire relationship is dead.
 
     await batch.commit();
     return NextResponse.json({ success: true, message: "Proposal rejected successfully" });

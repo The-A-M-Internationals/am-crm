@@ -94,6 +94,12 @@ export interface Project {
   customFields?: { id: string; label: string; value: string }[];
   milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
   payments?: PaymentLog[];
+  techStack?: string[];
+  figmaUrl?: string;
+  repoUrl?: string;
+  stagingUrl?: string;
+  productionUrl?: string;
+  coreFocus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -238,11 +244,13 @@ export interface Proposal {
   validUntil?: string;
   createdBy: string;
   sentAt?: string;
+  viewedAt?: string;
   clientSignatureName?: string;
   clientSignatureTitle?: string;
   clientSignatureImage?: string;
   signedAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type SystemTaskType = "follow-up" | "meeting" | "internal-task" | "admin-action" | "project-task";

@@ -203,7 +203,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#C9A84C] to-yellow-200" />
                 <h4 className="text-xs font-black text-[#C9A84C] uppercase tracking-widest mb-6 flex items-center gap-3">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                  // Master Blueprint (Admin)
+                  {"// Master Blueprint (Admin)"}
                 </h4>
                 <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 shadow-inner">
                   <p className="text-[14px] text-slate-300 leading-loose whitespace-pre-wrap font-medium font-mono">
@@ -217,7 +217,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-500" />
                 <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                  // Lead Directions & Scope
+                  {"// Lead Directions & Scope"}
                 </h4>
                 <div className="bg-blue-50/40 p-6 rounded-2xl border border-blue-100 shadow-inner">
                   <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-wrap font-medium">

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Project, ProjectTask, ServiceTag, ProjectStatus } from "@/types";
+import { Project, ProjectTask, ServiceTag, ProjectStatus, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toast";
 import Link from "next/link";
@@ -36,6 +36,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
   const [loggingPayment, setLoggingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
 
   // Edit Financials State
   const [showFinancialsModal, setShowFinancialsModal] = useState(false);
@@ -131,7 +132,6 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setLoading(false);
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     fetchProject(); 
     
@@ -161,6 +161,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     });
     
     return () => unsubTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, crmUser]);
 
   const searchParams = useSearchParams();
@@ -213,17 +214,28 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setLoggingPayment(true);
     try {
       const amountNum = Number(paymentForm.amount);
-      const newPayment = {
-        id: Math.random().toString(36).substr(2, 9),
-        amount: amountNum,
-        date: paymentForm.date,
-        method: paymentForm.method,
-        notes: paymentForm.notes,
-        loggedBy: crmUser?.name || "System"
-      };
-
-      const updatedPayments = [...(project.payments || []), newPayment];
+      let updatedPayments = [...(project.payments || [])];
       
+      if (editingPaymentId) {
+        // Edit existing payment
+        updatedPayments = updatedPayments.map(p => 
+          p.id === editingPaymentId 
+            ? { ...p, amount: amountNum, date: paymentForm.date, method: paymentForm.method, notes: paymentForm.notes } 
+            : p
+        );
+      } else {
+        // Add new payment
+        const newPayment = {
+          id: Math.random().toString(36).substr(2, 9),
+          amount: amountNum,
+          date: paymentForm.date,
+          method: paymentForm.method,
+          notes: paymentForm.notes,
+          loggedBy: crmUser?.name || "System"
+        };
+        updatedPayments.push(newPayment);
+      }
+
       // Auto-calculate new balance
       const basePaid = project.paid ?? 0;
       const loggedPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -238,12 +250,37 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
       setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
       setShowPaymentModal(false);
+      setEditingPaymentId(null);
       setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
     } catch (e) {
       console.error(e);
-      alert("Failed to log payment");
+      alert("Failed to save payment.");
     } finally {
       setLoggingPayment(false);
+    }
+  }
+
+  async function deletePayment(paymentId: string) {
+    if (!project || !confirm("Are you sure you want to delete this payment record? This will alter the total paid amount and remaining balance.")) return;
+    try {
+      const updatedPayments = (project.payments || []).filter(p => p.id !== paymentId);
+      
+      // Auto-calculate new balance
+      const basePaid = project.paid ?? 0;
+      const loggedPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPaid = basePaid + loggedPaid;
+      const newRemaining = (project.budget ?? 0) - totalPaid;
+
+      await updateDoc(doc(db, "projects", project.id), { 
+        payments: updatedPayments,
+        remaining: newRemaining,
+        updatedAt: new Date().toISOString()
+      });
+
+      setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
+    } catch (e) {
+      console.error(e);
+      alert("Failed to delete payment.");
     }
   }
 
@@ -293,10 +330,32 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   async function sendReminder() {
     setSendingReminder(true);
     try {
-      // Simulate sending
-      await new Promise(res => setTimeout(res, 800));
-      alert("Reminder sent successfully!");
+      // In a real production environment, this would call an API route to send an email.
+      // For the internal operations hub, we log the sent reminder as an operation.
+      const now = new Date().toISOString();
+      await addDoc(collection(db, "tasks"), {
+        title: "Payment Reminder Sent",
+        description: reminderBody,
+        assignedTo: crmUser?.uid || "system",
+        assignedToName: crmUser?.name || "System",
+        assignedBy: crmUser?.uid || "System",
+        clientId: project?.clientId || "",
+        clientName: project?.clientName || "",
+        relatedTo: project?.id || "",
+        relatedType: "project",
+        priority: "medium",
+        status: "completed",
+        done: true,
+        taskType: "admin-action",
+        createdAt: now,
+        updatedAt: now
+      });
+      
+      alert("Reminder logged to operations successfully!");
       setShowReminderModal(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to log reminder.");
     } finally {
       setSendingReminder(false);
     }
@@ -588,7 +647,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
   const st = STATUSES.find(s => s.key === project.status) || STATUSES[0];
   
-  const projectAssignees = project.assignedTo || [];
+  const projectAssignees = Array.isArray(project.assignedTo) ? project.assignedTo : (project.assignedTo ? [project.assignedTo] : []);
   const taskAssignees = projectTasks.map(t => t.assignedTo).filter(uid => uid);
   const allInvolvedUids = Array.from(new Set([...projectAssignees, ...taskAssignees]));
   const assignedUsers = users.filter(u => allInvolvedUids.includes(u.uid));
@@ -1364,7 +1423,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     </button>
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                       <button 
-                        onClick={() => setShowPaymentModal(true)}
+                        onClick={() => {
+                          setEditingPaymentId(null);
+                          setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
+                          setShowPaymentModal(true);
+                        }}
                         className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
                       >
                         <span className="text-sm">💰</span> Log Manual Payment
@@ -1431,17 +1494,44 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {project.payments.slice().reverse().map((payment) => (
-                            <tr key={payment.id} className="bg-white hover:bg-slate-50 transition-colors">
+                            <tr key={payment.id} className="bg-white hover:bg-slate-50 transition-colors group">
                               <td className="p-4 text-slate-900 font-medium">
                                 {new Date(payment.date).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' })}
                                 {payment.notes && <p className="text-[10px] text-slate-400 mt-1">{payment.notes}</p>}
                                 <p className="text-[9px] text-slate-300 mt-1">Logged by {payment.loggedBy}</p>
                               </td>
-                              <td className="p-4 text-slate-600">
-                                <span className="bg-slate-100 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">{payment.method}</span>
+                              <td className="p-4">
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                  {payment.method}
+                                </span>
                               </td>
-                              <td className="p-4 text-right font-bold text-green-600">
-                                + {project.currency || "AED"} {payment.amount.toLocaleString()}
+                              <td className="p-4 text-right">
+                                <span className="text-sm font-black text-green-700">{project.currency || "AED"} {payment.amount.toLocaleString()}</span>
+                                {crmUser?.role === "admin" && (
+                                  <div className="flex justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => {
+                                        setEditingPaymentId(payment.id);
+                                        setPaymentForm({
+                                          amount: payment.amount.toString(),
+                                          date: payment.date,
+                                          method: payment.method,
+                                          notes: payment.notes || ""
+                                        });
+                                        setShowPaymentModal(true);
+                                      }} 
+                                      className="text-[10px] font-bold text-slate-400 hover:text-blue-600 transition-colors"
+                                    >
+                                      EDIT
+                                    </button>
+                                    <button 
+                                      onClick={() => deletePayment(payment.id)} 
+                                      className="text-[10px] font-bold text-slate-400 hover:text-red-600 transition-colors"
+                                    >
+                                      DELETE
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -1485,78 +1575,74 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
       {/* Log Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black text-slate-900">Log New Payment</h3>
-              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-xl relative">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-black text-slate-900">{editingPaymentId ? "Edit Payment Record" : "Log New Payment"}</h3>
+              <button 
+                onClick={() => { setShowPaymentModal(false); setEditingPaymentId(null); setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" }); }}
+                className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                ✕
+              </button>
             </div>
-            
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Amount ({project.currency || "AED"})</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Amount ({project.currency || "AED"})</label>
                 <input 
                   type="number" 
-                  className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
-                  placeholder="e.g. 5000"
-                  value={paymentForm.amount}
+                  value={paymentForm.amount} 
                   onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#C9A84C] outline-none"
+                  placeholder="0.00"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Date</label>
-                  <input 
-                    type="date" 
-                    className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
-                    value={paymentForm.date}
-                    onChange={e => setPaymentForm({...paymentForm, date: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Method</label>
-                  <select 
-                    className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
-                    value={paymentForm.method}
-                    onChange={e => setPaymentForm({...paymentForm, method: e.target.value})}
-                  >
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Stripe / Card">Card (Stripe)</option>
-                  </select>
-                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Notes (Optional)</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Date</label>
                 <input 
-                  type="text" 
-                  className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
-                  placeholder="e.g. Milestone 1 payment"
-                  value={paymentForm.notes}
-                  onChange={e => setPaymentForm({...paymentForm, notes: e.target.value})}
+                  type="date" 
+                  value={paymentForm.date} 
+                  onChange={e => setPaymentForm({...paymentForm, date: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#C9A84C] outline-none"
                 />
               </div>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button 
-                onClick={() => setShowPaymentModal(false)}
-                className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200"
-              >
-                Cancel
-              </button>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Payment Method</label>
+                <select 
+                  value={paymentForm.method} 
+                  onChange={e => setPaymentForm({...paymentForm, method: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#C9A84C] outline-none"
+                >
+                  <option>Bank Transfer</option>
+                  <option>Credit Card / Stripe</option>
+                  <option>Cash</option>
+                  <option>Cheque</option>
+                  <option>Crypto</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Notes / Ref # (Optional)</label>
+                <input 
+                  type="text" 
+                  value={paymentForm.notes} 
+                  onChange={e => setPaymentForm({...paymentForm, notes: e.target.value})}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-[#C9A84C] outline-none"
+                  placeholder="e.g. Wire transfer TR-9102"
+                />
+              </div>
               <button 
                 onClick={logPayment}
                 disabled={loggingPayment || !paymentForm.amount}
-                className="flex-1 py-3 text-sm font-bold text-white bg-[#0D1B3E] rounded-xl hover:opacity-90 disabled:opacity-50"
+                className="w-full mt-2 bg-[#0D1B3E] hover:bg-[#1a2b5e] text-white py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
               >
-                {loggingPayment ? "Logging..." : "Confirm Payment"}
+                {loggingPayment ? "Saving..." : (editingPaymentId ? "Save Changes" : "Confirm Payment")}
               </button>
             </div>
           </div>
         </div>
       )}
+
       {/* Edit Financials Modal */}
       {showFinancialsModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">

@@ -134,6 +134,21 @@ export default function ProposalDetailPage() {
     fetchProposal();
   }, [id]);
 
+  // Auto-mark as viewed for clients
+  useEffect(() => {
+    if (proposal && isClientView && !proposal.viewedAt) {
+      fetch(`/api/proposals/${proposal.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "view" })
+      }).then(res => res.json()).then(data => {
+         if (data.success) {
+           setProposal(p => p ? { ...p, viewedAt: new Date().toISOString() } : p);
+         }
+      }).catch(console.error);
+    }
+  }, [proposal, isClientView]);
+
   // Initial history load
   useEffect(() => {
     if (proposal && history.length === 0) {
@@ -627,7 +642,7 @@ export default function ProposalDetailPage() {
               ) : proposal.status === "sent" ? (
                 <div>
                   <p className="text-base font-bold text-slate-900 mb-1">Follow up on Proposal</p>
-                  <p className="text-sm text-slate-500 mb-4 leading-relaxed">It's been sent. Set a reminder to follow up in 2 days to maintain momentum.</p>
+                  <p className="text-sm text-slate-500 mb-4 leading-relaxed">It&apos;s been sent. Set a reminder to follow up in 2 days to maintain momentum.</p>
                   <button onClick={() => setShowFollowUpModal(true)} className="text-sm bg-amber-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm w-full sm:w-auto">
                     Set Follow-up
                   </button>
@@ -664,38 +679,82 @@ export default function ProposalDetailPage() {
             {/* Engagement / Activity */}
             <div className="p-6 bg-white">
               <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Engagement Activity</h3>
-              <div className="space-y-5 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+              <div className="space-y-6 relative pl-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[1px] before:bg-slate-200">
                 
-                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-slate-400 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
-                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-slate-100 bg-slate-50 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-slate-700 text-sm">Created</div>
-                      <div className="text-[11px] font-bold text-slate-400">{new Date(proposal.createdAt).toLocaleDateString()}</div>
+                {/* Created Node */}
+                <div className="relative">
+                  <div className="absolute -left-6 top-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-white border-2 border-slate-300 ring-2 ring-white z-10">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium text-slate-900">Draft Created</div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {new Date(proposal.createdAt).toLocaleDateString('en-GB')} • {new Date(proposal.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                   </div>
                 </div>
-                
+
+                {/* Sent Node */}
                 {proposal.status !== "draft" && proposal.status !== "proposal" && (
-                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                    <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-blue-500 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
-                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-blue-100 bg-blue-50 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-blue-800 text-sm">Sent</div>
-                        <div className="text-[11px] font-bold text-blue-500">Viewed</div>
+                  <div className="relative">
+                    <div className="absolute -left-6 top-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-white border-2 border-blue-400 shadow-sm ring-2 ring-white z-10">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-slate-900">Sent to Client</div>
+                        {!proposal.sentAt && (
+                          <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">Delivered</span>
+                        )}
+                      </div>
+                      {proposal.sentAt && (
+                        <div className="text-xs text-slate-400 mt-1">
+                          {new Date(proposal.sentAt).toLocaleDateString('en-GB')} • {new Date(proposal.sentAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Viewed Node */}
+                {proposal.viewedAt && (
+                  <div className="relative">
+                    <div className="absolute -left-6 top-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-white border-2 border-purple-400 shadow-sm ring-2 ring-white z-10">
+                      <svg className="w-2.5 h-2.5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-slate-900">Opened by Client</div>
+                        <span className="text-[10px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium">Viewed</span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        {new Date(proposal.viewedAt).toLocaleDateString('en-GB')} • {new Date(proposal.viewedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </div>
                     </div>
                   </div>
                 )}
                 
+                {/* Signed Node */}
                 {proposal.status === "accepted" && (
-                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                    <div className="flex items-center justify-center w-4 h-4 rounded-full border-4 border-white bg-emerald-500 shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2"></div>
-                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl border border-emerald-100 bg-emerald-50 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-emerald-800 text-sm">Signed</div>
-                        {proposal.signedAt && <div className="text-[11px] font-bold text-emerald-600">{new Date(proposal.signedAt).toLocaleDateString()}</div>}
+                  <div className="relative">
+                    <div className="absolute -left-6 top-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-white border-2 border-emerald-500 shadow-sm ring-2 ring-white z-10">
+                      <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-slate-900">Proposal Signed</div>
+                        <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">Approved</span>
                       </div>
+                      {proposal.signedAt && (
+                        <div className="text-xs text-slate-400 mt-1">
+                          {new Date(proposal.signedAt).toLocaleDateString('en-GB')} • {new Date(proposal.signedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

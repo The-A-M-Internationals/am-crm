@@ -10,6 +10,7 @@ import {
   doc,
   query,
   orderBy,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
@@ -87,7 +88,7 @@ export default function InvoicePage() {
     try {
       const [invSnap, cliSnap] = await Promise.all([
         getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"))),
-        getDocs(collection(db, "clients"))
+        getDocs(query(collection(db, "clients"), where("status", "==", "active")))
       ]);
       
       const data = invSnap.docs.map((d) => ({ id: d.id, ...d.data() }));

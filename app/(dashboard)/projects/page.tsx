@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Project, ServiceTag, ProjectStatus } from "@/types";
+import { Project, ServiceTag, ProjectStatus, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import CreateProjectModal from "@/components/CreateProjectModal";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -69,8 +70,11 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingClients, setLoadingClients] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM, assignedTo: [] as string[] });
   const [saving, setSaving] = useState(false);
@@ -110,6 +114,11 @@ export default function ProjectsPage() {
     const unsubUsers = onSnapshot(collection(db, "users"), snap => {
       setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
+
+    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
+      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoadingClients(false);
+    });
     
     // Handle redirect from Clients page with smart prefill
     if (searchParams.get("new") === "true") {
@@ -142,31 +151,30 @@ export default function ProjectsPage() {
                   .map(d => d.data())
                   .sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
                   
-                prefill.title = `${prefill.clientName} - ${latestProp.service ? latestProp.service.replace(/-/g, " ") : "Project"}`;
-                prefill.budget = latestProp.total?.toString() || "";
-                prefill.due = latestProp.total?.toString() || "";
-                
-                // Smart deadline (e.g. 30 days from now if not specified)
-                const date = new Date();
-                date.setDate(date.getDate() + 30);
-                prefill.deadline = date.toISOString().split("T")[0];
-                
-                // Construct a rich Master Blueprint from proposal scope
-                let scope = [];
-                if (latestProp.introduction) scope.push(`## Introduction\n${latestProp.introduction}`);
-                if (latestProp.approachDescription) scope.push(`## Approach\n${latestProp.approachDescription}`);
-                if (latestProp.executiveSummary) scope.push(`## Executive Summary\n${latestProp.executiveSummary}`);
-                if (latestProp.packages && Array.isArray(latestProp.packages)) {
-                  const pkgs = latestProp.packages.map((p: any) => `- ${p.name}: ${p.description || "Included"}`).join("\n");
-                  if (pkgs) scope.push(`## Selected Packages\n${pkgs}`);
+                  prefill.title = `${prefill.clientName} - ${latestProp.service ? latestProp.service.replace(/-/g, " ") : "Project"}`;
+                  prefill.budget = latestProp.total?.toString() || "";
+                  prefill.due = latestProp.total?.toString() || "";
+                  
+                  // Smart deadline (e.g. 30 days from now if not specified)
+                  const date = new Date();
+                  date.setDate(date.getDate() + 30);
+                  prefill.deadline = date.toISOString().split("T")[0];
+                  
+                  // Construct a rich Master Blueprint from proposal scope
+                  let scope = [];
+                  if (latestProp.introduction) scope.push(`## Introduction\n${latestProp.introduction}`);
+                  if (latestProp.approachDescription) scope.push(`## Approach\n${latestProp.approachDescription}`);
+                  if (latestProp.executiveSummary) scope.push(`## Executive Summary\n${latestProp.executiveSummary}`);
+                  if (latestProp.packages && Array.isArray(latestProp.packages)) {
+                    const pkgs = latestProp.packages.map((p: any) => `- ${p.name}: ${p.description || "Included"}`).join("\n");
+                    if (pkgs) scope.push(`## Selected Packages\n${pkgs}`);
+                  }
+                  prefill.masterBlueprint = scope.join("\n\n");
+                  
+                  prefill.description = "";
                 }
-                prefill.masterBlueprint = scope.join("\n\n");
-                
-                // We no longer use prefill.description
-                prefill.description = "";
               }
             }
-          }
           }
         } catch (err) {
           console.error("Error prefilling project data:", err);
@@ -178,16 +186,16 @@ export default function ProjectsPage() {
       };
       
       prefillData(); // Execute async prefill
-      router.replace("/projects"); // Clean up URL
+      router.replace("/projects", { scroll: false }); // Clean up URL without triggering a full route navigation that could break state
     }
 
     return () => {
       unsubProjects();
       unsubUsers();
+      unsubClients();
     };
   }, [searchParams, router, crmUser]);
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: [] }); setShowModal(true); }
   function openEdit(p: Project) {
     setEditing(p);
     setForm({ 
@@ -203,14 +211,16 @@ export default function ProjectsPage() {
       remaining: p.remaining?.toString() ?? p.balance?.toString() ?? "",
       paid: p.paid?.toString() ?? "",
       currency: p.currency ?? "AED",
-      assignedTo: p.assignedTo || [],
+      assignedTo: Array.isArray(p.assignedTo) ? p.assignedTo : (p.assignedTo ? [p.assignedTo] : []),
       projectSummary: (p as any).projectSummary ?? "",
-      techStack: (p as any).techStack || [],
-      figmaUrl: (p as any).figmaUrl ?? "",
-      repoUrl: (p as any).repoUrl ?? "",
-      stagingUrl: (p as any).stagingUrl ?? "",
-      productionUrl: (p as any).productionUrl ?? "",
-      coreFocus: (p as any).coreFocus ?? "Dynamic Web App",
+      techStack: p.techStack || [],
+      figmaUrl: p.figmaUrl ?? "",
+      repoUrl: p.repoUrl ?? "",
+      stagingUrl: p.stagingUrl ?? "",
+      productionUrl: p.productionUrl ?? "",
+      coreFocus: p.coreFocus ?? "Dynamic Web App",
+      masterBlueprint: p.masterBlueprint ?? "",
+      leadInstructions: p.leadInstructions ?? "",
     });
     setShowModal(true);
   }
@@ -224,7 +234,8 @@ export default function ProjectsPage() {
     const existingTasksSnap = await getDocs(query(collection(db, "tasks"), where("relatedTo", "==", projectId)));
     if (!existingTasksSnap.empty) return;
 
-    for (const uid of projectData.assignedTo) {
+    const assignees = Array.isArray(projectData.assignedTo) ? projectData.assignedTo : [projectData.assignedTo].filter(Boolean);
+    for (const uid of assignees) {
       const member = members.find(m => m.uid === uid);
       await addDoc(collection(db, "tasks"), {
         title: projectData.title,
@@ -306,8 +317,7 @@ export default function ProjectsPage() {
 
   async function deleteProject(id: string) {
     if (!confirm("Delete this project? This will also remove associated tasks.")) return;
-    await deleteDoc(doc(db, "projects", id));
-    await deleteTasksForProject(id);
+    await PipelineService.deleteProjectAndRelations(id);
   }
 
   async function handleDelegateTask() {
@@ -360,8 +370,14 @@ export default function ProjectsPage() {
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
   }
 
-  const activeProjects = projects.filter(p => p.status !== "completed");
-  const completedProjects = projects.filter(p => p.status === "completed");
+  // Filter out projects linked to inactive/archived clients OR missing clients
+  const filteredProjects = projects.filter(p => {
+    if (loadingClients) return true; // Prevent flash on initial load
+    return p.clientId && clients.some(c => c.id === p.clientId);
+  });
+
+  const activeProjects = filteredProjects.filter(p => p.status !== "completed");
+  const completedProjects = filteredProjects.filter(p => p.status === "completed");
 
   const filteredActive = statusFilter === "all" 
     ? activeProjects 
@@ -375,7 +391,7 @@ export default function ProjectsPage() {
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{activeProjects.filter((p) => p.status === "in-progress").length} active projects</p>
         </div>
         {canEdit && (
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90" style={{ background: "#0D1B3E" }}>
+          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm" style={{ background: "#0D1B3E" }}>
             <span className="text-lg leading-none">+</span> New Project
           </button>
         )}
@@ -431,30 +447,46 @@ export default function ProjectsPage() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.2 }}
                       key={project.id} 
-                      className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col relative" 
+                      className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer flex flex-col relative group overflow-hidden" 
                       onClick={() => router.push(`/projects/${project.id}`)}
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: "#1a1a2e" }}>{project.title}</p>
-                          <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{project.clientName}</p>
+                      <div className="absolute top-0 left-0 w-full h-1 bg-[#0D1B3E] group-hover:bg-[#C9A84C] transition-colors"></div>
+
+                      <div className="flex items-start justify-between mb-4 mt-1">
+                        <div className="flex-1 min-w-0 pr-4">
+                          <h3 className="text-base font-black text-[#0D1B3E] group-hover:text-[#C9A84C] transition-colors truncate">{project.title}</h3>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-xs font-bold text-slate-500 truncate">{project.clientName}</span>
+                            {project.deadline && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isOverdue ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500"}`}>
+                                  {isOverdue ? "⚠ " : ""}Due: {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                         {canEdit && (
-                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => openEdit(project)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#1e40af" }}>✎</button>
-                            <button onClick={() => deleteProject(project.id)} className="text-xs opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#ef4444" }}>✕</button>
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => openEdit(project)} className="p-1.5 rounded-md text-slate-400 hover:text-[#0D1B3E] hover:bg-slate-100 transition-colors" title="Edit">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </button>
+                            <button onClick={() => deleteProject(project.id)} className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+                            </button>
                           </div>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="badge" style={{ background: svc.bg, color: svc.text }}>{svc.label.split(" ")[0]}</span>
-                        <span className="badge capitalize" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border" style={{ background: svc.bg, color: svc.text, borderColor: svc.text + '33' }}>{svc.label.split(" ")[0]}</span>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border" style={{ background: st.bg, color: st.color, borderColor: st.color + '33' }}>{st.label}</span>
                       </div>
 
                       {/* Overlapping circular avatar badges of assigned employees */}
                       <div className="flex -space-x-2 overflow-hidden mb-3">
-                        {(project.assignedTo || []).map((uid) => {
+                        {(Array.isArray(project.assignedTo) ? project.assignedTo : [project.assignedTo].filter(Boolean)).map((uid: string) => {
                           const member = members.find((m) => m.uid === uid);
                           if (!member) return null;
                           return (
@@ -470,24 +502,26 @@ export default function ProjectsPage() {
                         })}
                       </div>
 
-                      <div className="flex flex-col gap-2 mt-auto pt-3 border-t" style={{ borderColor: "#f0f0f5" }}>
-                        <div className="flex items-center justify-between">
-                          {project.deadline ? (
-                            <span className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>
-                              {isOverdue ? "⚠ " : ""}Due {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                            </span>
-                          ) : <span className="text-xs text-slate-400">No deadline</span>}
-                          {crmUser?.role === "admin" && (
-                            <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>{project.currency} {(project.budget)?.toLocaleString()}</span>
-                          )}
-                        </div>
+                      <div className="flex flex-col gap-2 mt-auto pt-3 border-t border-slate-100">
                         {crmUser?.role === "admin" && (
-                          <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
-                            <span className="text-slate-500">Paid: <strong className="text-green-600">{project.currency} {(project.paid)?.toLocaleString() || "0"}</strong></span>
-                            <span className="text-slate-500">Due: <strong className="text-orange-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</strong></span>
-                            <span className="text-slate-500">Remaining: <strong className="text-red-600">{project.currency} {(project.remaining ?? project.balance)?.toLocaleString() || "0"}</strong></span>
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className="text-slate-400 uppercase tracking-widest">Project Value</span>
+                            <span className="text-[#C9A84C] text-xs">{project.currency} {(project.budget)?.toLocaleString() || "0"}</span>
                           </div>
                         )}
+                        {crmUser?.role === "admin" && (() => {
+                          const basePaid = project.paid ?? 0;
+                          const loggedPaid = ((project as any).payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+                          const totalPaid = basePaid + loggedPaid;
+                          const calculatedRemaining = (project.budget ?? 0) - totalPaid;
+                          return (
+                            <div className="flex items-center justify-between text-[10px] font-black bg-slate-50/80 p-2 rounded-lg border border-slate-100 mt-1">
+                              <span className="text-slate-500 uppercase tracking-wider">Paid: <span className="text-emerald-600">{project.currency} {totalPaid.toLocaleString()}</span></span>
+                              <span className="text-slate-500 uppercase tracking-wider">Due: <span className="text-amber-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</span></span>
+                              <span className="text-slate-500 uppercase tracking-wider">Bal: <span className="text-red-600">{project.currency} {calculatedRemaining.toLocaleString()}</span></span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Quick status change & Delegate Menu */}
@@ -527,7 +561,8 @@ export default function ProjectsPage() {
                                 employeeId: "", 
                                 title: "", 
                                 deadline: project.deadline || "", 
-                                instructions: "" 
+                                instructions: "",
+                                taskType: "project-task" 
                               });
                             }}
                             className="text-xs font-bold text-[#C9A84C] hover:underline flex items-center gap-1"
@@ -560,19 +595,19 @@ export default function ProjectsPage() {
                 completedProjects.map(p => (
                   <div 
                     key={p.id} 
-                    className="crm-card bg-slate-50/50 border-slate-100 hover:bg-white hover:border-green-200 transition-all cursor-pointer group"
+                    className="bg-white rounded-xl p-4 border border-slate-200 hover:border-emerald-200 hover:shadow-sm transition-all cursor-pointer group"
                     onClick={() => router.push(`/projects/${p.id}`)}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <p className="text-xs font-bold text-slate-700 group-hover:text-green-700 transition-colors">{p.title}</p>
-                      <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">DONE</span>
+                      <p className="text-sm font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{p.title}</p>
+                      <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">COMPLETED</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-medium mb-3">{p.clientName}</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">{p.clientName}</p>
                     
                     {crmUser?.role === "admin" && (
-                      <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
-                        <span className="text-slate-400 uppercase">Valued at</span>
-                        <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
+                      <div className="flex justify-between items-center text-[10px] font-black pt-2 border-t border-slate-100">
+                        <span className="text-slate-400 uppercase tracking-widest">Valued at</span>
+                        <span className="text-slate-800 text-xs">{p.currency} {p.budget?.toLocaleString()}</span>
                       </div>
                     )}
                     
@@ -580,7 +615,7 @@ export default function ProjectsPage() {
                     {canEdit && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); updateStatus(p, "in-progress"); }}
-                        className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
+                        className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 bg-slate-50 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
                       >
                         ↩ Revert to Active
                       </button>
@@ -807,12 +842,18 @@ export default function ProjectsPage() {
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#0D1B3E" }}>
-                {saving ? "Saving..." : editing ? "Update" : "Create Project"}
+                {saving ? "Saving..." : editing ? "Update" : "Add Project"}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Full Create Project Modal */}
+      <CreateProjectModal 
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
 
       {/* Delegate Modal */}
       {delegateProject && (

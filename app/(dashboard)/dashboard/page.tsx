@@ -203,8 +203,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" href="/leads" />
         <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" href="/clients" />
-        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" href="/projects" />
-        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed" && (!p.clientId || clients.some(c => c.id === p.clientId))).length} sub="In progress" color="#8b5cf6" icon="🚀" href="/projects" />
+        <StatCard label="Pending Tasks"   value={tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
       </div>
 
       {/* COMMAND CENTER (ACTIONABLE ALERTS) */}
@@ -213,8 +213,8 @@ export default function DashboardPage() {
         <div className="crm-card border-l-4 border-l-red-500">
           <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⚠️ Attention Required</h2>
           <div className="space-y-3">
-            {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length > 0 ? (
-              tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).slice(0, 3).map(t => (
+            {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).length > 0 ? (
+              tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).slice(0, 3).map(t => (
                 <div key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 rounded-lg">
                   <span className="font-semibold text-red-900 truncate pr-2">{t.title}</span>
                   <span className="text-red-700 whitespace-nowrap">Overdue</span>
@@ -247,15 +247,15 @@ export default function DashboardPage() {
         <div className="crm-card border-l-4 border-l-blue-500">
           <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">🚀 Upcoming Deadlines</h2>
           <div className="space-y-3">
-            {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).length > 0 ? (
-              projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).slice(0, 3).map(p => (
+            {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000) && (!p.clientId || clients.some(c => c.id === p.clientId))).length > 0 ? (
+              projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000) && (!p.clientId || clients.some(c => c.id === p.clientId))).slice(0, 3).map(p => (
                 <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-blue-50 rounded-lg">
                   <span className="font-semibold text-blue-900 truncate pr-2">{p.title}</span>
-                  <span className="text-blue-700 whitespace-nowrap">Due soon</span>
+                  <span className="text-blue-700 whitespace-nowrap">{new Date(p.deadline).toLocaleDateString()}</span>
                 </div>
               ))
             ) : (
-              <p className="text-xs text-slate-500 italic">No projects at risk.</p>
+              <p className="text-xs text-slate-500 italic">No upcoming project deadlines.</p>
             )}
           </div>
         </div>
@@ -427,13 +427,13 @@ export default function DashboardPage() {
           </div>
           {loading ? (
             <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-          ) : tasks.length === 0 ? (
+          ) : tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length === 0 ? (
             <div className="text-center py-6">
               <p className="text-xs" style={{ color: "#9ca3af" }}>All tasks done! 🎉</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {tasks.slice(0, 5).map((task: any) => {
+              {tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).slice(0, 5).map((task: any) => {
                 const pColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
                 return (

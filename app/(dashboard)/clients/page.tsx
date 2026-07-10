@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { PhoneInput } from "@/components/phone-input";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
+import CreateProjectModal from "@/components/CreateProjectModal";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
   { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
@@ -55,6 +56,8 @@ export default function ClientsPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [selectedClientForProject, setSelectedClientForProject] = useState<{id: string, name: string} | undefined>(undefined);
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
@@ -63,16 +66,6 @@ export default function ClientsPage() {
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
   const canEdit = crmUser?.role === "admin";
-
-  if (crmUser && crmUser.role === "employee") {
-    return (
-      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[60vh]">
-        <h2 className="text-2xl font-black text-red-500 mb-2">Access Denied</h2>
-        <p className="text-slate-500 mb-6">The clients directory is strictly restricted to administrators.</p>
-        <button onClick={() => router.push("/")} className="px-6 py-2 bg-[#0D1B3E] text-white rounded-lg font-bold">Return to Dashboard</button>
-      </div>
-    );
-  }
 
   const searchParams = useSearchParams();
 
@@ -89,6 +82,16 @@ export default function ClientsPage() {
     });
     return () => { unsubClients(); unsubProjects(); unsubTasks(); };
   }, []);
+
+  if (crmUser && crmUser.role === "employee") {
+    return (
+      <div className="p-10 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <h2 className="text-2xl font-black text-red-500 mb-2">Access Denied</h2>
+        <p className="text-slate-500 mb-6">The clients directory is strictly restricted to administrators.</p>
+        <button onClick={() => router.push("/")} className="px-6 py-2 bg-[#0D1B3E] text-white rounded-lg font-bold">Return to Dashboard</button>
+      </div>
+    );
+  }
 
   function openAdd() {
     setEditing(null);
@@ -224,6 +227,14 @@ export default function ClientsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {canEdit && (
+            <button 
+              onClick={() => { setSelectedClientForProject(undefined); setShowProjectModal(true); }} 
+              className="px-5 py-2.5 rounded-lg text-sm font-bold text-[#0D1B3E] transition-opacity hover:opacity-90 shadow-sm border border-[#e2e8f0] bg-white"
+            >
+              + New Project
+            </button>
+          )}
           <button 
             onClick={() => setShowHiddenClients(!showHiddenClients)}
             className="text-xs font-semibold px-4 py-2 rounded-lg border transition-all"
@@ -270,7 +281,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Client List */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {loading ? (
           [1, 2, 3, 4].map((i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: "#f3f4f6" }} />)
         ) : filtered.length === 0 ? (
@@ -287,92 +298,83 @@ export default function ClientsPage() {
           </div>
         ) : (
           filtered.map((client) => {
-            const clientProjects = projects.filter(p => p.clientId === client.id && p.status !== "completed");
-            const clientTasks = tasks.filter(t => t.clientId === client.id && !t.done);
-            
+            const clientProjects = projects.filter((p) => p.clientId === client.id);
+            const clientTasks = tasks.filter((t) => t.clientId === client.id && !t.done);
             return (
               <div 
                 key={client.id} 
                 onClick={() => router.push(`/clients/${client.id}`)}
-                className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-md hover:border-[#C9A84C]/40 transition-all cursor-pointer group flex flex-col"
+                className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:border-[#C9A84C]/30 transition-all duration-300 cursor-pointer group flex flex-col justify-between min-h-[200px] relative overflow-hidden"
               >
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex items-center gap-4">
-                    <Initials name={client.name} />
-                    <div>
-                      <h3 className="text-lg font-black text-[#0D1B3E] group-hover:text-[#1a3070] transition-colors">{client.name}</h3>
-                      <p className="text-sm font-semibold text-slate-500">{client.company}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg" style={{
-                      background: client.status === "active" ? "#f0fdf4" : "#f9fafb",
-                      color: client.status === "active" ? "#15803d" : "#6b7280",
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#0D1B3E] to-[#C9A84C] transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                
+                <div>
+                  <div className="flex justify-between items-start mb-6">
+                    <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full transition-colors" style={{
+                      background: client.status === "active" ? "#0D1B3E" : "#f1f5f9",
+                      color: client.status === "active" ? "white" : "#64748b",
                     }}>
                       {client.status}
                     </span>
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10 relative">
                       {canEdit && (
-                        <button onClick={() => openEdit(client)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(client);
+                          }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:bg-slate-50 hover:text-[#0D1B3E] transition-all"
+                          title="Edit Client"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                       )}
-                      <button onClick={() => toggleLostStatus(client)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 flex items-center justify-center transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteClient(client.id);
+                        }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all"
+                        title="Delete Client"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contact</p>
-                    <p className="text-sm font-semibold text-slate-700 truncate">{client.email}</p>
-                    <p className="text-sm text-slate-500">{client.phone || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Core Services</p>
-                    <div className="flex flex-wrap gap-1">
-                      {(client.services ?? []).map((svc) => {
-                        const s = SERVICES.find((x) => x.key === svc);
-                        return s ? (
-                          <span key={svc} className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ background: s.bg, color: s.text }}>
-                            {s.label.split(" ")[0]}
-                          </span>
-                        ) : null;
-                      })}
-                      {(!client.services || client.services.length === 0) && <span className="text-sm text-slate-400">—</span>}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <div className="flex gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-6 h-6 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">{clientProjects.length}</span>
-                      <span className="text-xs font-bold text-slate-500">Projects</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-bold">{clientTasks.length}</span>
-                      <span className="text-xs font-bold text-slate-500">Tasks</span>
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex items-end justify-between mt-auto">
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <h3 className="text-xl font-black text-[#0D1B3E] tracking-tight line-clamp-1 mb-1 group-hover:text-[#C9A84C] transition-colors" style={{ fontFamily: "var(--font-playfair)" }}>
+                          {client.company || client.name}
+                        </h3>
+                        <p className="text-xs font-medium text-slate-500 line-clamp-1">
+                          {client.name}
+                        </p>
+                      </div>
+                      
+                      {client.services && client.services.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {client.services.map((svc: string) => (
+                            <span key={svc} className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200">
+                              {svc.replace(/-/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     {canEdit && (
-                      <button
+                      <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/projects?new=true&clientId=${client.id}&clientName=${encodeURIComponent(client.company || client.name)}`);
+                          setSelectedClientForProject({ id: client.id, name: client.company || client.name });
+                          setShowProjectModal(true);
                         }}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-[#0D1B3E] text-white hover:bg-slate-800 shadow-sm z-10 flex items-center gap-1.5"
                       >
-                        + Project
+                        <span>+ Project</span>
                       </button>
                     )}
-                    <button className="text-xs font-bold px-4 py-1.5 rounded-lg text-white transition-colors" style={{ background: "#C9A84C" }}>
-                      Open Profile &rarr;
-                    </button>
                   </div>
                 </div>
               </div>
@@ -507,6 +509,15 @@ export default function ClientsPage() {
         .form-input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 13px; color: #1a1a2e; outline: none; transition: border-color 0.15s; background: white; font-family: var(--font-poppins); }
         .form-input:focus { border-color: #C9A84C; }
       `}</style>
+
+      <CreateProjectModal 
+        isOpen={showProjectModal}
+        onClose={() => {
+          setShowProjectModal(false);
+          setSelectedClientForProject(undefined);
+        }}
+        initialClient={selectedClientForProject}
+      />
     </div>
   );
 }

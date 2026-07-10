@@ -100,9 +100,9 @@ export default function LeadsPage() {
         leadId = leadRef.id;
       }
 
-      const leadData = { ...form, id: leadId } as Lead;
+      const leadData = { ...form, id: leadId, assignedTo: editing?.assignedTo || crmUser?.uid || "", createdAt: editing?.createdAt || now, updatedAt: now } as unknown as Lead;
       
-      await PipelineService.syncLeadToClient(leadData);
+      await PipelineService.syncLeadDetails(leadData);
 
       if (form.stage === "won") await PipelineService.markAsWon(leadData);
       else if (form.stage === "lost") await PipelineService.markAsLost(leadId, form.email, "lead");
@@ -122,7 +122,7 @@ export default function LeadsPage() {
 
   async function deleteLead(id: string) {
     if (!confirm("Delete this lead?")) return;
-    await deleteDoc(doc(db, "leads", id));
+    await PipelineService.deleteLeadAndRelations(id);
   }
 
   async function moveStage(lead: Lead, stage: LeadStage) {

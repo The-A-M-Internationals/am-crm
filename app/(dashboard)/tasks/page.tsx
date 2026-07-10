@@ -56,6 +56,7 @@ export default function TasksPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingClients, setLoadingClients] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -66,11 +67,12 @@ export default function TasksPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"my-desk" | "team">("my-desk");
 
   useEffect(() => {
     if (!crmUser) return;
     const tasksRef = collection(db, "tasks");
-    const tasksQuery = crmUser.role === "employee"
+    const tasksQuery = crmUser.role === "employee" || viewMode === "my-desk"
       ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
       : query(tasksRef);
 
@@ -93,11 +95,14 @@ export default function TasksPage() {
       setLoading(false);
     });
     const unsubUsers = onSnapshot(collection(db, "users"), snap => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => setClients(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
+      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoadingClients(false);
+    });
     const unsubProjects = onSnapshot(collection(db, "projects"), snap => setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 
     return () => { unsubTasks(); unsubUsers(); unsubClients(); unsubProjects(); };
-  }, [crmUser]);
+  }, [crmUser, viewMode]);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
   function openEdit(t: any) {
@@ -166,11 +171,16 @@ export default function TasksPage() {
     if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+    
     // Hide tasks immediately if their parent project is 'not-started'
     if (t.relatedType === "project" && t.relatedTo) {
       const proj = projects.find(p => p.id === t.relatedTo);
       if (proj && proj.status === "not-started") return false;
     }
+    
+    // Hide tasks if their client is archived/inactive
+    if (t.clientId && !loadingClients && !clients.some(c => c.id === t.clientId)) return false;
+
     return true;
   });
 
@@ -189,19 +199,29 @@ export default function TasksPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
         <div className="page-header mb-0">
           <h1 className="text-3xl font-black text-[#0D1B3E] tracking-tight">Operations Board</h1>
-          <p className="text-sm text-slate-500 mt-1">{filteredTasks.length} total tasks • Structured Workflow</p>
+          <p className="text-sm text-slate-500 mt-1">{filteredTasks.length} active items • {viewMode === 'my-desk' ? 'Your Personal Desk' : 'Full Team Overview'}</p>
         </div>
         <div className="flex items-center gap-3">
+          {crmUser?.role !== "employee" && (
+            <div className="flex bg-slate-200 p-1 rounded-xl mr-2">
+              <button onClick={() => setViewMode("my-desk")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "my-desk" ? "bg-white text-[#0D1B3E] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                My Desk
+              </button>
+              <button onClick={() => setViewMode("team")} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "team" ? "bg-white text-[#0D1B3E] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                Team View
+              </button>
+            </div>
+          )}
           <input 
             type="text" 
             placeholder="Search tasks..." 
             value={search} 
             onChange={e => setSearch(e.target.value)}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] w-64 shadow-sm" 
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] w-64 shadow-sm transition-all bg-white" 
           />
           {crmUser?.role !== "employee" && (
-            <button onClick={openAdd} className="bg-[#0D1B3E] hover:bg-[#1a2b5e] text-white px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-md">
-              + New Task
+            <button onClick={openAdd} className="bg-[#0D1B3E] hover:bg-[#1a2b5e] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+              <span>+</span> New Action
             </button>
           )}
         </div>

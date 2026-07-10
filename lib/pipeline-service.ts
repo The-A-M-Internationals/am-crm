@@ -11,7 +11,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Lead, LeadStage, ServiceTag } from "@/types";
+import { Lead, LeadStage, ServiceTag, Client } from "@/types";
 import { getMasterTemplate } from "./proposal-templates";
 
 /**
@@ -89,25 +89,8 @@ export const PipelineService = {
     const shouldBeActive = acceptedProps.length > 0;
 
     if (shouldBeActive) {
-      if (clientSnap.empty) {
-        // Instantiate new active Client profile carrying over the proposal's metadata
-        const latestProp = acceptedProps.map(d => d.data()).sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
-        const newClientRef = doc(collection(db, "clients"));
-        batch.set(newClientRef, {
-          name: latestProp.clientName || "Unknown",
-          company: latestProp.company || latestProp.clientName || "Unknown",
-          email: normEmail,
-          phone: latestProp.phone || "",
-          services: latestProp.service ? [latestProp.service] : [],
-          status: "active",
-          active: true,
-          currency: latestProp.currency || "AED",
-          fromLeadId: latestProp.fromLeadId || "",
-          createdAt: now,
-          updatedAt: now
-        });
-      } else {
-        // Enforce existing clients stay active
+      if (!clientSnap.empty) {
+        // Enforce existing clients stay active and merge services
         clientSnap.forEach(d => {
            const cData = d.data();
            const services = new Set(cData.services || []);
@@ -120,6 +103,9 @@ export const PipelineService = {
            }
         });
       }
+      // Note: We DO NOT create a new client here anymore to prevent race conditions.
+      // Client creation is handled explicitly by the action that accepted the proposal 
+      // (either api/accept-proposal/route.ts or handleProposalStatusChange).
     } else {
       // Cascading signal: instantly deactivate/hide client record
       clientSnap.forEach(d => {
@@ -129,18 +115,30 @@ export const PipelineService = {
          }
       });
     }
-
     await batch.commit();
   },
   
   /**
-   * Syncs Lead profile details to Client Profile (e.g. if phone or name is updated)
+   * Syncs Lead profile details to Proposals and Clients dynamically.
    */
-  async syncLeadToClient(lead: Lead) {
+  async syncLeadDetails(lead: Lead) {
     const batch = writeBatch(db);
     const email = normalizeEmail(lead.email);
 
-    // Update Client if it exists
+    // 1. Sync to Proposals
+    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", lead.id));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => {
+      batch.update(d.ref, {
+        clientName: lead.name,
+        clientEmail: email,
+        company: lead.company || lead.name,
+        phone: lead.phone || "",
+        updatedAt: new Date().toISOString()
+      });
+    });
+
+    // 2. Sync to Client if it exists
     const clientQ = query(collection(db, "clients"), where("email", "==", email));
     const clientSnap = await getDocs(clientQ);
     
@@ -156,6 +154,85 @@ export const PipelineService = {
         phone: lead.phone || "",
         services: services,
         updatedAt: new Date().toISOString()
+      });
+    });
+
+    await batch.commit();
+  },
+
+  /**
+   * Syncs Client profile details to Projects, Tasks, and Proposals dynamically.
+   */
+  async syncClientDetails(client: Client) {
+    const batch = writeBatch(db);
+    const newName = client.name;
+    const newCompany = client.company || client.name;
+    const newEmail = normalizeEmail(client.email);
+    const now = new Date().toISOString();
+
+    // 1. Update Projects
+    const projQ = query(collection(db, "projects"), where("clientId", "==", client.id));
+    const projSnap = await getDocs(projQ);
+    projSnap.forEach(d => batch.update(d.ref, { clientName: newCompany, clientEmail: newEmail, updatedAt: now }));
+
+    // 2. Update Tasks
+    const taskQ = query(collection(db, "tasks"), where("clientId", "==", client.id));
+    const taskSnap = await getDocs(taskQ);
+    taskSnap.forEach(d => batch.update(d.ref, { clientName: newCompany, updatedAt: now }));
+
+    // 3. Update Proposals
+    const propQ = query(collection(db, "proposals"), where("clientId", "==", client.id));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => batch.update(d.ref, { 
+      clientName: newName, 
+      clientEmail: newEmail, 
+      company: newCompany, 
+      phone: client.phone || "",
+      updatedAt: now
+    }));
+
+    // 4. Update Invoices (if any)
+    const invQ = query(collection(db, "invoices"), where("clientId", "==", client.id));
+    const invSnap = await getDocs(invQ);
+    invSnap.forEach(d => batch.update(d.ref, {
+      clientName: newCompany,
+      clientEmail: newEmail,
+      clientPhone: client.phone || "",
+      clientAddress: client.address || "",
+      updatedAt: now
+    }));
+
+    await batch.commit();
+  },
+
+  /**
+   * Syncs Proposal details (name, company, email, phone) back to the Lead and Client dynamically.
+   */
+  async syncProposalDetails(proposal: any) {
+    const batch = writeBatch(db);
+    const email = normalizeEmail(proposal.clientEmail);
+    const now = new Date().toISOString();
+
+    // 1. Sync back to Lead (if fromLeadId exists)
+    if (proposal.fromLeadId) {
+      batch.update(doc(db, "leads", proposal.fromLeadId), {
+        name: proposal.clientName,
+        company: proposal.company || proposal.clientName,
+        email: email,
+        phone: proposal.phone || "",
+        updatedAt: now
+      });
+    }
+
+    // 2. Sync back to Client (if exists by email)
+    const clientQ = query(collection(db, "clients"), where("email", "==", email));
+    const clientSnap = await getDocs(clientQ);
+    clientSnap.forEach(d => {
+      batch.update(d.ref, {
+        name: proposal.clientName,
+        company: proposal.company || proposal.clientName,
+        phone: proposal.phone || "",
+        updatedAt: now
       });
     });
 
@@ -296,6 +373,32 @@ export const PipelineService = {
           active: leadActive,
           updatedAt: now 
         });
+      }
+    }
+
+    // 3. Smart Client Creation for manual accepted status
+    if (leadStage === "won") {
+      const email = normalizeEmail(proposal.clientEmail);
+      if (email) {
+        const clientQ = query(collection(db, "clients"), where("email", "==", email));
+        const clientSnap = await getDocs(clientQ);
+        if (clientSnap.empty) {
+          const newClientRef = doc(collection(db, "clients"));
+          batch.set(newClientRef, {
+            name: proposal.clientName || "Unknown",
+            company: proposal.company || proposal.clientName || "Unknown",
+            email: email,
+            phone: proposal.phone || "",
+            services: proposal.service ? [proposal.service] : [],
+            status: "active",
+            active: true,
+            currency: proposal.currency || "AED",
+            fromLeadId: proposal.fromLeadId || "",
+            createdAt: now,
+            updatedAt: now,
+            acceptedProposalId: proposal.id
+          });
+        }
       }
     }
 
@@ -663,5 +766,74 @@ export const PipelineService = {
     } catch (err) {
       console.error("Invoice Drafting Error:", err);
     }
+  },
+
+  /**
+   * Hard deletes a Client and cascades to delete all their Projects, Tasks, Proposals, and Invoices.
+   */
+  async deleteClientAndRelations(clientId: string) {
+    const batch = writeBatch(db);
+    
+    // 1. Delete Client
+    batch.delete(doc(db, "clients", clientId));
+
+    // 2. Delete Projects
+    const projQ = query(collection(db, "projects"), where("clientId", "==", clientId));
+    const projSnap = await getDocs(projQ);
+    projSnap.forEach(d => batch.delete(d.ref));
+
+    // 3. Delete Tasks
+    const taskQ = query(collection(db, "tasks"), where("clientId", "==", clientId));
+    const taskSnap = await getDocs(taskQ);
+    taskSnap.forEach(d => batch.delete(d.ref));
+
+    // 4. Retain Proposals (do not delete them so they don't vanish)
+    const propQ = query(collection(db, "proposals"), where("clientId", "==", clientId));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => {
+      // Unlink the client ID but keep the proposal and clientName intact
+      batch.update(d.ref, { clientId: "" });
+    });
+
+    // 5. Delete Invoices
+    const invQ = query(collection(db, "invoices"), where("clientId", "==", clientId));
+    const invSnap = await getDocs(invQ);
+    invSnap.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+  },
+
+  /**
+   * Hard deletes a Lead and cascades to delete generated proposals.
+   */
+  async deleteLeadAndRelations(leadId: string) {
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "leads", leadId));
+
+    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", leadId));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+  },
+
+  /**
+   * Hard deletes a Project and cascades to delete tasks and invoices.
+   */
+  async deleteProjectAndRelations(projectId: string) {
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "projects", projectId));
+
+    const taskQ = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
+    const taskSnap = await getDocs(taskQ);
+    taskSnap.forEach(d => batch.delete(d.ref));
+
+    const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
+    const invSnap = await getDocs(invQ);
+    invSnap.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
   }
 };

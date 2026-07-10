@@ -80,7 +80,7 @@ function ProposalsContent() {
         // Only valid proposal statuses are shown. 
         // We do not filter out "won" or "lost" here because those are lead stages,
         // and a proposal itself is either accepted or rejected.
-        .filter(p => ["draft", "sent", "accepted", "rejected", "proposal"].includes(p.status));
+        .filter(p => ["draft", "sent", "accepted", "rejected", "proposal", "won", "lost"].includes(p.status));
       
       setProposals(list);
       setLoading(false);
@@ -166,6 +166,8 @@ function ProposalsContent() {
         const { id: _, ...saveData } = data;
         await updateDoc(docRef, saveData);
         
+        await PipelineService.syncProposalDetails({ id: editingId, ...data });
+
         if (form.status === "accepted") {
           await PipelineService.handleProposalStatusChange({ id: editingId, ...data }, "accepted");
         }
@@ -177,6 +179,8 @@ function ProposalsContent() {
         const docRef = await addDoc(collection(db, "proposals"), { ...dataWithCreator, createdAt: now });
         const propId = docRef.id;
         
+        await PipelineService.syncProposalDetails({ id: propId, ...dataWithCreator });
+
         if (form.status === "accepted") {
           await PipelineService.handleProposalStatusChange({ id: propId, ...dataWithCreator }, "accepted");
         }
@@ -214,7 +218,7 @@ function ProposalsContent() {
         console.error(err);
         alert("Failed to update status. Check console.");
       }
-    } else if (p.status === "accepted" && status !== "accepted" && p.fromLeadId) {
+    } else if (p.status === "accepted" && p.fromLeadId) {
       await PipelineService.withdrawProposal(p.id, p.fromLeadId, "proposal");
     } else {
       await PipelineService.handleProposalStatusChange(p, status);
@@ -250,7 +254,7 @@ function ProposalsContent() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
           <div className="absolute -right-4 -top-4 p-8 bg-emerald-50 text-emerald-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
           <p className="text-sm font-bold text-slate-500 mb-2 z-10">Accepted</p>
-          <p className="text-4xl font-black text-emerald-600 z-10">{proposals.filter(p => p.status === "accepted").length}</p>
+          <p className="text-4xl font-black text-emerald-600 z-10">{proposals.filter(p => ["accepted", "won"].includes(p.status)).length}</p>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden transition-all hover:shadow-md">
           <div className="absolute -right-4 -top-4 p-8 bg-amber-50 text-amber-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
@@ -261,7 +265,7 @@ function ProposalsContent() {
           <div className="absolute -right-4 -top-4 p-8 bg-purple-50 text-purple-500 rounded-full opacity-50"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg></div>
           <p className="text-sm font-bold text-slate-500 mb-2 z-10">Win Rate</p>
           <p className="text-4xl font-black text-purple-600 z-10">
-            {proposals.length > 0 ? Math.round((proposals.filter(p => p.status === "accepted").length / proposals.length) * 100) : 0}%
+            {proposals.length > 0 ? Math.round((proposals.filter(p => ["accepted", "won"].includes(p.status)).length / proposals.length) * 100) : 0}%
           </p>
         </div>
       </div>
