@@ -47,7 +47,7 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
       setCookie("am-crm-session", "true", { maxAge: 60 * 60 * 24 * 7 });
-      router.push("/dashboard");
+      router.push("/");
     } catch {
       setError("Invalid email or password. Please try again.");
     } finally { setLoading(false); }

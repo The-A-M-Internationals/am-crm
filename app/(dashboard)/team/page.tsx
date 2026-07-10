@@ -9,8 +9,9 @@ import {
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db, secondaryAuth } from "@/lib/firebase";
+
+import { db } from "@/lib/firebase";
+
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -62,10 +63,27 @@ const ROLES: {
     desc: "Projects & assigned tasks only",
     canSeeFinance: false,
   },
+  {
+    key: "lead",
+    label: "Lead",
+    color: "#60a5fa",
+    bg: "#eff6ff",
+    desc: "Projects & Tasks management only",
+    canSeeFinance: false,
+  },
+  {
+    key: "employee",
+    label: "Employee",
+    color: "#a78bfa",
+    bg: "#f5f3ff",
+    desc: "Assigned tasks only",
+
+    canSeeFinance: false,
+  },
 ];
 
 function roleInfo(key: string) {
-  return ROLES.find((r) => r.key === key) ?? ROLES[3];
+  return ROLES.find((r) => r.key === key) ?? ROLES[2];
 }
 
 function Initials({ name }: { name: string }) {
@@ -89,6 +107,7 @@ const EMPTY_FORM = {
   name: "",
   email: "",
   password: "",
+
   role: "executive" as UserRole,
 };
 
@@ -101,14 +120,25 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
+
   const [editRole, setEditRole] = useState<UserRole>("executive");
 
   const isAdmin = crmUser?.role === "admin";
 
   async function fetchMembers() {
-    const snap = await getDocs(collection(db, "users"));
-    setMembers(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as CRMUser));
-    setLoading(false);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      setMembers(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return { ...data, uid: data.uid || d.id } as CRMUser;
+        }),
+      );
+    } catch (err) {
+      console.error("Error fetching members:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -120,20 +150,17 @@ export default function TeamPage() {
     setSaving(true);
     setError("");
     try {
-      const cred = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        form.email,
-        form.password,
-      );
-      const now = new Date().toISOString();
-      await addDoc(collection(db, "users"), {
-        uid: cred.user.uid,
-        name: form.name,
-        email: form.email,
-        role: form.role,
-        createdAt: now,
+      // Use API route to handle user creation/reactivation via Admin SDK
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
       });
-      await secondaryAuth.signOut();
+
+      const result = await res.json();
+      if (!res.ok)
+        throw new Error(result.error || "Failed to create/update user.");
+
       // Send welcome email
       try {
         await fetch("/api/send-email", {
@@ -164,7 +191,9 @@ export default function TeamPage() {
             `,
           }),
         });
-      } catch {}
+      } catch (err) {
+        console.warn("Welcome email could not be sent:", err);
+      }
 
       setShowModal(false);
       fetchMembers();
@@ -176,48 +205,34 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
-    if (uid === crmUser?.uid) {
-      return alert("You cannot delete yourself.");
-    }
+    //newlydid edit access
 
-    if (!confirm("Remove this team member?")) {
+    if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
+    if (
+      !confirm(
+        "Remove this team member? This will also delete their login access.",
+      )
+    )
       return;
-    }
 
     try {
-      // Delete from Firebase Authentication
-      const res = await fetch("/api/delete-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const res = await fetch("/api/team", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid }),
       });
 
-      const result = await res.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to delete Auth user");
-      }
-
-      // Delete from Firestore
-      const snap = await getDocs(collection(db, "users"));
-
-      const docToDelete = snap.docs.find((d) => d.data().uid === uid);
-
-      if (docToDelete) {
-        await deleteDoc(doc(db, "users", docToDelete.id));
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(result.error || "Failed to delete user.");
       }
 
       fetchMembers();
-
-      alert("Team member deleted successfully");
     } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to delete user");
+      alert("Error: " + err.message);
     }
   }
-  //newlydid edit access
+
   async function updateMemberRole() {
     if (!editingMember) return;
 
@@ -447,7 +462,7 @@ export default function TeamPage() {
           )}
         </div>
       )}
-      {/*edit acess modal*/}
+
       {/* Edit Access Modal */}
       {editingMember && (
         <div className="modal-overlay">

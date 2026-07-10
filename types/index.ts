@@ -1,4 +1,5 @@
-export type UserRole = "admin" | "manager" | "sales" | "designer" | "executive";
+import { ProposalDocument } from "./proposal-doc";
+export type UserRole = "admin" | "lead" | "employee";
 
 export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development" | "seo" | "social-media" | "branding" | "other";
 
@@ -8,7 +9,7 @@ export type ProjectStatus = "not-started" | "in-progress" | "review" | "complete
 
 export type TaskPriority = "low" | "medium" | "high";
 
-export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected";
+export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected" | "proposal" | "won" | "lost";
 
 export interface CRMUser {
   uid: string;
@@ -32,6 +33,7 @@ export interface Lead {
   notes?: string;
   source?: string;
   nextAction?: string;
+  active?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,14 +46,30 @@ export interface Client {
   phone?: string;
   services: ServiceTag[];
   status: "active" | "inactive";
+  active?: boolean;
   address?: string;
   website?: string;
   notes?: string;
+  currency?: string;
   contractDuration?: string;
   contractStart?: string;
   contractEnd?: string;
+  budget?: number | string;
+  due?: number | string;
+  paid?: number | string;
+  remaining?: number | string;
+  balance?: number | string;
   createdAt: string;
   fromLeadId?: string;
+}
+
+export interface PaymentLog {
+  id: string;
+  amount: number;
+  date: string;
+  method: string;
+  notes?: string;
+  loggedBy: string;
 }
 
 export interface Project {
@@ -65,7 +83,17 @@ export interface Project {
   assignedTo: string[];
   description?: string;
   budget?: number;
+  balance?: number;
+  due?: number;
+  paid?: number;
+  remaining?: number;
+  currency?: string;
+  masterBlueprint?: string;
+  leadInstructions?: string;
   tasks?: ProjectTask[];
+  customFields?: { id: string; label: string; value: string }[];
+  milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
+  payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
 }
@@ -84,23 +112,140 @@ export interface ProposalItem {
   amount: number;
 }
 
+export interface ProposalPackage {
+  name: string;
+  bestFor: string;
+  activeCampaigns: string;
+  adCreatives: string;
+  optimisation: string;
+  abTesting: string;
+  recommendedSpend: number | string;
+  managementFee: number | string;
+  reviewCall: string;
+  reporting: string;
+  estimatedLeads: string;
+  estimatedCostPerLead: string;
+  recommended?: boolean;
+  totalMonthly?: number | string;
+  customValues?: Record<string, string>;
+}
+
+export interface ProposalTimelinePhase {
+  phase: string;
+  activity: string;
+  duration: string;
+}
+
+export interface ProposalTerm {
+  term: string;
+  description: string;
+}
+
+export interface ProposalCustomSection {
+  id: string;
+  title: string;
+  content: string;
+  points?: string[];
+}
+
 export interface Proposal {
   id: string;
   leadId?: string;
   clientId?: string;
+  fromLeadId?: string;
   clientName: string;
+  clientEmail: string;
+  company?: string;
+  phone?: string;
   service: ServiceTag;
+  
+  // New Editable Document Structure (Optional, for gradual migration)
+  documentContent?: ProposalDocument;
+  
+  // Rich Document Fields
+  isRichDocument?: boolean;
+  introduction?: string;
+  understanding?: string[];
+  objectives?: string[];
+  approachTitle?: string;
+  approachDescription?: string;
+  approachFeatures?: string[];
+  packages?: ProposalPackage[];
+  addons?: { name: string; deliverables: string; cost: number | string; period: string }[];
+  timeline?: ProposalTimelinePhase[];
+  exclusions?: string[];
+  terms?: ProposalTerm[];
+  customSections?: ProposalCustomSection[];
+  
+  // Editor-specific Fields
+  aboutTitle?: string;
+  understandingTitle?: string;
+  objectivesTitle?: string;
+  packagesTitle?: string;
+  packagesDescription?: string;
+  addonsTitle?: string;
+  addonsDescription?: string;
+  timelineTitle?: string;
+  exclusionsTitle?: string;
+  termsTitle?: string;
+  acceptanceTitle?: string;
+  acceptanceText?: string;
+  providerSignatory?: string;
+  clientSignatory?: string;
+  footerClosingText?: string;
+  companyHeaderTitle?: string;
+  companyHeaderSubtitle?: string;
+  documentTypeLabel?: string;
+  subject?: string;
+  preparedByLabel?: string;
+  validityLabel?: string;
+  engagementModelLabel?: string;
+  tagline?: string;
+
+  // Custom table row labels
+  packageRowLabels?: {
+    bestFor?: string;
+    activeCampaigns?: string;
+    adCreatives?: string;
+    optimisation?: string;
+    abTesting?: string;
+    recommendedSpend?: string;
+    managementFee?: string;
+    reviewCall?: string;
+    reporting?: string;
+    estimatedLeads?: string;
+    estimatedCostPerLead?: string;
+    totalMonthly?: string;
+  };
+
+  disabledPackageRows?: string[];
+  
+  customRows?: { id: string; label: string }[];
+
+  // Commercial Summary Fields
+  commercialSummaryTitle?: string;
+  commercialSummaryDescription?: string;
+  commercialSummaryRows?: { item: string; amount: string }[];
+  
+  // Standard/Legacy Fields
   items: ProposalItem[];
   subtotal: number;
   tax: number;
   total: number;
+  currency?: string;
   status: ProposalStatus;
   notes?: string;
   validUntil?: string;
   createdBy: string;
   sentAt?: string;
+  clientSignatureName?: string;
+  clientSignatureTitle?: string;
+  clientSignatureImage?: string;
+  signedAt?: string;
   createdAt: string;
 }
+
+export type SystemTaskType = "follow-up" | "meeting" | "internal-task" | "admin-action" | "project-task";
 
 export interface Task {
   id: string;
@@ -112,10 +257,33 @@ export interface Task {
   clientId?: string;
   clientName?: string;
   relatedTo?: string;
-  relatedType?: "lead" | "client" | "project";
+  relatedType?: "lead" | "client" | "project" | "proposal";
+  taskType?: SystemTaskType;
   dueDate?: string;
   priority: TaskPriority;
   status: string;
   done: boolean;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  service: ServiceTag;
+  status: "paid" | "unpaid" | "overdue";
+  subtotal: number;
+  tax: number;
+  total: number;
+  paidAmount: number;
+  remainingAmount: number;
+  dueDate?: string;
+  notes?: string;
+  items: { description: string; qty: number; rate: number; amount: number }[];
+  projectId?: string;
+  createdBy: string;
   createdAt: string;
 }
