@@ -1251,7 +1251,8 @@ export default function RevenuePage() {
                     No paid revenue yet
                   </p>
                   <p className="text-xs mt-1" style={{ color: "#c4c7d0" }}>
-                    Mark invoices as "Paid" or add received manual revenue
+                    Mark invoices as &quot;Paid&quot; or add received manual
+                    revenue
                   </p>
                 </div>
               ) : (

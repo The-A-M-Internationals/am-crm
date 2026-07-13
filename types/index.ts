@@ -1,15 +1,41 @@
 import { ProposalDocument } from "./proposal-doc";
-export type UserRole = "admin" | "lead" | "employee";
+export type UserRole =
+  | "admin"
+  | "manager"
+  | "executive"
+  | "sales"
+  | "designer"
+  | "lead"
+  | "employee";
 
-export type ServiceTag = "digital-marketing" | "ui-ux" | "web-development" | "seo" | "social-media" | "branding" | "other";
+export type ServiceTag =
+  | "digital-marketing"
+  | "ui-ux"
+  | "web-development"
+  | "seo"
+  | "social-media"
+  | "branding"
+  | "other";
 
 export type LeadStage = "lead" | "meeting" | "proposal" | "won" | "lost";
 
-export type ProjectStatus = "not-started" | "in-progress" | "review" | "completed" | "on-hold";
+export type ProjectStatus =
+  | "not-started"
+  | "in-progress"
+  | "review"
+  | "completed"
+  | "on-hold";
 
 export type TaskPriority = "low" | "medium" | "high";
 
-export type ProposalStatus = "draft" | "sent" | "accepted" | "rejected" | "proposal" | "won" | "lost";
+export type ProposalStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "proposal"
+  | "won"
+  | "lost";
 
 export interface CRMUser {
   uid: string;
@@ -77,6 +103,7 @@ export interface Project {
   clientId: string;
   clientName: string;
   title: string;
+
   service: ServiceTag;
   status: ProjectStatus;
   deadline?: string;
@@ -92,11 +119,32 @@ export interface Project {
   leadInstructions?: string;
   tasks?: ProjectTask[];
   customFields?: { id: string; label: string; value: string }[];
-  milestones?: { id: string; title: string; dueDate?: string; date?: string; completed: boolean }[];
+  milestones?: {
+    id: string;
+    title: string;
+    dueDate?: string;
+    date?: string;
+    completed: boolean;
+  }[];
   payments?: PaymentLog[];
   createdAt: string;
   updatedAt: string;
+  figmaUrl?: string;
+  repoUrl?: string;
+  stagingUrl?: string;
+  productionUrl?: string;
+  techStack?: string[];
+  coreFocus?: string;
+
+  sharedFiles?: {
+    name: string;
+    url: string;
+    category: string;
+    addedBy: string;
+    at: string;
+  };
 }
+[];
 
 export interface ProjectTask {
   id: string;
@@ -158,10 +206,10 @@ export interface Proposal {
   company?: string;
   phone?: string;
   service: ServiceTag;
-  
+
   // New Editable Document Structure (Optional, for gradual migration)
   documentContent?: ProposalDocument;
-  
+
   // Rich Document Fields
   isRichDocument?: boolean;
   introduction?: string;
@@ -171,12 +219,17 @@ export interface Proposal {
   approachDescription?: string;
   approachFeatures?: string[];
   packages?: ProposalPackage[];
-  addons?: { name: string; deliverables: string; cost: number | string; period: string }[];
+  addons?: {
+    name: string;
+    deliverables: string;
+    cost: number | string;
+    period: string;
+  }[];
   timeline?: ProposalTimelinePhase[];
   exclusions?: string[];
   terms?: ProposalTerm[];
   customSections?: ProposalCustomSection[];
-  
+
   // Editor-specific Fields
   aboutTitle?: string;
   understandingTitle?: string;
@@ -219,14 +272,14 @@ export interface Proposal {
   };
 
   disabledPackageRows?: string[];
-  
+
   customRows?: { id: string; label: string }[];
 
   // Commercial Summary Fields
   commercialSummaryTitle?: string;
   commercialSummaryDescription?: string;
   commercialSummaryRows?: { item: string; amount: string }[];
-  
+
   // Standard/Legacy Fields
   items: ProposalItem[];
   subtotal: number;
@@ -243,9 +296,15 @@ export interface Proposal {
   clientSignatureImage?: string;
   signedAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
-export type SystemTaskType = "follow-up" | "meeting" | "internal-task" | "admin-action" | "project-task";
+export type SystemTaskType =
+  | "follow-up"
+  | "meeting"
+  | "internal-task"
+  | "admin-action"
+  | "project-task";
 
 export interface Task {
   id: string;
