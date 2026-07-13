@@ -724,39 +724,31 @@ export default function InvoicePage() {
               </button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="form-label font-semibold">Select Client (Auto-fills details)</label>
-                <select
-                  className="form-input mb-3"
-                  onChange={(e) => {
-                    const selected = clients.find(c => c.id === e.target.value);
-                    if (selected) {
-                      setForm({
-                        ...form,
-                        clientName: selected.name || "",
-                        clientEmail: selected.email || "",
-                        clientPhone: selected.phone || "",
-                        clientAddress: selected.address || ""
-                      });
-                    }
-                  }}
-                >
-                  <option value="">-- Choose an existing client --</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Client Name *</label>
-                  <input
+                  <label className="form-label">Client *</label>
+                  <select
                     className="form-input"
-                    value={form.clientName}
-                    onChange={(e) =>
-                      setForm({ ...form, clientName: e.target.value })
-                    }
-                    placeholder="Client or company name"
-                  />
+                    value={form.clientId || ""}
+                    onChange={(e) => {
+                      const selected = clients.find(c => c.id === e.target.value);
+                      if (selected) {
+                        setForm({
+                          ...form,
+                          clientId: e.target.value,
+                          clientName: selected.company || selected.name || "",
+                          clientEmail: selected.email || "",
+                          clientPhone: selected.phone || "",
+                          clientAddress: selected.address || ""
+                        });
+                      } else {
+                        setForm({ ...form, clientId: "", clientName: "", clientEmail: "", clientPhone: "", clientAddress: "" });
+                      }
+                    }}
+                  >
+                    <option value="">-- Select a client --</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="form-label">Client Email</label>

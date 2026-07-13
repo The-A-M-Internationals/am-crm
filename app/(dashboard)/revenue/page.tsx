@@ -91,6 +91,7 @@ export default function RevenuePage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [manualRev, setManualRev] = useState<any[]>([]);
+  const [dbClients, setDbClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"expenses" | "manual_revenue">("expenses");
   
@@ -134,14 +135,16 @@ export default function RevenuePage() {
 
   async function fetchData() {
     try {
-      const [invSnap, expSnap, revSnap] = await Promise.all([
+      const [invSnap, expSnap, revSnap, cliSnap] = await Promise.all([
         getDocs(collection(db, "invoices")),
         getDocs(collection(db, "expenses")),
         getDocs(collection(db, "manual_revenue")),
+        getDocs(collection(db, "clients"))
       ]);
       setInvoices(invSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setExpenses(expSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setManualRev(revSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setDbClients(cliSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } finally {
       setLoading(false);
     }
@@ -531,9 +534,9 @@ export default function RevenuePage() {
               onChange={(e) => setSelectedClient(e.target.value)}
             >
               <option value="">Select Client</option>
-              {clients.map((client) => (
-                <option key={client} value={client}>
-                  {client}
+              {dbClients.map((client) => (
+                <option key={client.id} value={client.company || client.name}>
+                  {client.company || client.name}
                 </option>
               ))}
             </select>
@@ -1225,21 +1228,23 @@ export default function RevenuePage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="form-label">Client Name</label>
+                <label className="form-label">Client *</label>
                 <select
                   className="form-input"
-                  value={revForm.clientName || ""}
-                  onChange={(e) =>
+                  value={revForm.clientId || ""}
+                  onChange={(e) => {
+                    const c = dbClients.find(cl => cl.id === e.target.value);
                     setRevForm({
                       ...revForm,
-                      clientName: e.target.value,
-                    })
-                  }
+                      clientId: e.target.value,
+                      clientName: c ? (c.company || c.name) : "",
+                    });
+                  }}
                 >
-                  <option value="">Select Client</option>
-                  {clients.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  <option value="">-- Select Client --</option>
+                  {dbClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.company || client.name}
                     </option>
                   ))}
                 </select>

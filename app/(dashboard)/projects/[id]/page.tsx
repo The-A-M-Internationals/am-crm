@@ -1150,10 +1150,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <div 
                         key={task.id} 
                         onClick={() => router.push(`/tasks/${task.id}`)}
-                        className="w-full bg-white border border-slate-200/60 rounded-xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-50/80 shadow-sm cursor-pointer"
+                        className="w-full bg-white border border-slate-200/60 rounded-xl p-4 lg:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-50/80 shadow-sm cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
-                        <div className="flex items-center space-x-4 min-w-[240px]">
+                        <div className="flex items-center space-x-4 min-w-0 xl:w-1/3">
                           {/* Micro-avatar */}
                           <div 
                             className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -1180,7 +1180,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="flex-1 max-w-xl w-full px-4 py-2.5 bg-slate-50 rounded-lg border border-slate-200/50" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 w-full px-4 py-2.5 bg-slate-50 rounded-lg border border-slate-200/50 xl:max-w-md" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-between text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                             <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
@@ -1207,11 +1207,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Right Section: Hover controls & Inspect trigger */}
-                        <div className="flex items-center justify-between lg:justify-end gap-3 min-w-[280px]">
+                        <div className="flex items-center justify-start xl:justify-end gap-2 flex-shrink-0 xl:w-1/3">
                           {/* Management Hover Controls */}
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div 
-                              className="flex items-center space-x-2" 
+                              className="flex items-center gap-2" 
                               onClick={e => e.stopPropagation()}
                             >
                               <button 
@@ -1219,8 +1219,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                   setNoteModalTask(task);
                                   setShowNoteModal(true);
                                 }}
-                                className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-all shadow-sm"
-                                title="Append Directions"
+                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-all shadow-sm flex-shrink-0"
+                                title="Add Instructions"
                               >
                                 📝
                               </button>
@@ -1228,7 +1228,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
-                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-2 py-1.5 outline-none focus:border-blue-500 cursor-pointer shadow-sm w-32"
+                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-3 h-9 outline-none focus:border-blue-500 cursor-pointer shadow-sm w-32 flex-shrink-0"
                               >
                                 <option value="">Re-allocate...</option>
                                 {users
@@ -1247,7 +1247,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               e.stopPropagation();
                               router.push(`/tasks/${task.id}`);
                             }}
-                            className="p-2 rounded-lg text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-slate-200 hover:border-blue-200 shadow-sm"
+                            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-slate-200 hover:border-blue-200 shadow-sm flex-shrink-0"
                             title="Inspect Task"
                           >
                             🔍
@@ -1770,8 +1770,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   onChange={e => setDelegateForm({...delegateForm, taskType: e.target.value as SystemTaskType})}
                 >
                   <option value="project-task">Project Task</option>
-                  <option value="meeting">Internal Meeting</option>
-                  <option value="follow-up">Follow-up</option>
+                  {crmUser?.role === "admin" && <option value="meeting">Internal Meeting</option>}
+                  {crmUser?.role === "admin" && <option value="follow-up">Follow-up</option>}
                   <option value="internal-task">Internal Task</option>
                 </select>
               </div>
@@ -1846,11 +1846,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
             
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50">
-                <h4 className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">Option A: Append Instruction Note</h4>
+                <h4 className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">Option A: Add Instruction Note</h4>
                 <textarea 
                   className="w-full p-3 text-xs rounded-xl border border-blue-200 outline-none focus:border-blue-400 bg-white resize-none"
                   rows={3}
-                  placeholder="Type new directive string to append chronologically..."
+                  placeholder="Type new instructions here..."
                   value={duplicateInstructionNote}
                   onChange={e => setDuplicateInstructionNote(e.target.value)}
                 />
@@ -1859,22 +1859,22 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     if (!duplicateInstructionNote.trim()) return;
                     try {
                       await updateDoc(doc(db, "tasks", duplicateConflictTask.id), { 
-                        taskInstructions: (duplicateConflictTask.taskInstructions || "") + "\n\n[APPENDED DIRECTIVE]: " + duplicateInstructionNote 
+                        taskInstructions: (duplicateConflictTask.taskInstructions || "") + "\n\n[NEW INSTRUCTIONS]: " + duplicateInstructionNote 
                       });
-                      alert("Instruction note appended successfully!");
+                      alert("Instructions added successfully!");
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
                       setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" });
                     } catch(e) {
                       console.error(e);
-                      alert("Failed to append note");
+                      alert("Failed to add instructions");
                     }
                   }}
                   disabled={!duplicateInstructionNote.trim()}
                   className="mt-2 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Append Note to Existing Task
+                  Add Instructions to Existing Task
                 </button>
               </div>
 
@@ -1912,10 +1912,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       {showNoteModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-sm font-bold text-slate-200 mb-3 uppercase tracking-wider">Append Project Directions/Instructions</h3>
+            <h3 className="text-sm font-bold text-slate-200 mb-3 uppercase tracking-wider">Add Project Instructions</h3>
             <textarea 
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono mb-4 min-h-[100px]"
-              placeholder="Type your new task directives here..."
+              placeholder="Type your new task instructions here..."
               value={noteModalText}
               onChange={e => setNoteModalText(e.target.value)}
             />
@@ -1933,7 +1933,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               <button 
                 onClick={() => {
                   if (noteModalTask && noteModalText) {
-                    const newInstruction = (noteModalTask.taskInstructions || "") + "\n\n[APPENDED DIRECTIVE]: " + noteModalText;
+                    const newInstruction = (noteModalTask.taskInstructions || "") + "\n\n[NEW INSTRUCTIONS]: " + noteModalText;
                     updateTaskInstructions(noteModalTask, newInstruction);
                   }
                   setShowNoteModal(false);
@@ -1942,7 +1942,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 }} 
                 className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
               >
-                Save Note
+                Save Instructions
               </button>
             </div>
           </div>

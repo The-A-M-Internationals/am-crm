@@ -51,6 +51,7 @@ function ProposalsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [clients, setClients]     = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm]           = useState<any>({ ...EMPTY_FORM, items: [{ ...EMPTY_ITEM }] });
@@ -97,7 +98,16 @@ function ProposalsContent() {
       console.error("Firestore onSnapshot error:", error);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const qClients = query(collection(db, "clients"), where("active", "!=", false));
+    const unsubClients = onSnapshot(qClients, (snap) => {
+      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubscribe();
+      unsubClients();
+    };
   }, [searchParams, router]);
 
   function calcItem(item: ProposalItem): ProposalItem {
@@ -482,7 +492,23 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
       <div className="border-t border-slate-100 pt-4">
         <label className="text-sm font-bold text-slate-800 mb-3 block">2. Client Details</label>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div><label className="form-label text-xs">Client Name *</label><input className="form-input py-2.5" value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} placeholder="John Doe" /></div>
+          <div>
+            <label className="form-label text-xs">Client *</label>
+            <select className="form-input py-2.5" value={form.clientId || ""} onChange={e => {
+              const c = clients.find(cl => cl.id === e.target.value);
+              setForm({ 
+                ...form, 
+                clientId: e.target.value, 
+                clientName: c ? (c.company || c.name) : "",
+                clientEmail: c ? (c.email) : "",
+                company: c ? (c.company) : "",
+                phone: c ? (c.phone) : ""
+              });
+            }}>
+              <option value="">-- Select Client --</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+            </select>
+          </div>
           <div><label className="form-label text-xs">Company</label><input className="form-input py-2.5" value={form.company || ""} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Company Ltd" /></div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

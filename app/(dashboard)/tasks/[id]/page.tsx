@@ -116,7 +116,18 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
 
   const handleProgressClick = async (newProgress: number) => {
     setLocalProgress(newProgress);
-    await updateDoc(doc(db, "tasks", task.id), { progress: newProgress });
+    
+    let newStatus = "not-started";
+    if (newProgress === 25) newStatus = "dev";
+    else if (newProgress === 50) newStatus = "test";
+    else if (newProgress === 75) newStatus = "review";
+    else if (newProgress === 100) newStatus = "completed";
+
+    await updateDoc(doc(db, "tasks", task.id), { 
+      progress: newProgress,
+      status: newStatus,
+      done: newProgress === 100
+    });
     
     if (task.relatedType === "project" && task.relatedTo) {
       const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
@@ -246,21 +257,32 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                     className="absolute left-8 h-1.5 bg-gradient-to-r from-blue-400 to-blue-600 top-1/2 -translate-y-1/2 rounded-full transition-all duration-700 shadow-[0_0_10px_rgba(59,130,246,0.6)]"
                     style={{ width: `calc(${localProgress}% - ${localProgress === 100 ? 4 : localProgress === 0 ? 0 : 2}rem)` }}
                   />
-                  {[0, 25, 50, 75, 100].map((step) => {
-                    const isCompleted = localProgress >= step;
-                    return (
-                      <button
-                        key={step}
-                        onClick={() => handleProgressClick(step)}
-                        className={`relative z-10 w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-all duration-500 shadow-sm ${
-                          isCompleted 
-                            ? "bg-[#0D1B3E] text-[#C9A84C] border border-[#C9A84C] scale-110" 
-                            : "bg-white text-slate-400 border border-slate-200 hover:scale-105"
-                        }`}
-                      >
-                        {step === 100 && isCompleted ? "✓" : step === 0 ? "🚀" : step}
-                      </button>
-                    );
+                  {
+                    [
+                      { pct: 0, label: "START" },
+                      { pct: 25, label: "DEV" },
+                      { pct: 50, label: "TEST" },
+                      { pct: 75, label: "REVIEW" },
+                      { pct: 100, label: "DONE" }
+                    ].map((step) => {
+                      const isCompleted = localProgress >= step.pct;
+                      return (
+                        <div key={step.pct} className="flex flex-col items-center gap-2 relative z-10">
+                          <button
+                            onClick={() => handleProgressClick(step.pct)}
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-all duration-500 shadow-sm ${
+                              isCompleted 
+                                ? "bg-[#0D1B3E] text-[#C9A84C] border border-[#C9A84C] scale-110" 
+                                : "bg-white text-slate-400 border border-slate-200 hover:scale-105"
+                            }`}
+                          >
+                            {step.pct === 100 && isCompleted ? "✓" : step.pct === 0 ? "🚀" : step.pct}
+                          </button>
+                          <span className={`text-[8px] font-black tracking-widest uppercase absolute -bottom-6 whitespace-nowrap ${isCompleted ? "text-[#0D1B3E]" : "text-slate-400"}`}>
+                            {step.label}
+                          </span>
+                        </div>
+                      );
                   })}
                 </div>
               </div>

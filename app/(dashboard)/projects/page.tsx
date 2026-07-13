@@ -638,7 +638,20 @@ export default function ProjectsPage() {
             </div>
             <div className="space-y-4">
               <div><label className="form-label">Project Title *</label><input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Website Redesign" /></div>
-              <div><label className="form-label">Client Name *</label><input className="form-input" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} /></div>
+              <div>
+                <label className="form-label">Client *</label>
+                <select 
+                  className="form-input" 
+                  value={form.clientId || ""} 
+                  onChange={(e) => {
+                    const c = clients.find(cl => cl.id === e.target.value);
+                    setForm({ ...form, clientId: e.target.value, clientName: c ? (c.company || c.name) : "" });
+                  }}
+                >
+                  <option value="">-- Select Client --</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Service</label>
@@ -881,8 +894,8 @@ export default function ProjectsPage() {
                   onChange={(e) => setDelegateForm({ ...delegateForm, taskType: e.target.value as SystemTaskType })}
                 >
                   <option value="project-task">Project Task</option>
-                  <option value="meeting">Internal Meeting</option>
-                  <option value="follow-up">Follow-up</option>
+                  {crmUser?.role === "admin" && <option value="meeting">Internal Meeting</option>}
+                  {crmUser?.role === "admin" && <option value="follow-up">Follow-up</option>}
                   <option value="internal-task">Internal Task</option>
                 </select>
               </div>

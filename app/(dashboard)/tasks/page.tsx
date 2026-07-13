@@ -64,6 +64,8 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
 
+
+
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -75,6 +77,9 @@ export default function TasksPage() {
     const tasksQuery = crmUser.role === "employee" || viewMode === "my-desk"
       ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
       : query(tasksRef);
+
+    setTasks([]); // Clear tasks when switching view modes
+    setLoading(true);
 
     const unsubTasks = onSnapshot(tasksQuery, snap => {
       setTasks(prev => {
@@ -105,6 +110,7 @@ export default function TasksPage() {
   }, [crmUser, viewMode]);
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
+  
   function openEdit(t: any) {
     setEditing(t);
     setForm({ 
@@ -149,7 +155,7 @@ export default function TasksPage() {
   async function toggleDone(task: any) {
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
     if (newStatus === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
-    else await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress" });
+    else await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress", progress: task.progress === 100 ? 75 : (task.progress || 25) });
   }
 
   async function deleteTask(id: string) {
@@ -160,7 +166,11 @@ export default function TasksPage() {
   async function updateStatus(task: any, status: string) {
     if (status === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
     else {
-      await updateDoc(doc(db, "tasks", task.id), { status, done: false });
+      let prog = task.progress || 0;
+      if (status === "not-started") prog = 0;
+      if (status === "in-progress" && (prog === 0 || prog === 100)) prog = 25;
+      
+      await updateDoc(doc(db, "tasks", task.id), { status, done: false, progress: prog });
       if (status === "not-started" && task.relatedType === "project" && task.relatedTo) {
         await updateDoc(doc(db, "projects", task.relatedTo), { status: "not-started", updatedAt: new Date().toISOString() });
       }
@@ -172,17 +182,20 @@ export default function TasksPage() {
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     
-    // Hide tasks immediately if their parent project is 'not-started'
-    if (t.relatedType === "project" && t.relatedTo) {
-      const proj = projects.find(p => p.id === t.relatedTo);
-      if (proj && proj.status === "not-started") return false;
-    }
-    
     // Hide tasks if their client is archived/inactive
     if (t.clientId && !loadingClients && !clients.some(c => c.id === t.clientId)) return false;
 
     return true;
   });
+
+  const handleDrop = (e: React.DragEvent, statusKey: string) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("taskId");
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.status !== statusKey) {
+      updateStatus(task, statusKey);
+    }
+  };
 
   const getColTasks = (statusKey: string) => {
     if (statusKey === "not-started") return filteredTasks.filter(t => !["in-progress", "dev", "test", "review", "completed", "done"].includes(t.status));
@@ -227,30 +240,28 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Segmented Filters */}
-      <div className="flex flex-wrap gap-2 mb-6 shrink-0 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
-        <button onClick={() => setTypeFilter("all")} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${typeFilter === "all" ? "bg-slate-800 text-white shadow" : "text-slate-500 hover:bg-slate-50"}`}>
-          All Types
-        </button>
-        {TASK_TYPES.map(tt => {
-          const count = tasks.filter(t => t.taskType === tt.key).length;
-          return (
-            <button 
-              key={tt.key} 
-              onClick={() => setTypeFilter(tt.key)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${typeFilter === tt.key ? "bg-white shadow border border-slate-200 text-slate-900" : "text-slate-500 hover:bg-slate-50 border border-transparent"}`}
-            >
-              <span>{tt.icon}</span> {tt.label}
-              <span className={`px-1.5 py-0.5 rounded text-[10px] ${typeFilter === tt.key ? tt.bg + " " + tt.color : "bg-slate-100 text-slate-400"}`}>{count}</span>
-            </button>
-          )
-        })}
-        <div className="w-px h-6 bg-slate-200 mx-2 self-center" />
-        {PRIORITIES.map(p => (
-          <button key={p.key} onClick={() => setPriorityFilter(priorityFilter === p.key ? "all" : p.key)} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border" style={{ background: priorityFilter === p.key ? p.bg : "white", color: priorityFilter === p.key ? p.color : "#9ca3af", borderColor: priorityFilter === p.key ? p.border : "transparent" }}>
-            {p.label}
-          </button>
-        ))}
+      {/* Clean Filters */}
+      <div className="flex flex-wrap gap-4 mb-6 shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 items-center">
+        <select 
+          className="form-input w-48 text-sm" 
+          value={typeFilter} 
+          onChange={e => setTypeFilter(e.target.value)}
+        >
+          <option value="all">All Task Types</option>
+          {TASK_TYPES.filter(tt => crmUser?.role === "admin" || (tt.key !== "follow-up" && tt.key !== "meeting")).map(tt => (
+            <option key={tt.key} value={tt.key}>{tt.icon} {tt.label}</option>
+          ))}
+        </select>
+        <select 
+          className="form-input w-48 text-sm" 
+          value={priorityFilter} 
+          onChange={e => setPriorityFilter(e.target.value)}
+        >
+          <option value="all">All Priorities</option>
+          {PRIORITIES.map(p => (
+            <option key={p.key} value={p.key}>{p.label} Priority</option>
+          ))}
+        </select>
       </div>
 
       {/* Kanban Board */}
@@ -258,7 +269,12 @@ export default function TasksPage() {
         {TASK_STATUSES.map(col => {
           const colTasks = getColTasks(col.key);
           return (
-            <div key={col.key} className="flex-1 min-w-[320px] max-w-[400px] flex flex-col bg-slate-50/50 rounded-3xl border border-slate-200 overflow-hidden">
+            <div 
+              key={col.key} 
+              className="flex-1 min-w-[320px] max-w-[400px] flex flex-col bg-slate-50/50 rounded-3xl border border-slate-200 overflow-hidden"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleDrop(e, col.key)}
+            >
               <div className="p-4 border-b border-slate-200 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
                 <h3 className="font-black text-slate-700 uppercase tracking-widest text-xs flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
@@ -283,7 +299,9 @@ export default function TasksPage() {
                         <motion.div 
                           layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                           key={task.id} 
-                          onClick={() => openEdit(task)}
+                          draggable
+                          onDragStart={(e) => e.dataTransfer.setData("taskId", task.id)}
+                          onClick={() => router.push(`/tasks/${task.id}`)}
                           className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col"
                         >
                           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
@@ -294,6 +312,11 @@ export default function TasksPage() {
                             </span>
                             <div className="flex items-center gap-1">
                               {isOverdue && <span className="bg-red-50 text-red-600 border border-red-100 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Overdue</span>}
+                              {crmUser?.role !== "employee" && (
+                                <button onClick={(e) => { e.stopPropagation(); openEdit(task); }} className="w-5 h-5 rounded-md border border-slate-200 bg-white text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-[#0D1B3E] transition-all" title="Edit Task details">
+                                  ✏️
+                                </button>
+                              )}
                               <button onClick={(e) => { e.stopPropagation(); toggleDone(task); }} className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${task.status === "completed" ? "bg-emerald-500 border-emerald-600 text-white" : "bg-slate-50 border-slate-200 text-transparent hover:border-emerald-400 hover:text-emerald-200"}`}>
                                 <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4L3.5 6.5L9 1"/></svg>
                               </button>
@@ -365,7 +388,7 @@ export default function TasksPage() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Task Type</label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {TASK_TYPES.map(tt => (
+                  {TASK_TYPES.filter(tt => crmUser?.role === "admin" || (tt.key !== "follow-up" && tt.key !== "meeting")).map(tt => (
                     <button
                       key={tt.key}
                       onClick={() => setForm({ ...form, taskType: tt.key as SystemTaskType })}
@@ -440,6 +463,8 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }
