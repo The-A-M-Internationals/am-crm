@@ -598,14 +598,25 @@ export default function RevenuePage() {
     doc.setTextColor(13, 27, 62);
 
     doc.text("Client Financial Summary", 15, 98);
+
     // =====================================
     // Build Client Table Data
     // =====================================
 
     const clientRows = clients.map((client) => {
-      const revenue = paidInvoices
+      const invoiceRevenue = paidInvoices
         .filter((i) => i.clientName === client)
         .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+
+      const manualRevenue = manualRev
+        .filter((r) => r.clientName === client && r.status === "received")
+        .reduce(
+          (sum, r) =>
+            sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+          0,
+        );
+
+      const totalRevenue = invoiceRevenue + manualRevenue;
 
       const expense = expenses
         .filter((e) => e.clientName === client)
@@ -615,14 +626,16 @@ export default function RevenuePage() {
           0,
         );
 
-      const profit = revenue - expense;
+      const profit = totalRevenue - expense;
 
       const margin =
-        revenue > 0 ? `${Math.round((profit / revenue) * 100)}%` : "0%";
+        totalRevenue > 0
+          ? `${Math.round((profit / totalRevenue) * 100)}%`
+          : "0%";
 
       return [
-        client || "-",
-        `AED ${revenue.toLocaleString()}`,
+        client,
+        `AED ${totalRevenue.toLocaleString()}`,
         `AED ${expense.toLocaleString()}`,
         `AED ${profit.toLocaleString()}`,
         margin,
@@ -634,7 +647,7 @@ export default function RevenuePage() {
     // =====================================
 
     autoTable(doc, {
-      startY: 105,
+      startY: 103,
 
       head: [["Client", "Revenue", "Expense", "Profit", "Margin"]],
 
@@ -691,12 +704,48 @@ export default function RevenuePage() {
         },
       },
     });
+    const clientTableEnd = (doc as any).lastAutoTable.finalY + 12;
 
     // =====================================
-    // Position after table
+    // Revenue Breakdown
     // =====================================
 
-    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    const invoiceRevenueAED = paidInvoices.reduce(
+      (sum, invoice) => sum + (Number(invoice.total) || 0),
+      0,
+    );
+
+    const manualRevenueAED = manualRev
+      .filter((r) => r.status === "received")
+      .reduce(
+        (sum, r) =>
+          sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+        0,
+      );
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Revenue Breakdown", 15, clientTableEnd + 2);
+
+    autoTable(doc, {
+      startY: clientTableEnd + 8,
+      head: [["Revenue Source", "Amount"]],
+      body: [
+        ["Invoice Revenue", `AED ${invoiceRevenueAED.toLocaleString()}`],
+        ["Manual Revenue", `AED ${manualRevenueAED.toLocaleString()}`],
+        ["Total Revenue", `AED ${totalRevenue.toLocaleString()}`],
+      ],
+      theme: "grid",
+      headStyles: {
+        fillColor: [13, 27, 62],
+        textColor: 255,
+      },
+    });
+
+    const revenueTableEnd = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = revenueTableEnd;
     // =====================================
     // Financial Highlights
     // =====================================
@@ -709,33 +758,26 @@ export default function RevenuePage() {
 
     // Background Box
     doc.setFillColor(248, 248, 248);
-    doc.roundedRect(15, finalY + 5, 180, 55, 3, 3, "F");
+    doc.roundedRect(15, finalY + 5, 180, 40, 3, 3, "F");
 
     // Left Column
-    doc.setFontSize(10);
-    doc.setTextColor(120);
-
-    doc.text("Paid Invoices", 22, finalY + 18);
+    doc.text("Paid Invoices", 22, finalY + 15);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.setTextColor(34, 197, 94);
-
-    doc.text(paidInvoices.length.toString(), 22, finalY + 28);
-
-    // Pending Revenue
+    doc.text(paidInvoices.length.toString(), 22, finalY + 24);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(120);
 
-    doc.text("Pending Revenue", 22, finalY + 42);
+    doc.text("Pending Revenue", 22, finalY + 32);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(245, 158, 11);
 
-    doc.text(`AED ${totalPending.toLocaleString()}`, 22, finalY + 51);
+    doc.text(`AED ${totalPending.toLocaleString()}`, 22, finalY + 40);
 
     // ============================
     // Middle Column
@@ -745,25 +787,25 @@ export default function RevenuePage() {
     doc.setFontSize(10);
     doc.setTextColor(120);
 
-    doc.text("Active Clients", 80, finalY + 18);
+    doc.text("Active Clients", 82, finalY + 15);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(59, 130, 246);
 
-    doc.text(clients.length.toString(), 80, finalY + 28);
+    doc.text(clients.length.toString(), 82, finalY + 24);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(120);
 
-    doc.text("Expense Records", 80, finalY + 42);
+    doc.text("Expense Records", 82, finalY + 32);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(239, 68, 68);
 
-    doc.text(expenses.length.toString(), 80, finalY + 51);
+    doc.text(expenses.length.toString(), 82, finalY + 40);
 
     // ============================
     // Right Column
@@ -773,7 +815,7 @@ export default function RevenuePage() {
     doc.setFontSize(10);
     doc.setTextColor(120);
 
-    doc.text("Profit Margin", 145, finalY + 18);
+    doc.text("Profit Margin", 145, finalY + 15);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
@@ -786,31 +828,32 @@ export default function RevenuePage() {
       doc.setTextColor(239, 68, 68);
     }
 
-    doc.text(`${profitMargin}%`, 145, finalY + 31);
+    doc.text(`${profitMargin}%`, 145, finalY + 25);
 
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(120);
 
-    doc.text("Overall Business Performance", 145, finalY + 44);
+    doc.text("Overall Business Performance", 145, finalY + 34);
 
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
 
     if (profitMargin >= 50) {
       doc.setTextColor(34, 197, 94);
-      doc.text("Excellent", 145, finalY + 52);
+      doc.text("Excellent", 145, finalY + 40);
     } else if (profitMargin >= 20) {
       doc.setTextColor(245, 158, 11);
-      doc.text("Good", 145, finalY + 52);
+      doc.text("Good", 145, finalY + 40);
     } else {
       doc.setTextColor(239, 68, 68);
-      doc.text("Needs Attention", 145, finalY + 52);
+      doc.text("Needs Attention", 145, finalY + 40);
     }
-
     // =====================================
     // Executive Notes
     // =====================================
 
-    const notesY = finalY + 72;
+    const notesY = finalY + 50;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
