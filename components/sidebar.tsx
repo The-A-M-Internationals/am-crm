@@ -340,12 +340,26 @@ export default function Sidebar() {
   const financeItems = visible.filter((i) => i.section === "finance");
   const manageItems = visible.filter((i) => i.section === "manage");
 
+  // Pages that have their own sidebar-triggered filter side panel. Each
+  // page listens for a window event named "<route-without-slash>:open-panel".
+  const PANEL_ROUTES = ["/clients", "/projects"];
+
   function NavLink({ item }: { item: NavItem }) {
     const isActive =
       pathname === item.href || pathname.startsWith(item.href + "/");
+    const hasPanel = PANEL_ROUTES.includes(item.href);
     return (
       <Link
         href={item.href}
+        onClick={() => {
+          if (hasPanel && typeof window !== "undefined") {
+            // Covers the case where you're already on that page, so no
+            // navigation/mount happens to trigger the page's own effect.
+            window.dispatchEvent(
+              new Event(`${item.href.slice(1)}:open-panel`),
+            );
+          }
+        }}
         className={`sidebar-link${isActive ? " active" : ""}`}
       >
         {item.icon}

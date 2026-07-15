@@ -113,11 +113,29 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
+  const [openClientPanel, setOpenClientPanel] = useState(false);
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
   const canEdit = crmUser?.role === "admin";
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // TEMP DEBUG — remove once panel is confirmed working.
+    console.log("[clients-panel] page mounted, opening panel");
+    // Always open the filter panel when this page loads/mounts —
+    // this is the reliable trigger for "clicked Clients in the sidebar".
+    setOpenClientPanel(true);
+
+    // Bonus: if you're already sitting on /clients and click the
+    // sidebar link again (no navigation happens), this catches it too.
+    function openFromSidebar() {
+      setOpenClientPanel(true);
+    }
+    window.addEventListener("clients:open-panel", openFromSidebar);
+    return () =>
+      window.removeEventListener("clients:open-panel", openFromSidebar);
+  }, []);
 
   useEffect(() => {
     const unsubClients = onSnapshot(
@@ -193,7 +211,10 @@ export default function ClientsPage() {
         : [...f.services, svc],
     }));
   }
-
+  function selectClientFilter(filter: "all" | "active" | "inactive") {
+    setStatusFilter(filter);
+    setOpenClientPanel(false);
+  }
   async function handleSave() {
     if (!form.name || !form.company || !form.email) return;
 
@@ -310,10 +331,13 @@ export default function ClientsPage() {
   }
 
   const filtered = clients
-    .filter((c) =>
-      showHiddenClients ? c.active === false : c.active !== false,
-    )
-    .filter((c) => statusFilter === "all" || c.status === statusFilter)
+    .filter((client) => {
+      if (statusFilter === "all") return true;
+
+      if (statusFilter === "active") return client.active !== false;
+
+      if (statusFilter === "inactive") return client.active === false;
+    })
     .filter(
       (c) =>
         !search ||
@@ -327,17 +351,34 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1
-            className="text-2xl font-bold"
-            style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
+          <button
+            onClick={() => setOpenClientPanel(true)}
+            className="flex items-center gap-2 group"
           >
-            Clients
-          </h1>
+            <h1
+              className="text-2xl font-bold"
+              style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
+            >
+              Clients
+            </h1>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#C9A84C"
+              strokeWidth="2.5"
+              className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
-            {showHiddenClients
-              ? `${clients.filter((c) => c.active === false).length} archived`
-              : `${clients.filter((c) => c.active !== false).length} active`}{" "}
-            clients
+            {statusFilter === "all"
+              ? `${clients.length} total clients`
+              : statusFilter === "active"
+                ? `${clients.filter((c) => c.active !== false).length} active clients`
+                : `${clients.filter((c) => c.active === false).length} inactive clients`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -359,7 +400,6 @@ export default function ClientsPage() {
           )}
         </div>
       </div>
-
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5">
         <input
@@ -371,20 +411,138 @@ export default function ClientsPage() {
           onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
           onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
         />
-        {["all", "active", "inactive"].map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s as any)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all"
-            style={{
-              background: statusFilter === s ? "#0D1B3E" : "#f3f4f6",
-              color: statusFilter === s ? "white" : "#6b7280",
-            }}
-          >
-            {s}
-          </button>
-        ))}
       </div>
+      {/* Client filter panel */}
+      {openClientPanel && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setOpenClientPanel(false)}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "rgba(13, 27, 62, 0.35)",
+              backdropFilter: "blur(2px)",
+            }}
+          />
+          <div
+            className="client-panel absolute left-0 top-0 h-full w-[280px] shadow-2xl flex flex-col"
+            style={{
+              background: "linear-gradient(180deg, #0D1B3E 0%, #142450 100%)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-6 border-b"
+              style={{ borderColor: "rgba(255,255,255,0.08)" }}
+            >
+              <div>
+                <h2 className="text-base font-bold text-white leading-tight">
+                  Clients
+                </h2>
+                <p className="text-[11px] mt-0.5" style={{ color: "#8b93ab" }}>
+                  Choose a category
+                </p>
+              </div>
+              <button
+                onClick={() => setOpenClientPanel(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                style={{ color: "#8b93ab" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.color = "#ffffff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "#8b93ab";
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 px-4 py-4 space-y-1.5">
+              {(
+                [
+                  {
+                    key: "all",
+                    label: "All Clients",
+                    dot: "#C9A84C",
+                    count: clients.length,
+                  },
+                  {
+                    key: "active",
+                    label: "Active",
+                    dot: "#22c55e",
+                    count: clients.filter((c) => c.active !== false).length,
+                  },
+                  {
+                    key: "inactive",
+                    label: "Inactive",
+                    dot: "#94a3b8",
+                    count: clients.filter((c) => c.active === false).length,
+                  },
+                ] as const
+              ).map((item) => {
+                const selected = statusFilter === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => selectClientFilter(item.key)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all"
+                    style={{
+                      background: selected
+                        ? "rgba(201, 168, 76, 0.12)"
+                        : "transparent",
+                      borderLeft: selected
+                        ? "3px solid #C9A84C"
+                        : "3px solid transparent",
+                      color: selected ? "#C9A84C" : "#c4cadb",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selected)
+                        e.currentTarget.style.background =
+                          "rgba(255,255,255,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selected)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: item.dot }}
+                      />
+                      {item.label}
+                    </span>
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center"
+                      style={{
+                        background: selected
+                          ? "rgba(201, 168, 76, 0.2)"
+                          : "rgba(255,255,255,0.08)",
+                        color: selected ? "#C9A84C" : "#8b93ab",
+                      }}
+                    >
+                      {item.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Client List */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -589,7 +747,6 @@ export default function ClientsPage() {
           })
         )}
       </div>
-
       {/* Modal */}
       {showModal && (
         <div
@@ -823,7 +980,6 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
-
       <style jsx>{`
         .form-label {
           display: block;
@@ -846,6 +1002,19 @@ export default function ClientsPage() {
         }
         .form-input:focus {
           border-color: #c9a84c;
+        }
+        .client-panel {
+          animation: slideInPanel 0.2s ease-out;
+        }
+        @keyframes slideInPanel {
+          from {
+            transform: translateX(-100%);
+            opacity: 0.6;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
         }
       `}</style>
     </div>

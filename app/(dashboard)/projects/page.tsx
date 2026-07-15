@@ -125,6 +125,7 @@ export default function ProjectsPage() {
   const [activeDropdownProjectId, setActiveDropdownProjectId] = useState<
     string | null
   >(null);
+  const [openProjectPanel, setOpenProjectPanel] = useState(false);
 
   // Task Delegation State for Projects Page
   const [delegateProject, setDelegateProject] = useState<Project | null>(null);
@@ -140,6 +141,21 @@ export default function ProjectsPage() {
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Always open the filter panel when this page loads/mounts —
+    // this is the reliable trigger for "clicked Projects in the sidebar".
+    setOpenProjectPanel(true);
+
+    // Bonus: if you're already sitting on /projects and click the
+    // sidebar link again (no navigation happens), this catches it too.
+    function openFromSidebar() {
+      setOpenProjectPanel(true);
+    }
+    window.addEventListener("projects:open-panel", openFromSidebar);
+    return () =>
+      window.removeEventListener("projects:open-panel", openFromSidebar);
+  }, []);
 
   useEffect(() => {
     const unsubProjects = onSnapshot(
@@ -275,6 +291,10 @@ export default function ProjectsPage() {
     setEditing(null);
     setForm({ ...EMPTY_FORM, assignedTo: [] });
     setShowModal(true);
+  }
+  function selectProjectFilter(filter: ProjectStatus | "all") {
+    setStatusFilter(filter);
+    setOpenProjectPanel(false);
   }
   function openEdit(p: Project) {
     setEditing(p);
@@ -497,12 +517,28 @@ export default function ProjectsPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1
-            className="text-2xl font-bold"
-            style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
+          <button
+            onClick={() => setOpenProjectPanel(true)}
+            className="flex items-center gap-2 group"
           >
-            Projects
-          </h1>
+            <h1
+              className="text-2xl font-bold"
+              style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
+            >
+              Projects
+            </h1>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#C9A84C"
+              strokeWidth="2.5"
+              className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
             {activeProjects.filter((p) => p.status === "in-progress").length}{" "}
             active projects
@@ -539,6 +575,166 @@ export default function ProjectsPage() {
           </button>
         ))}
       </div>
+
+      {/* Project filter panel */}
+      {openProjectPanel && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setOpenProjectPanel(false)}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "rgba(13, 27, 62, 0.35)",
+              backdropFilter: "blur(2px)",
+            }}
+          />
+          <div
+            className="project-panel absolute left-0 top-0 h-full w-[280px] shadow-2xl flex flex-col"
+            style={{
+              background: "linear-gradient(180deg, #0D1B3E 0%, #142450 100%)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-6 border-b"
+              style={{ borderColor: "rgba(255,255,255,0.08)" }}
+            >
+              <div>
+                <h2 className="text-base font-bold text-white leading-tight">
+                  Filter Projects
+                </h2>
+                <p className="text-[11px] mt-0.5" style={{ color: "#8b93ab" }}>
+                  Choose a category
+                </p>
+              </div>
+              <button
+                onClick={() => setOpenProjectPanel(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                style={{ color: "#8b93ab" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.color = "#ffffff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "#8b93ab";
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
+              {(
+                [
+                  {
+                    key: "all" as const,
+                    label: "Active",
+                    dot: "#C9A84C",
+                    count: activeProjects.length,
+                  },
+                  {
+                    key: "not-started" as const,
+                    label: "Not Started",
+                    dot: "#9ca3af",
+                    count: activeProjects.filter(
+                      (p) => p.status === "not-started",
+                    ).length,
+                  },
+                  {
+                    key: "in-progress" as const,
+                    label: "In Progress",
+                    dot: "#3b82f6",
+                    count: activeProjects.filter(
+                      (p) => p.status === "in-progress",
+                    ).length,
+                  },
+                  {
+                    key: "review" as const,
+                    label: "In Review",
+                    dot: "#f59e0b",
+                    count: activeProjects.filter((p) => p.status === "review")
+                      .length,
+                  },
+                  {
+                    key: "on-hold" as const,
+                    label: "On Hold",
+                    dot: "#ef4444",
+                    count: activeProjects.filter((p) => p.status === "on-hold")
+                      .length,
+                  },
+                ] as const
+              ).map((item) => {
+                const selected = statusFilter === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => selectProjectFilter(item.key)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all"
+                    style={{
+                      background: selected
+                        ? "rgba(201, 168, 76, 0.12)"
+                        : "transparent",
+                      borderLeft: selected
+                        ? "3px solid #C9A84C"
+                        : "3px solid transparent",
+                      color: selected ? "#C9A84C" : "#c4cadb",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selected)
+                        e.currentTarget.style.background =
+                          "rgba(255,255,255,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selected)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: item.dot }}
+                      />
+                      {item.label}
+                    </span>
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center"
+                      style={{
+                        background: selected
+                          ? "rgba(201, 168, 76, 0.2)"
+                          : "rgba(255,255,255,0.08)",
+                        color: selected ? "#C9A84C" : "#8b93ab",
+                      }}
+                    >
+                      {item.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              className="px-4 py-3 border-t"
+              style={{ borderColor: "rgba(255,255,255,0.08)" }}
+            >
+              <p className="text-[10px]" style={{ color: "#6b7480" }}>
+                Completed projects live in the Success Archive column and
+                aren&apos;t affected by this filter.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1389,6 +1585,19 @@ export default function ProjectsPage() {
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        .project-panel {
+          animation: slideInPanel 0.2s ease-out;
+        }
+        @keyframes slideInPanel {
+          from {
+            transform: translateX(-100%);
+            opacity: 0.6;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
         }
       `}</style>
     </div>
