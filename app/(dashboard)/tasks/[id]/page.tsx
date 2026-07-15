@@ -26,11 +26,27 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
 
   useEffect(() => {
     if (!id) return;
+    
+    // Explicitly wipe state when switching tasks to prevent ghost data
+    setLocalProgress(0);
+    setLocalDesc("");
+    setTask(null);
+    setLoading(true);
+
     const unsub = onSnapshot(doc(db, "tasks", id), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setTask({ id: docSnap.id, ...data });
-        setLocalProgress(data.progress || 0);
+        
+        let p = data.progress;
+        if (p === undefined) {
+          if (data.status === "dev") p = 25;
+          else if (data.status === "in-progress" || data.status === "test") p = 50;
+          else if (data.status === "review") p = 75;
+          else if (data.status === "completed" || data.status === "done") p = 100;
+          else p = 0;
+        }
+        setLocalProgress(p);
       } else {
         router.push("/tasks");
       }
@@ -64,8 +80,8 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
     );
   }
 
-  const summary = task.masterBlueprint || task.projectSummary || "No master brief provided by Admin.";
-  const instructions = task.leadInstructions || task.taskInstructions || task.description || "No specific instructions provided by Lead.";
+  const projectBlueprint = task.masterBlueprint || task.projectSummary || "";
+  const taskInstructions = task.taskInstructions || task.description || "No specific instructions provided for this individual task.";
 
   const handleUpdateLog = async () => {
     if (!localDesc.trim()) return;
@@ -115,6 +131,10 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
   };
 
   const handleProgressClick = async (newProgress: number) => {
+    if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
+      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
+      return;
+    }
     setLocalProgress(newProgress);
     
     let newStatus = "not-started";
@@ -209,31 +229,33 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              {/* Admin Blueprint Row */}
-              <div className="bg-[#0D1B3E] p-8 rounded-3xl shadow-2xl relative overflow-hidden border border-slate-800">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#C9A84C] to-yellow-200" />
-                <h4 className="text-xs font-black text-[#C9A84C] uppercase tracking-widest mb-6 flex items-center gap-3">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                  {"// Master Blueprint (Admin)"}
-                </h4>
-                <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 shadow-inner">
-                  <p className="text-[14px] text-slate-300 leading-loose whitespace-pre-wrap font-medium font-mono">
-                    {summary}
-                  </p>
-                </div>
-              </div>
+              <div className="space-y-6 flex-1 pr-2">
+                {/* Project Context */}
+                {projectBlueprint && (
+                  <div>
+                    <h4 className="text-[10px] font-black text-amber-500/80 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                      {"// Project Master Blueprint"}
+                    </h4>
+                    <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100/50 shadow-inner mb-6">
+                      <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-wrap font-medium">
+                        {projectBlueprint}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-              {/* Lead Directions Row */}
-              <div className="bg-white p-8 rounded-3xl shadow-lg relative overflow-hidden border border-slate-200">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-500" />
-                <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                  {"// Lead Directions & Scope"}
-                </h4>
-                <div className="bg-blue-50/40 p-6 rounded-2xl border border-blue-100 shadow-inner">
-                  <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-wrap font-medium">
-                    {instructions}
-                  </p>
+                {/* Specific Task Instructions */}
+                <div>
+                  <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    {"// Specific Task Instructions"}
+                  </h4>
+                  <div className="bg-blue-50/40 p-6 rounded-2xl border border-blue-100 shadow-inner">
+                    <p className="text-[14px] text-slate-700 leading-loose whitespace-pre-wrap font-medium">
+                      {taskInstructions}
+                    </p>
+                  </div>
                 </div>
               </div>
             </motion.div>

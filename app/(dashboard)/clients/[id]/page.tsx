@@ -22,7 +22,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
 
   // Quick Task State
   const [showQuickTask, setShowQuickTask] = useState(false);
-  const [quickTaskForm, setQuickTaskForm] = useState({ type: "follow-up", title: "", description: "", dueDate: "" });
+  const [quickTaskForm, setQuickTaskForm] = useState({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
   const [submittingTask, setSubmittingTask] = useState(false);
 
   // New Project Modal State
@@ -111,8 +111,21 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
         createdAt: new Date().toISOString(),
         dueDate: quickTaskForm.dueDate || new Date().toISOString()
       });
+      if (quickTaskForm.type === "meeting") {
+        let timeParams = "";
+        if (quickTaskForm.dueDate && quickTaskForm.time) {
+           const startDate = new Date(`${quickTaskForm.dueDate}T${quickTaskForm.time}`);
+           if (!isNaN(startDate.getTime())) {
+             const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour later
+             timeParams = `&startTime=${startDate.toISOString()}&endTime=${endDate.toISOString()}`;
+           }
+        }
+        const url = `https://teams.microsoft.com/l/meeting/new?subject=${encodeURIComponent(quickTaskForm.title || "New Meeting")}&content=${encodeURIComponent(quickTaskForm.description || "Meeting notes")}${client?.email ? `&attendees=${client.email}` : ""}${timeParams}`;
+        window.open(url, "_blank");
+      }
+
       setShowQuickTask(false);
-      setQuickTaskForm({ type: "follow-up", title: "", description: "", dueDate: "" });
+      setQuickTaskForm({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
     } catch (e: any) {
       alert("Failed: " + e.message);
     } finally {
@@ -292,7 +305,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
             <h3 className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3 relative z-10">
               <button onClick={() => setShowQuickTask(true)} className="col-span-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-white/10 flex flex-col items-center gap-1.5">
-                <span className="text-base">⚡</span> Schedule Quick Action
+                <span className="text-base">🤝</span> Schedule Meeting
               </button>
               <button onClick={() => router.push(`/clients?edit=${client.id}`)} className="col-span-2 py-2.5 bg-[#C9A84C] hover:bg-[#b0923e] text-[#0D1B3E] rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm">
                 Edit Client Details
@@ -421,22 +434,11 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black text-slate-900 capitalize">Schedule Action</h3>
+              <h3 className="text-lg font-black text-slate-900 capitalize">Schedule a Meeting</h3>
               <button onClick={() => setShowQuickTask(false)} className="text-slate-400 hover:text-slate-700">✕</button>
             </div>
             
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Action Type</label>
-                <select 
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
-                  value={quickTaskForm.type}
-                  onChange={e => setQuickTaskForm({...quickTaskForm, type: e.target.value})}
-                >
-                  <option value="follow-up">📞 Log Call</option>
-                  <option value="meeting">🤝 Schedule Meeting</option>
-                </select>
-              </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Title *</label>
                 <input 
@@ -447,14 +449,25 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
                   onChange={e => setQuickTaskForm({...quickTaskForm, title: e.target.value})}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Date / Deadline</label>
-                <input 
-                  type="date" 
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
-                  value={quickTaskForm.dueDate}
-                  onChange={e => setQuickTaskForm({...quickTaskForm, dueDate: e.target.value})}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Date</label>
+                  <input 
+                    type="date" 
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                    value={quickTaskForm.dueDate}
+                    onChange={e => setQuickTaskForm({...quickTaskForm, dueDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
+                  <input 
+                    type="time" 
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                    value={quickTaskForm.time}
+                    onChange={e => setQuickTaskForm({...quickTaskForm, time: e.target.value})}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Notes</label>
@@ -470,8 +483,8 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
 
             <div className="flex gap-3 mt-8">
               <button onClick={() => setShowQuickTask(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600">Cancel</button>
-              <button onClick={submitQuickTask} disabled={submittingTask} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-[#0D1B3E] bg-[#C9A84C] hover:bg-[#b0923e] disabled:opacity-50 transition-colors shadow-md">
-                {submittingTask ? "Saving..." : "Save Action"}
+              <button onClick={submitQuickTask} disabled={submittingTask} className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-md disabled:opacity-50 text-white bg-[#6264A7] hover:bg-[#464775]">
+                {submittingTask ? "Saving..." : "Save & Schedule in Teams"}
               </button>
             </div>
           </div>

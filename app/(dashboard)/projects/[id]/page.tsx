@@ -71,6 +71,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     title: "",
     instructions: "",
     taskType: "project-task" as SystemTaskType,
+    dueDate: "",
+    time: "",
   });
   const [delegating, setDelegating] = useState(false);
   const [selectedDrawerTask, setSelectedDrawerTask] = useState<any | null>(null);
@@ -415,7 +417,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         status: "not-started",
         done: false,
         createdAt: now,
-        dueDate: project.deadline || now,
+        dueDate: delegateForm.dueDate || project.deadline || now,
+        time: delegateForm.time || "",
         // Documentation cascade fields:
         masterBlueprint: project.masterBlueprint || "",
         leadInstructions: project.leadInstructions || "",
@@ -425,8 +428,50 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
       const docRef = await addDoc(collection(db, "tasks"), payload);
       
+      // SEND EMAIL NOTIFICATION TO ASSIGNEE
+      if (employee?.email) {
+        try {
+          const dueDateTime = `${delegateForm.dueDate} ${delegateForm.time}`.trim();
+          const html = `
+            <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+              <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                  <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
+                </div>
+                <div style="padding:32px;">
+                  <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${employee.name}</strong>,</p>
+                  <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+
+                  <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                    <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${delegateForm.title}</h3>
+                    <p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Project:</strong> ${project.title}</p>
+                    ${dueDateTime ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>` : ""}
+                    ${delegateForm.instructions ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Instructions:</strong> ${delegateForm.instructions}</p>` : ""}
+                  </div>
+                  
+                  <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+                </div>
+              </div>
+            </div>
+          `;
+
+          await fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: [employee.email, "am@theaminternational.com"],
+              subject: `CRM Task Assigned: ${delegateForm.title}`,
+              html
+            })
+          });
+        } catch (e) {
+          console.error("Failed to send assignment email", e);
+        }
+      }
+
       setShowDelegateModal(false);
-      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" as SystemTaskType });
+      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
       alert("Task successfully delegated and assigned!");
     } catch (err: any) {
       console.error(err);
@@ -458,8 +503,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   };
 
   async function updateTaskStatus(task: any, status: string) {
-    if (crmUser?.role === "admin") {
-      alert("Action Restricted: Only the assigned Employee or Lead can update active task milestones.");
+    if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
+      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
       return;
     }
     try {
@@ -1150,10 +1195,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <div 
                         key={task.id} 
                         onClick={() => router.push(`/tasks/${task.id}`)}
-                        className="w-full bg-white border border-slate-200/60 rounded-xl p-4 lg:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-6 transition-all duration-200 hover:bg-slate-50/80 shadow-sm cursor-pointer"
+                        className="w-full bg-white border border-slate-200/60 rounded-xl p-4 lg:p-5 flex flex-wrap items-center justify-between gap-y-4 gap-x-4 lg:gap-x-6 transition-all duration-200 hover:bg-slate-50/80 shadow-sm cursor-pointer"
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
-                        <div className="flex items-center space-x-4 min-w-0 xl:w-1/3">
+                        <div className="flex items-center space-x-4 flex-1 min-w-[200px] order-1">
                           {/* Micro-avatar */}
                           <div 
                             className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0"
@@ -1162,17 +1207,17 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                             {task.assignedToName?.charAt(0).toUpperCase() || "?"}
                           </div>
                           
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-sm font-bold text-slate-900 truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-400" : "none" }}>
                               {task.title}
                             </p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${pBg}`}>
+                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${pBg} whitespace-nowrap`}>
                                 {task.priority || "medium"}
                               </span>
                               {task.dueDate && (
-                                <span className="text-[10px] font-medium text-slate-500">
-                                  Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
+                                <span className="text-[10px] font-medium text-slate-500 whitespace-nowrap">
+                                  Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { month: "short", day: "numeric" })} {task.time ? `at ${task.time}` : ""}
                                 </span>
                               )}
                             </div>
@@ -1180,7 +1225,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         </div>
 
                         {/* Center Section: Linear Progress Rail */}
-                        <div className="flex-1 w-full px-4 py-2.5 bg-slate-50 rounded-lg border border-slate-200/50 xl:max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="w-full lg:w-48 xl:w-56 px-4 py-2 bg-slate-50 rounded-lg border border-slate-200/50 flex-shrink-0 order-3 lg:order-2 mt-2 lg:mt-0" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-between text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                             <span>{task.status.replace("-", " ")}</span>
                             <span>{pct}%</span>
@@ -1206,29 +1251,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                           </div>
                         </div>
 
-                        {/* Right Section: Hover controls & Inspect trigger */}
-                        <div className="flex items-center justify-start xl:justify-end gap-2 flex-shrink-0 xl:w-1/3">
-                          {/* Management Hover Controls */}
+                        {/* Right Section: Action Dropdowns */}
+                        <div className="flex items-center justify-end gap-2 flex-shrink-0 order-2 lg:order-3">
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <button 
-                                onClick={() => {
-                                  setNoteModalTask(task);
-                                  setShowNoteModal(true);
-                                }}
-                                className="w-9 h-9 flex items-center justify-center rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700 border border-slate-200 transition-all shadow-sm flex-shrink-0"
-                                title="Add Instructions"
-                              >
-                                📝
-                              </button>
-                              
+                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                               <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
-                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-3 h-9 outline-none focus:border-blue-500 cursor-pointer shadow-sm w-32 flex-shrink-0"
+                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-3 h-9 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32 flex-shrink-0"
                               >
                                 <option value="">Re-allocate...</option>
                                 {users
@@ -1240,18 +1270,29 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               </select>
                             </div>
                           )}
-
-                          {/* Inspect Layout Deep link */}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/tasks/${task.id}`);
-                            }}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-slate-200 hover:border-blue-200 shadow-sm flex-shrink-0"
-                            title="Inspect Task"
-                          >
-                            🔍
-                          </button>
+                          
+                          <div onClick={e => e.stopPropagation()}>
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const action = e.target.value;
+                                if (action === "inspect") router.push(`/tasks/${task.id}`);
+                                else if (action === "note") { setNoteModalTask(task); setShowNoteModal(true); }
+                                else if (action === "delete") deleteTask(task.id);
+                                e.target.value = ""; // Reset
+                              }}
+                              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold px-3 h-9 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32 flex-shrink-0"
+                            >
+                              <option value="" disabled hidden>Options...</option>
+                              <option value="inspect">🔍 Inspect</option>
+                              {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
+                                <>
+                                  <option value="note">📝 Instructions</option>
+                                  <option value="delete">🗑️ Delete</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1801,6 +1842,26 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   }
                 </select>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Due Date</label>
+                  <input 
+                    type="date" 
+                    className="form-input"
+                    value={delegateForm.dueDate}
+                    onChange={e => setDelegateForm({...delegateForm, dueDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
+                  <input 
+                    type="time" 
+                    className="form-input"
+                    value={delegateForm.time}
+                    onChange={e => setDelegateForm({...delegateForm, time: e.target.value})}
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Task Instructions</label>
                 <textarea 
@@ -1865,7 +1926,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
-                      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" });
+                      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
                     } catch(e) {
                       console.error(e);
                       alert("Failed to add instructions");

@@ -40,7 +40,7 @@ const TASK_TYPES = [
 
 const EMPTY_FORM = {
   title: "", description: "", assignedTo: "", assignedToName: "",
-  clientId: "", clientName: "", dueDate: "",
+  clientId: "", clientName: "", dueDate: "", time: "",
   priority: "medium" as TaskPriority,
   status: "not-started",
   taskType: "admin-action" as SystemTaskType,
@@ -99,7 +99,7 @@ export default function TasksPage() {
       });
       setLoading(false);
     });
-    const unsubUsers = onSnapshot(collection(db, "users"), snap => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubUsers = onSnapshot(collection(db, "users"), snap => setMembers(snap.docs.map(d => ({ uid: d.id, id: d.id, ...d.data() }))));
     const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
       setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoadingClients(false);
@@ -146,13 +146,62 @@ export default function TasksPage() {
       const member = members.find((m) => m.uid === form.assignedTo);
       const payload = { ...form, assignedToName: member?.name ?? form.assignedToName, assignedBy: crmUser?.uid ?? "" };
 
-      if (editing) await updateDoc(doc(db, "tasks", editing.id), payload);
-      else await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
+      if (editing) {
+        await updateDoc(doc(db, "tasks", editing.id), payload);
+      } else {
+        await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
+        
+        // SEND EMAIL NOTIFICATION TO ASSIGNEE
+        if (member?.email) {
+          try {
+            const dueDateTime = `${form.dueDate} ${form.time || ""}`.trim();
+            const html = `
+              <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+                <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                  <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                    <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+                    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
+                  </div>
+                  <div style="padding:32px;">
+                    <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
+                    <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+
+                    <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                      <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${form.title}</h3>
+                      ${form.clientName ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Client:</strong> ${form.clientName}</p>` : ""}
+                      ${dueDateTime ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>` : ""}
+                      ${form.description ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Description:</strong> ${form.description}</p>` : ""}
+                    </div>
+                    
+                    <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            await fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: [member.email, "am@theaminternational.com"],
+                subject: `CRM Task Assigned: ${form.title}`,
+                html
+              })
+            });
+          } catch (e) {
+            console.error("Failed to send assignment email", e);
+          }
+        }
+      }
       setShowModal(false);
     } finally { setSaving(false); }
   }
 
   async function toggleDone(task: any) {
+    if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
+      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
+      return;
+    }
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
     if (newStatus === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
     else await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress", progress: task.progress === 100 ? 75 : (task.progress || 25) });
@@ -164,6 +213,10 @@ export default function TasksPage() {
   }
 
   async function updateStatus(task: any, status: string) {
+    if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
+      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
+      return;
+    }
     if (status === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
     else {
       let prog = task.progress || 0;
@@ -301,7 +354,13 @@ export default function TasksPage() {
                           key={task.id} 
                           draggable
                           onDragStart={(e) => e.dataTransfer.setData("taskId", task.id)}
-                          onClick={() => router.push(`/tasks/${task.id}`)}
+                          onClick={() => {
+                            if (["follow-up", "meeting", "admin-action"].includes(task.taskType)) {
+                              openEdit(task);
+                            } else {
+                              router.push(`/tasks/${task.id}`);
+                            }
+                          }}
                           className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col"
                         >
                           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
@@ -351,7 +410,7 @@ export default function TasksPage() {
                             <div className="flex items-center gap-2">
                               {task.dueDate && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${isOverdue ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"}`}>
-                                  📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                  📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} {task.time ? `at ${task.time}` : ""}
                                 </span>
                               )}
                               <select
@@ -442,17 +501,46 @@ export default function TasksPage() {
                     {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
-                  <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
+                    <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Time</label>
+                    <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" type="time" value={form.time || ""} onChange={e => setForm({ ...form, time: e.target.value })} />
+                  </div>
                 </div>
               </div>
             </div>
             
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-              {editing && crmUser?.role !== "employee" ? (
-                <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">Delete Task</button>
-              ) : <div/>}
+              <div className="flex gap-4 items-center">
+                {editing && crmUser?.role !== "employee" ? (
+                  <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">Delete Task</button>
+                ) : <div/>}
+                {form.taskType === "meeting" && (() => {
+                  let timeParams = "";
+                  if (form.dueDate && form.time) {
+                    const startDate = new Date(`${form.dueDate}T${form.time}`);
+                    if (!isNaN(startDate.getTime())) {
+                      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+                      timeParams = `&startTime=${startDate.toISOString()}&endTime=${endDate.toISOString()}`;
+                    }
+                  }
+                  return (
+                  <a 
+                    href={`https://teams.microsoft.com/l/meeting/new?subject=${encodeURIComponent(form.title || "New Meeting")}&content=${encodeURIComponent(form.description || "Meeting notes")}${form.clientId ? `&attendees=${clients.find(c => c.id === form.clientId)?.email || ""}` : ""}${timeParams}`}
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-xs font-bold text-[#6264A7] hover:bg-[#6264A7]/10 transition-colors flex items-center gap-1.5 border border-[#6264A7]/30 px-3 py-1.5 rounded-lg"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 10.5V18C22.5 19.2 21.5 20.2 20.2 20.2H16.5V12L22.5 10.5ZM16.5 12V3.8C16.5 2.5 15.5 1.5 14.2 1.5H3.8C2.5 1.5 1.5 2.5 1.5 3.8V18C1.5 19.2 2.5 20.2 3.8 20.2H14.2C15.5 20.2 16.5 19.2 16.5 18V12Z"/></svg>
+                    Schedule in Teams
+                  </a>
+                  );
+                })()}
+              </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowModal(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
                 <button onClick={handleSave} disabled={saving || !form.title} className="bg-[#C9A84C] hover:bg-[#b0923e] text-white px-8 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50">
