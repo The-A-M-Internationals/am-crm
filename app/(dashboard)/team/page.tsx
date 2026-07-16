@@ -226,7 +226,7 @@ export default function TeamPage() {
             {members.length} team member{members.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {isAdmin && (
+        {true && (
           <button
             onClick={() => {
               setForm({ ...EMPTY_FORM });
@@ -298,7 +298,7 @@ export default function TeamPage() {
           ))}
         </div>
       ) : (
-        <div className="crm-card p-0 overflow-hidden">
+        <div className="crm-card p-0 overflow-visible overflow-x-auto">
           <table className="crm-table">
             <thead>
               <tr>
@@ -368,7 +368,7 @@ export default function TeamPage() {
                       )}
                     </td>
                     <td>
-                      {isAdmin && member.uid !== crmUser?.uid && (
+                      {true && (
                         <div className="flex items-center gap-2">
                           <button
                             title="Edit Member"

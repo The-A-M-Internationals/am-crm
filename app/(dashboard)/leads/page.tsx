@@ -200,7 +200,7 @@ export default function LeadsPage() {
         <div>
           <h1 className="page-title flex items-center gap-3">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-            Leads Pipeline
+            Leads
           </h1>
           <p className="text-sm text-slate-500 mt-1">Manage and track your active opportunities.</p>
         </div>

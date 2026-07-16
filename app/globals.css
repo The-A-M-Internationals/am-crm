@@ -5,12 +5,12 @@
 @import 'tailwindcss/utilities';
 
 :root {
-  --navy: #0A0F1D;
-  --navy-light: #161D2D;
-  --navy-dark: #050812;
-  --gold: #A68A56;
-  --gold-light: #C9B284;
-  --gold-dark: #82693D;
+  --navy: #0D1B3E;
+  --navy-light: #1a3070;
+  --navy-dark: #071027;
+  --gold: #C9A84C;
+  --gold-light: #E2C070;
+  --gold-dark: #A68A3B;
   --charcoal: #111827;
   --slate: #4B5563;
   --ivory: #FDFDFD;
