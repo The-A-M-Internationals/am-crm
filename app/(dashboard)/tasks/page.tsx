@@ -118,7 +118,7 @@ export default function TasksPage() {
     setForm({ 
       title: t.title, description: t.description ?? "", assignedTo: t.assignedTo ?? "", 
       assignedToName: t.assignedToName ?? "", clientId: t.clientId ?? "", clientName: t.clientName ?? "", 
-      dueDate: t.dueDate ?? "", priority: t.priority, status: t.status ?? "not-started", 
+      dueDate: t.dueDate ?? "", time: t.time ?? "", priority: t.priority, status: t.status ?? "not-started", 
       taskType: t.taskType ?? "admin-action", relatedTo: t.relatedTo ?? "", relatedType: t.relatedType ?? ""
     });
     setShowModal(true);
@@ -362,7 +362,7 @@ export default function TasksPage() {
                           layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                           key={task.id} 
                           draggable
-                          onDragStart={(e) => e.dataTransfer.setData("taskId", task.id)}
+                          onDragStart={(e: any) => e.dataTransfer.setData("taskId", task.id)}
                           onClick={() => {
                             if (["follow-up", "meeting", "admin-action"].includes(task.taskType)) {
                               openEdit(task);

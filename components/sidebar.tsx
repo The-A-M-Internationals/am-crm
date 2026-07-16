@@ -50,7 +50,7 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
-const roleColors: Record<UserRole, string> = {
+const roleColors: Partial<Record<UserRole, string>> = {
   admin:     "#C9A84C",
   lead:      "#60a5fa",
   employee:  "#a78bfa",
@@ -116,7 +116,7 @@ export default function Sidebar() {
       {crmUser && (
         <div className="px-3 py-4 border-t" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: "#0D1B3E", border: `2px solid ${roleColors[crmUser.role]}`, color: roleColors[crmUser.role] }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: "#0D1B3E", border: `2px solid ${roleColors[crmUser.role] || "#94a3b8"}`, color: roleColors[crmUser.role] || "#94a3b8" }}>
               {getInitials(crmUser.name)}
             </div>
             <div className="flex-1 overflow-hidden">
