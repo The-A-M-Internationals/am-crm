@@ -740,7 +740,6 @@ export default function ProjectsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AnimatePresence>
-<<<<<<< HEAD
                 {filteredActive.map((project) => {
                   const st = statusInfo(project.status);
                   const svc = serviceInfo(project.service);
@@ -801,183 +800,74 @@ export default function ProjectsPage() {
                               className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white shadow-sm flex-shrink-0"
                               style={{ background: "#0D1B3E" }}
                               title={member.name}
-=======
-                  {filteredActive.map((project) => {
-                    const st = statusInfo(project.status);
-                    const svc = serviceInfo(project.service);
-                    const isOverdue =
-                      project.deadline &&
-                      new Date(project.deadline) < new Date();
-                    return (
-                      <motion.div
-                        layout
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.2 }}
-                        key={project.id}
-                        className="crm-card hover:shadow-md transition-shadow cursor-pointer flex flex-col relative"
-                        onClick={() => router.push(`/projects/${project.id}`)}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="text-sm font-semibold truncate"
-                              style={{ color: "#1a1a2e" }}
->>>>>>> origin/anm-crm-fixes
                             >
-                              {project.title}
-                            </p>
-                            <p
-                              className="text-xs mt-0.5"
-                              style={{ color: "#6b7280" }}
-                            >
-                              {project.clientName}
-                            </p>
-                          </div>
-                          {canEdit && (
-                            <div
-                              className="flex gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                onClick={() => openEdit(project)}
-                                className="text-xs opacity-50 hover:opacity-100 transition-opacity"
-                                style={{ color: "#1e40af" }}
-                              >
-                                ✎
-                              </button>
-                              <button
-                                onClick={() => deleteProject(project.id)}
-                                className="text-xs opacity-50 hover:opacity-100 transition-opacity"
-                                style={{ color: "#ef4444" }}
-                              >
-                                ✕
-                              </button>
+                              {member.name ? getInitials(member.name) : "?"}
                             </div>
-<<<<<<< HEAD
                           );
                         })}
                       </div>
 
-=======
+                      <div
+                        className="flex flex-col gap-2 mt-auto pt-3 border-t"
+                        style={{ borderColor: "#f0f0f5" }}
+                      >
+                        <div className="flex items-center justify-between">
+                          {project.deadline ? (
+                            <span
+                              className="text-xs"
+                              style={{
+                                color: isOverdue ? "#ef4444" : "#9ca3af",
+                              }}
+                            >
+                              {isOverdue ? "⚠ " : ""}Due{" "}
+                              {new Date(project.deadline).toLocaleDateString(
+                                "en-GB",
+                                { day: "numeric", month: "short" },
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              No deadline
+                            </span>
                           )}
-                        </div>
->>>>>>> origin/anm-crm-fixes
-
-                        <div className="flex items-center gap-2 mb-3">
-                          <span
-                            className="badge"
-                            style={{ background: svc.bg, color: svc.text }}
-                          >
-                            {svc.label.split(" ")[0]}
-                          </span>
-                          <span
-                            className="badge capitalize"
-                            style={{ background: st.bg, color: st.color }}
-                          >
-                            {st.label}
-                          </span>
-                        </div>
-
-                        {/* Overlapping circular avatar badges of assigned employees */}
-                        <div className="flex -space-x-2 overflow-hidden mb-3">
-                          {(project.assignedTo || []).map((uid) => {
-                            const member = members.find((m) => m.uid === uid);
-                            if (!member) return null;
-                            return (
-                              <div
-                                key={uid}
-                                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white shadow-sm flex-shrink-0"
-                                style={{ background: "#0D1B3E" }}
-                                title={member.name}
-                              >
-                                {member.name ? getInitials(member.name) : "?"}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div
-                          className="flex flex-col gap-2 mt-auto pt-3 border-t"
-                          style={{ borderColor: "#f0f0f5" }}
-                        >
-                          <div className="flex items-center justify-between">
-                            {project.deadline ? (
-                              <span
-                                className="text-xs"
-                                style={{
-                                  color: isOverdue ? "#ef4444" : "#9ca3af",
-                                }}
-                              >
-                                {isOverdue ? "⚠ " : ""}Due{" "}
-                                {new Date(project.deadline).toLocaleDateString(
-                                  "en-GB",
-                                  { day: "numeric", month: "short" },
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-400">
-                                No deadline
-                              </span>
-                            )}
-                            {crmUser?.role === "admin" && (
-                              <span
-                                className="text-xs font-bold"
-                                style={{ color: "#C9A84C" }}
-                              >
-                                {project.currency}{" "}
-                                {project.budget?.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-<<<<<<< HEAD
-                          <button 
-                            onClick={() => {
-                              setDelegateProject(project);
-                              setDelegateForm({ 
-                                employeeId: "", 
-                                title: "", 
-                                deadline: project.deadline || "", 
-                                instructions: "",
-                                taskType: "project-task" 
-                              });
-                            }}
-                            className="text-xs font-bold text-[#C9A84C] hover:underline flex items-center gap-1"
-                          >
-                            Delegate
-                          </button>
-=======
                           {crmUser?.role === "admin" && (
-                            <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg">
-                              <span className="text-slate-500">
-                                Paid:{" "}
-                                <strong className="text-green-600">
-                                  {project.currency}{" "}
-                                  {project.paid?.toLocaleString() || "0"}
-                                </strong>
-                              </span>
-                              <span className="text-slate-500">
-                                Due:{" "}
-                                <strong className="text-orange-600">
-                                  {project.currency}{" "}
-                                  {project.due?.toLocaleString() || "0"}
-                                </strong>
-                              </span>
-                              <span className="text-slate-500">
-                                Remaining:{" "}
-                                <strong className="text-red-600">
-                                  {project.currency}{" "}
-                                  {(
-                                    project.remaining ?? project.balance
-                                  )?.toLocaleString() || "0"}
-                                </strong>
-                              </span>
-                            </div>
+                            <span
+                              className="text-xs font-bold"
+                              style={{ color: "#C9A84C" }}
+                            >
+                              {project.currency}{" "}
+                              {project.budget?.toLocaleString()}
+                            </span>
                           )}
->>>>>>> origin/anm-crm-fixes
                         </div>
-
+                        {crmUser?.role === "admin" && (
+                          <div className="flex items-center justify-between text-[10px] font-medium bg-slate-50 p-1.5 rounded-lg mt-2">
+                            <span className="text-slate-500">
+                              Paid:{" "}
+                              <strong className="text-green-600">
+                                {project.currency}{" "}
+                                {project.paid?.toLocaleString() || "0"}
+                              </strong>
+                            </span>
+                            <span className="text-slate-500">
+                              Due:{" "}
+                              <strong className="text-orange-600">
+                                {project.currency}{" "}
+                                {project.due?.toLocaleString() || "0"}
+                              </strong>
+                            </span>
+                            <span className="text-slate-500">
+                              Remaining:{" "}
+                              <strong className="text-red-600">
+                                {project.currency}{" "}
+                                {(
+                                  project.remaining ?? project.balance
+                                )?.toLocaleString() || "0"}
+                              </strong>
+                            </span>
+                          </div>
+                        )}
+                      </div>
                         {/* Quick status change & Delegate Menu */}
                         {canEdit && (
                           <div
@@ -1064,7 +954,6 @@ export default function ProjectsPage() {
                   </p>
                 </div>
               ) : (
-<<<<<<< HEAD
                 completedProjects.map(p => (
                   <div 
                     key={p.id} 
@@ -1077,51 +966,18 @@ export default function ProjectsPage() {
                     </div>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">{p.clientName}</p>
                     
+                    {crmUser?.role === "admin" && (
+                      <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100 mb-1">
+                        <span className="text-slate-400 uppercase">Valued at</span>
+                        <span className="text-slate-900">{p.currency} {p.budget?.toLocaleString()}</span>
+                      </div>
+                    )}
 
                     {/* Revert option */}
                     {canEdit && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); updateStatus(p, "in-progress"); }}
                         className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 bg-slate-50 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
-=======
-                completedProjects.map((p) => (
-                  <div
-                    key={p.id}
-                    className="crm-card bg-slate-50/50 border-slate-100 hover:bg-white hover:border-green-200 transition-all cursor-pointer group"
-                    onClick={() => router.push(`/projects/${p.id}`)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <p className="text-xs font-bold text-slate-700 group-hover:text-green-700 transition-colors">
-                        {p.title}
-                      </p>
-                      <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                        DONE
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium mb-3">
-                      {p.clientName}
-                    </p>
-
-                    {crmUser?.role === "admin" && (
-                      <div className="flex justify-between items-center text-[10px] font-bold pt-2 border-t border-slate-100">
-                        <span className="text-slate-400 uppercase">
-                          Valued at
-                        </span>
-                        <span className="text-slate-900">
-                          {p.currency} {p.budget?.toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Revert option */}
-                    {canEdit && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateStatus(p, "in-progress");
-                        }}
-                        className="w-full mt-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest rounded-lg border border-slate-200 hover:bg-white hover:text-blue-600 hover:border-blue-200 transition-all"
->>>>>>> origin/anm-crm-fixes
                       >
                         ↩ Revert to Active
                       </button>
@@ -1145,7 +1001,6 @@ export default function ProjectsPage() {
             style={{ background: "white" }}
           >
             <div className="flex items-center justify-between mb-5">
-<<<<<<< HEAD
               <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>{editing ? "Edit Project" : "New Project"}</h2>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
@@ -1164,40 +1019,6 @@ export default function ProjectsPage() {
                   <option value="">-- Select Client --</option>
                   {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                 </select>
-=======
-              <h2
-                className="text-lg font-bold"
-                style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
-              >
-                {editing ? "Edit Project" : "New Project"}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="form-label">Project Title *</label>
-                <input
-                  className="form-input"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Website Redesign"
-                />
-              </div>
-              <div>
-                <label className="form-label">Client Name *</label>
-                <input
-                  className="form-input"
-                  value={form.clientName}
-                  onChange={(e) =>
-                    setForm({ ...form, clientName: e.target.value })
-                  }
-                />
->>>>>>> origin/anm-crm-fixes
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1518,7 +1339,6 @@ export default function ProjectsPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-<<<<<<< HEAD
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#0D1B3E" }}>
                 {saving ? "Saving..." : editing ? "Update" : "Add Project"}
@@ -1600,152 +1420,14 @@ export default function ProjectsPage() {
               <button onClick={() => setDelegateProject(null)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
               <button onClick={handleDelegateTask} disabled={delegating} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#C9A84C", color: "#0D1B3E" }}>
                 {delegating ? "Assigning..." : "Assign Task"}
-=======
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 rounded-lg border text-sm font-medium"
-                style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                style={{ background: "#0D1B3E" }}
-              >
-                {saving ? "Saving..." : editing ? "Update" : "Create Project"}
->>>>>>> origin/anm-crm-fixes
+
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delegate Modal */}
-      {delegateProject && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: "white" }}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <h2
-                className="text-lg font-bold"
-                style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}
-              >
-                Delegate Task
-              </h2>
-              <button
-                onClick={() => setDelegateProject(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="form-label">Task Title *</label>
-                <input
-                  className="form-input"
-                  value={delegateForm.title}
-                  onChange={(e) =>
-                    setDelegateForm({ ...delegateForm, title: e.target.value })
-                  }
-                  placeholder="e.g. Design Homepage UI"
-                />
-              </div>
-              <div>
-                <label className="form-label">Task Type *</label>
-                <select
-                  className="form-input mb-4"
-                  value={delegateForm.taskType}
-                  onChange={(e) =>
-                    setDelegateForm({
-                      ...delegateForm,
-                      taskType: e.target.value as SystemTaskType,
-                    })
-                  }
-                >
-                  <option value="project-task">Project Task</option>
-                  <option value="meeting">Internal Meeting</option>
-                  <option value="follow-up">Follow-up</option>
-                  <option value="internal-task">Internal Task</option>
-                </select>
-              </div>
-              <div>
-                <label className="form-label">Assign To *</label>
-                <select
-                  className="form-input"
-                  value={delegateForm.employeeId}
-                  onChange={(e) =>
-                    setDelegateForm({
-                      ...delegateForm,
-                      employeeId: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Select team member...</option>
-                  {members.map((m) => (
-                    <option key={m.uid} value={m.uid}>
-                      {m.name} ({m.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="form-label">Deadline</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={delegateForm.deadline}
-                  onChange={(e) =>
-                    setDelegateForm({
-                      ...delegateForm,
-                      deadline: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div>
-                <label className="form-label">Task Instructions / Notes</label>
-                <textarea
-                  className="form-input resize-none"
-                  rows={4}
-                  value={delegateForm.instructions}
-                  onChange={(e) =>
-                    setDelegateForm({
-                      ...delegateForm,
-                      instructions: e.target.value,
-                    })
-                  }
-                  placeholder="Provide specific directions, scope constraints, and expectations..."
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setDelegateProject(null)}
-                className="flex-1 py-2.5 rounded-lg border text-sm font-medium"
-                style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelegateTask}
-                disabled={delegating}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                style={{ background: "#C9A84C", color: "#0D1B3E" }}
-              >
-                {delegating ? "Assigning..." : "Assign Task"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <style jsx>{`
         .form-label {

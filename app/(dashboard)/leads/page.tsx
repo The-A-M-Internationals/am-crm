@@ -243,7 +243,7 @@ export default function LeadsPage() {
         active: editing?.active ?? true,
       } as Lead;
 
-      await PipelineService.syncLeadToClient(leadData);
+      await PipelineService.syncLeadDetails(leadData);
 
       if (form.stage === "won") await PipelineService.markAsWon(leadData);
       else if (form.stage === "lost")

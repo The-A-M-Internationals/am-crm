@@ -135,12 +135,7 @@ export interface Project {
   coreFocus?: string;
   createdAt: string;
   updatedAt: string;
-  figmaUrl?: string;
-  repoUrl?: string;
-  stagingUrl?: string;
-  productionUrl?: string;
-  techStack?: string[];
-  coreFocus?: string;
+
 
   sharedFiles?: {
     name: string;

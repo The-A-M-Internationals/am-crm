@@ -1615,11 +1615,7 @@ export default function ProjectDetailsPage({
                               )}
                             </div>
                           </div>
-                                </span>
-                              )}
                             </div>
-                          </div>
-                        </div>
 
                         {/* Center Section: Linear Progress Rail */}
                         <div className="w-full lg:w-48 xl:w-56 px-4 py-2 bg-slate-50 rounded-lg border border-slate-200/50 flex-shrink-0 order-3 lg:order-2 mt-2 lg:mt-0" onClick={e => e.stopPropagation()}>
@@ -2531,29 +2527,13 @@ export default function ProjectDetailsPage({
                   </strong>
                 </p>
               </div>
-<<<<<<< HEAD
               <button onClick={() => setDuplicateConflictTask(null)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
-=======
-              <button
-                onClick={() => setDuplicateConflictTask(null)}
-                className="text-slate-400 hover:text-slate-700"
-              >
-                ✕
-              </button>
->>>>>>> origin/anm-crm-fixes
             </div>
 
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50">
-<<<<<<< HEAD
                 <h4 className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">Option A: Add Instruction Note</h4>
                 <textarea 
-=======
-                <h4 className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-2">
-                  Option A: Append Instruction Note
-                </h4>
-                <textarea
->>>>>>> origin/anm-crm-fixes
                   className="w-full p-3 text-xs rounded-xl border border-blue-200 outline-none focus:border-blue-400 bg-white resize-none"
                   rows={3}
                   placeholder="Type new instructions here..."
@@ -2564,7 +2544,6 @@ export default function ProjectDetailsPage({
                   onClick={async () => {
                     if (!duplicateInstructionNote.trim()) return;
                     try {
-<<<<<<< HEAD
                       await updateDoc(doc(db, "tasks", duplicateConflictTask.id), { 
                         taskInstructions: (duplicateConflictTask.taskInstructions || "") + "\n\n[NEW INSTRUCTIONS]: " + duplicateInstructionNote 
                       });
@@ -2574,28 +2553,6 @@ export default function ProjectDetailsPage({
                       setShowDelegateModal(false);
                       setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
                     } catch(e) {
-=======
-                      await updateDoc(
-                        doc(db, "tasks", duplicateConflictTask.id),
-                        {
-                          taskInstructions:
-                            (duplicateConflictTask.taskInstructions || "") +
-                            "\n\n[APPENDED DIRECTIVE]: " +
-                            duplicateInstructionNote,
-                        },
-                      );
-                      alert("Instruction note appended successfully!");
-                      setDuplicateConflictTask(null);
-                      setDuplicateInstructionNote("");
-                      setShowDelegateModal(false);
-                      setDelegateForm({
-                        employeeId: "",
-                        title: "",
-                        instructions: "",
-                        taskType: "project-task",
-                      });
-                    } catch (e) {
->>>>>>> origin/anm-crm-fixes
                       console.error(e);
                       alert("Failed to add instructions");
                     }
@@ -2653,15 +2610,8 @@ export default function ProjectDetailsPage({
       {showNoteModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-<<<<<<< HEAD
             <h3 className="text-sm font-bold text-slate-200 mb-3 uppercase tracking-wider">Add Project Instructions</h3>
             <textarea 
-=======
-            <h3 className="text-sm font-bold text-slate-200 mb-3 uppercase tracking-wider">
-              Append Project Directions/Instructions
-            </h3>
-            <textarea
->>>>>>> origin/anm-crm-fixes
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono mb-4 min-h-[100px]"
               placeholder="Type your new task instructions here..."
               value={noteModalText}
@@ -2681,14 +2631,7 @@ export default function ProjectDetailsPage({
               <button
                 onClick={() => {
                   if (noteModalTask && noteModalText) {
-<<<<<<< HEAD
                     const newInstruction = (noteModalTask.taskInstructions || "") + "\n\n[NEW INSTRUCTIONS]: " + noteModalText;
-=======
-                    const newInstruction =
-                      (noteModalTask.taskInstructions || "") +
-                      "\n\n[APPENDED DIRECTIVE]: " +
-                      noteModalText;
->>>>>>> origin/anm-crm-fixes
                     updateTaskInstructions(noteModalTask, newInstruction);
                   }
                   setShowNoteModal(false);
@@ -2713,48 +2656,6 @@ export default function ProjectDetailsPage({
             const isAssignedEmployee =
               crmUser?.uid === selectedDrawerTask.assignedTo;
 
-<<<<<<< HEAD
-          return (
-            <>
-              {/* Backdrop */}
-              <div 
-                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] transition-opacity"
-                onClick={() => setSelectedDrawerTask(null)}
-              />
-              
-              {/* Sliding Panel */}
-              <motion.div 
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed right-0 top-0 bottom-0 w-full max-w-[700px] bg-slate-50 shadow-2xl border-l border-slate-200 z-[101] flex flex-col text-slate-800"
-              >
-                {/* Header */}
-                <div className="p-6 bg-white border-b border-slate-200 flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-bold text-[#0D1B3E]">{selectedDrawerTask.title}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      {selectedDrawerTask.clientName && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                          <Building2 className="inline-block w-4 h-4 shrink-0 mr-1" /> {selectedDrawerTask.clientName}
-                        </span>
-                      )}
-                      {selectedDrawerTask.assignedToName && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-600">
-                          <User className="inline-block w-4 h-4 shrink-0 mr-1" /> Assignee: {selectedDrawerTask.assignedToName}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedDrawerTask(null)} 
-                    className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-xl font-bold"
-                  >
-                    <X className="inline-block w-4 h-4 shrink-0 mr-1" />
-                  </button>
-                </div>
-=======
             const summary =
               selectedDrawerTask.projectSummary ||
               (project as any)?.projectSummary ||
@@ -2764,7 +2665,6 @@ export default function ProjectDetailsPage({
               selectedDrawerTask.description ||
               "No specific instructions provided by Lead.";
             const logs = selectedDrawerTask.logs || [];
->>>>>>> origin/anm-crm-fixes
 
             return (
               <>
@@ -2805,11 +2705,7 @@ export default function ProjectDetailsPage({
                       onClick={() => setSelectedDrawerTask(null)}
                       className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-xl font-bold"
                     >
-<<<<<<< HEAD
-                      <X className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Task
-=======
-                      ✕
->>>>>>> origin/anm-crm-fixes
+                      <X className="inline-block w-4 h-4 shrink-0 mr-1" />
                     </button>
                   </div>
 
