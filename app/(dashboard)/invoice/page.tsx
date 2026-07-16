@@ -57,6 +57,7 @@ const EMPTY_FORM = {
   clientAddress: "",
   service: "web-development",
   status: "unpaid",
+
   paidAmount: 0,
   dueDate: "",
   notes: "",
@@ -69,7 +70,9 @@ let invoiceCounter = 1000;
 export default function InvoicePage() {
   const { crmUser } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
+
   const [clients, setClients] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -81,6 +84,7 @@ export default function InvoicePage() {
   });
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -90,10 +94,10 @@ export default function InvoicePage() {
         getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"))),
         getDocs(query(collection(db, "clients"), where("status", "==", "active")))
       ]);
-      
+
       const data = invSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setInvoices(data);
-      setClients(cliSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setClients(cliSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       invoiceCounter = 1000 + data.length;
     } catch (err) {
       console.error("Error fetching invoices:", err);
@@ -201,7 +205,9 @@ export default function InvoicePage() {
       service: inv.service,
       status: inv.status,
       currency: inv.currency || "AED",
+
       paidAmount: inv.paidAmount ?? 0,
+
       dueDate: inv.dueDate ?? "",
       notes: inv.notes ?? "",
       items: inv.items,
@@ -239,7 +245,9 @@ export default function InvoicePage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const invoiceNumber = editing ? editing.invoiceNumber : `AM-INV-${++invoiceCounter}`;
+      const invoiceNumber = editing
+        ? editing.invoiceNumber
+        : `AM-INV-${++invoiceCounter}`;
       const remainingAmount = total - (Number(form.paidAmount) || 0);
       const data = {
         ...form,
@@ -280,7 +288,7 @@ export default function InvoicePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          to: "am@theaminternationals.com",
+          to: "am@theaminternational.com",
           subject: `🚨 Invoice Deleted - ${inv.invoiceNumber}`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #fee2e2;border-radius:8px;overflow:hidden;">
@@ -293,9 +301,15 @@ export default function InvoicePage() {
                 <p><strong>Client Email:</strong> ${inv.clientEmail || "N/A"}</p>
                 <p><strong>Total Amount:</strong> ${inv.currency || "AED"} ${inv.total?.toLocaleString()}</p>
                 <p><strong>Status:</strong> ${inv.status}</p>
+
                 <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;" />
-                <p style="font-size:12px;color:#6b7280;"><strong>Deleted By:</strong> ${crmUser?.email || "Unknown User"}</p>
-                <p style="font-size:12px;color:#6b7280;"><strong>Deleted At:</strong> ${new Date().toLocaleString()}</p>
+
+                <p style="font-size:12px;color:#6b7280;">
+                  <strong>Deleted By:</strong> ${crmUser?.email || "Unknown User"}
+                </p>
+                <p style="font-size:12px;color:#6b7280;">
+                  <strong>Deleted At:</strong> ${new Date().toLocaleString()}
+                </p>
               </div>
             </div>
           `,
@@ -304,6 +318,7 @@ export default function InvoicePage() {
 
       // Delete invoice
       await deleteDoc(doc(db, "invoices", inv.id));
+
       fetchInvoices();
       alert("Invoice deleted and admin notified.");
     } catch (error: any) {
@@ -387,10 +402,12 @@ export default function InvoicePage() {
                   <table style="width:100%;font-size:13px;">
                     <tr><td style="color:#9ca3af;padding:4px 0;">Invoice No.</td><td style="text-align:right;font-weight:600;color:#1a1a2e;">${inv.invoiceNumber}</td></tr>
                     <tr><td style="color:#9ca3af;padding:4px 0;">Service</td><td style="text-align:right;color:#1a1a2e;">${SERVICES.find((s) => s.key === inv.service)?.label || inv.service}</td></tr>
+
                     ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;font-weight:600;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
                     <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">${curr} ${inv.subtotal?.toLocaleString()}</td></tr>
                     <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
                     <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">${curr} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
+
                   </table>
                 </div>
                 <p style="color:#6b7280;font-size:13px;">For any queries, contact us at <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a> or WhatsApp <a href="https://wa.me/919025562311" style="color:#C9A84C;">+91 90255 62311</a></p>
@@ -427,6 +444,7 @@ export default function InvoicePage() {
       alert("No client phone number on this invoice!");
       return;
     }
+
     const curr = inv.currency || "AED";
     const msg = encodeURIComponent(
       `Hello ${inv.clientName},\n\nPlease find your invoice from The A&M Internationals:\n\n📄 Invoice No: ${inv.invoiceNumber}\n💰 Total: ${curr} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}${inv.dueDate ? `\n📅 Due: ${new Date(inv.dueDate).toLocaleDateString("en-GB")}` : ""}\n\nFor queries: am@theaminternationals.com\n\nThank you!\nThe A&M Internationals FZC`,
@@ -517,7 +535,9 @@ export default function InvoicePage() {
           {invoices.map((inv) => {
             const st = stInfo(inv.status);
             const svc = SERVICES.find((s) => s.key === inv.service);
+
             const curr = inv.currency || "AED";
+
             return (
               <div key={inv.id} className={`crm-card ${openMenu === inv.id ? 'relative z-10' : ''}`}>
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -576,6 +596,7 @@ export default function InvoicePage() {
                       )}
                     </div>
                   </div>
+
                   <div className="flex items-center gap-3 flex-shrink-0 relative">
                     <div className="text-right mr-2">
                       <p
@@ -587,12 +608,16 @@ export default function InvoicePage() {
                           minimumFractionDigits: 2,
                         })}
                       </p>
+
                       <div className="flex flex-col items-end gap-0.5 mt-1">
                         <span className="text-[10px] font-bold text-[#22c55e]">
                           PAID: {curr} {inv.paidAmount?.toLocaleString() || 0}
                         </span>
                         <span className="text-[10px] font-bold text-[#ef4444]">
-                          DUE: {curr} {((inv.total || 0) - (inv.paidAmount || 0)).toLocaleString()}
+                          DUE: {curr}{" "}
+                          {(
+                            (inv.total || 0) - (inv.paidAmount || 0)
+                          ).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -619,7 +644,7 @@ export default function InvoicePage() {
                     </button>
 
                     {openMenu === inv.id && (
-                      <div 
+                      <div
                         className="absolute right-0 top-12 z-50 bg-white border rounded-xl shadow-lg w-56 py-1"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -727,6 +752,7 @@ export default function InvoicePage() {
               </button>
             </div>
             <div className="space-y-4">
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Client *</label>
@@ -768,8 +794,15 @@ export default function InvoicePage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label text-slate-500 font-semibold mb-1 block">Phone</label>
-                  <PhoneInput value={form.clientPhone} onChange={(val: string) => setForm({ ...form, clientPhone: val })} />
+                  <label className="form-label text-slate-500 font-semibold mb-1 block">
+                    Phone
+                  </label>
+                  <PhoneInput
+                    value={form.clientPhone}
+                    onChange={(val: string) =>
+                      setForm({ ...form, clientPhone: val })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="form-label">Client Address</label>
@@ -849,7 +882,9 @@ export default function InvoicePage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Paid Amount ({form.currency || "AED"})</label>
+                  <label className="form-label">
+                    Paid Amount ({form.currency || "AED"})
+                  </label>
                   <input
                     className="form-input"
                     type="number"
@@ -865,10 +900,14 @@ export default function InvoicePage() {
                   />
                 </div>
                 <div>
-                  <label className="form-label">Remaining Amount ({form.currency || "AED"})</label>
+                  <label className="form-label">
+                    Remaining Amount ({form.currency || "AED"})
+                  </label>
                   <input
                     className="form-input bg-gray-50"
-                    value={(total - (Number(form.paidAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    value={(
+                      total - (Number(form.paidAmount) || 0)
+                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     readOnly
                   />
                 </div>
@@ -901,7 +940,11 @@ export default function InvoicePage() {
                   >
                     <span>Description</span>
                     <span className="text-center">Qty</span>
-                    <span className="text-center">Rate ({form.currency || "AED"})</span>
+
+                    <span className="text-center">
+                      Rate ({form.currency || "AED"})
+                    </span>
+
                     <span className="text-right">Amount</span>
                     <span></span>
                   </div>
@@ -1372,7 +1415,8 @@ export default function InvoicePage() {
                         color: "#1a1a2e",
                       }}
                     >
-                      {preview.currency || "AED"} {preview.subtotal?.toLocaleString()}
+                      {preview.currency || "AED"}{" "}
+                      {preview.subtotal?.toLocaleString()}
                     </span>
                   </div>
                   <div
@@ -1400,6 +1444,7 @@ export default function InvoicePage() {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
+
                       padding: "6px 0",
                       borderBottom: "1px solid #f0f0f5",
                     }}
@@ -1414,7 +1459,8 @@ export default function InvoicePage() {
                         color: "#22c55e",
                       }}
                     >
-                      {preview.currency || "AED"} {preview.paidAmount?.toLocaleString() || 0}
+                      {preview.currency || "AED"}{" "}
+                      {preview.paidAmount?.toLocaleString() || 0}
                     </span>
                   </div>
                   <div
@@ -1435,7 +1481,10 @@ export default function InvoicePage() {
                         color: "#ef4444",
                       }}
                     >
-                      {preview.currency || "AED"} {((preview.total || 0) - (preview.paidAmount || 0)).toLocaleString()}
+                      {preview.currency || "AED"}{" "}
+                      {(
+                        (preview.total || 0) - (preview.paidAmount || 0)
+                      ).toLocaleString()}
                     </span>
                   </div>
 
@@ -1443,6 +1492,7 @@ export default function InvoicePage() {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
+
                       padding: "10px 14px",
                       background: "#0D1B3E",
                       borderRadius: 8,

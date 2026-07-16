@@ -47,7 +47,9 @@ export default function SettingsPage() {
   const { crmUser } = useAuth();
   const [saved, setSaved] = useState(false);
   const [resendKey, setResendKey] = useState("");
+
   const [whatsapp, setWhatsapp] = useState("+91 90255 62311");
+
   const [currency, setCurrency] = useState("AED");
   const taxConfig = {
     AED: { label: "VAT (%)", value: 5 },
@@ -141,8 +143,13 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Email</label>
-                <input className="form-input" defaultValue="am@theaminternational.com" />
+
+                <input
+                  className="form-input"
+                  defaultValue="am@theaminternational.com"
+                />
               </div>
+
               <div>
                 <label className="form-label">WhatsApp</label>
                 <PhoneInput value={whatsapp} onChange={setWhatsapp} />

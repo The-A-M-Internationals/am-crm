@@ -3,7 +3,20 @@ import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock } fro
 
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
+
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  orderBy,
+  where,
+} from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
 import { Task, TaskPriority, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -21,15 +34,35 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 const PRIORITIES = [
-  { key: "high",   label: "High",   color: "#991b1b", bg: "#fee2e2", border: "#fecaca" },
-  { key: "medium", label: "Medium", color: "#92400e", bg: "#fef3c7", border: "#fde68a" },
-  { key: "low",    label: "Low",    color: "#065f46", bg: "#d1fae5", border: "#a7f3d0" },
+  {
+    key: "high",
+    label: "High",
+    color: "#991b1b",
+    bg: "#fee2e2",
+    border: "#fecaca",
+  },
+  {
+    key: "medium",
+    label: "Medium",
+    color: "#92400e",
+    bg: "#fef3c7",
+    border: "#fde68a",
+  },
+  {
+    key: "low",
+    label: "Low",
+    color: "#065f46",
+    bg: "#d1fae5",
+    border: "#a7f3d0",
+  },
 ];
 
 const TASK_STATUSES = [
   { key: "not-started", label: "To Do", color: "#6b7280", bg: "#f3f4f6" },
   { key: "in-progress", label: "In Progress", color: "#1d4ed8", bg: "#eff6ff" },
-  { key: "completed",   label: "Completed",   color: "#065f46", bg: "#d1fae5" },
+
+  { key: "on-hold", label: "On Hold", color: "#92400e", bg: "#fef3c7" },
+  { key: "completed", label: "Completed", color: "#065f46", bg: "#d1fae5" },
 ];
 
 const TASK_TYPES = [
@@ -41,17 +74,27 @@ const TASK_TYPES = [
 ];
 
 const EMPTY_FORM = {
-  title: "", description: "", assignedTo: "", assignedToName: "",
-  clientId: "", clientName: "", dueDate: "", time: "",
+  title: "",
+  description: "",
+  assignedTo: "",
+  assignedToName: "",
+  clientId: "",
+  clientName: "",
+  dueDate: "",
+  time: "",
   priority: "medium" as TaskPriority,
   status: "not-started",
   taskType: "admin-action" as SystemTaskType,
   relatedTo: "",
+
+  progress: 0,
+
   relatedType: "" as "project" | "lead" | "client" | "",
 };
 
 export default function TasksPage() {
   const { crmUser } = useAuth();
+
   const router = useRouter();
   const [tasks, setTasks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
@@ -59,11 +102,15 @@ export default function TasksPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingClients, setLoadingClients] = useState(true);
-  
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+
+  const [filter, setFilter] = useState<"all" | "pending" | "completed">(
+    "pending",
+  );
+
   const [creatingProject, setCreatingProject] = useState(false);
 
 
@@ -83,63 +130,156 @@ export default function TasksPage() {
     setTasks([]); // Clear tasks when switching view modes
     setLoading(true);
 
-    const unsubTasks = onSnapshot(tasksQuery, snap => {
-      setTasks(prev => {
+    const unsubTasks = onSnapshot(tasksQuery, (snap) => {
+      setTasks((prev) => {
         let next = [...prev];
-        snap.docChanges().forEach(change => {
+        snap.docChanges().forEach((change) => {
           if (change.type === "added") {
-            if (!next.find(t => t.id === change.doc.id)) next.push({ id: change.doc.id, ...change.doc.data() });
+            if (!next.find((t) => t.id === change.doc.id))
+              next.push({ id: change.doc.id, ...change.doc.data() });
           }
           if (change.type === "modified") {
-            const index = next.findIndex(t => t.id === change.doc.id);
-            if (index !== -1) next[index] = { id: change.doc.id, ...change.doc.data() };
+            const index = next.findIndex((t) => t.id === change.doc.id);
+            if (index !== -1)
+              next[index] = { id: change.doc.id, ...change.doc.data() };
             else next.push({ id: change.doc.id, ...change.doc.data() });
           }
-          if (change.type === "removed") next = next.filter(t => t.id !== change.doc.id);
+          if (change.type === "removed")
+            next = next.filter((t) => t.id !== change.doc.id);
         });
-        return next.sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        return next.sort(
+          (a, b) =>
+            new Date(b.createdAt || 0).getTime() -
+            new Date(a.createdAt || 0).getTime(),
+        );
       });
       setLoading(false);
     });
-    const unsubUsers = onSnapshot(collection(db, "users"), snap => setMembers(snap.docs.map(d => ({ uid: d.id, id: d.id, ...d.data() }))));
-    const unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
-      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoadingClients(false);
-    });
-    const unsubProjects = onSnapshot(collection(db, "projects"), snap => setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubUsers = onSnapshot(collection(db, "users"), (snap) =>
+      setMembers(snap.docs.map((d) => ({ uid: d.id, id: d.id, ...d.data() }))),
+    );
+    const unsubClients = onSnapshot(
+      query(collection(db, "clients"), where("active", "!=", false)),
+      (snap) => {
+        setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoadingClients(false);
+      },
+    );
+    const unsubProjects = onSnapshot(collection(db, "projects"), (snap) =>
+      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
 
-    return () => { unsubTasks(); unsubUsers(); unsubClients(); unsubProjects(); };
+    return () => {
+      unsubTasks();
+      unsubUsers();
+      unsubClients();
+      unsubProjects();
+    };
   }, [crmUser, viewMode]);
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
-  
+  function openAdd() {
+    setEditing(null);
+    setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" });
+    setShowModal(true);
+  }
   function openEdit(t: any) {
     setEditing(t);
-    setForm({ 
-      title: t.title, description: t.description ?? "", assignedTo: t.assignedTo ?? "", 
-      assignedToName: t.assignedToName ?? "", clientId: t.clientId ?? "", clientName: t.clientName ?? "", 
-      dueDate: t.dueDate ?? "", priority: t.priority, status: t.status ?? "not-started", 
-      taskType: t.taskType ?? "admin-action", relatedTo: t.relatedTo ?? "", relatedType: t.relatedType ?? ""
+
+    setForm({
+      title: t.title,
+      description: t.description ?? "",
+      assignedTo: t.assignedTo ?? "",
+      assignedToName: t.assignedToName ?? "",
+      clientId: t.clientId ?? "",
+      clientName: t.clientName ?? "",
+      dueDate: t.dueDate ?? "",
+      priority: t.priority,
+      status: t.status ?? "not-started",
+      taskType: t.taskType ?? "admin-action",
+      relatedTo: t.relatedTo ?? "",
+      relatedType: t.relatedType ?? "",
+      progress: t.progress ?? 0,
     });
     setShowModal(true);
   }
 
-  async function quickCreateProject() {
-    if (!form.clientId || !form.title) return alert("Please select a client and give the task a title first.");
-    setCreatingProject(true);
+  async function sendReminderEmail(
+    task: any,
+    memberEmail: string,
+    memberName: string,
+  ) {
     try {
-      const now = new Date().toISOString();
-      const docRef = await addDoc(collection(db, "projects"), {
-        title: form.title, clientName: form.clientName, clientId: form.clientId,
-        status: "in-progress", service: "web-development", createdAt: now, updatedAt: now,
-        assignedTo: form.assignedTo ? [form.assignedTo] : []
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "task-reminder",
+          task,
+          memberEmail,
+          memberName,
+        }),
       });
-      setForm(f => ({ ...f, relatedTo: docRef.id, relatedType: "project" }));
-      alert("Project created and linked!");
-    } catch (e) { console.error(e); alert("Failed to create project"); } 
-    finally { setCreatingProject(false); }
+      if (!response.ok) {
+        throw new Error("Failed to send reminder email");
+      }
+
+      console.log("Reminder email sent");
+    } catch (err) {
+      console.error("Email error:", err);
+    }
   }
 
+  async function quickCreateProject() {
+    if (!form.clientId || !form.title) {
+      return alert("Please select a client and give the task a title first.");
+    }
+
+    setCreatingProject(true);
+
+    try {
+      const now = new Date().toISOString();
+
+      const docRef = await addDoc(collection(db, "projects"), {
+        title: form.title,
+        clientName: form.clientName,
+        clientId: form.clientId,
+        status: "in-progress",
+        service: "web-development",
+        createdAt: now,
+        updatedAt: now,
+        assignedTo: form.assignedTo ? [form.assignedTo] : [],
+      });
+
+      setForm((f) => ({
+        ...f,
+        relatedTo: docRef.id,
+        relatedType: "project",
+      }));
+
+      alert("✅ Project created and linked!");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to create project");
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+  async function fetchAll() {
+    const [tasksSnap, membersSnap, clientsSnap] = await Promise.all([
+      getDocs(query(collection(db, "tasks"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "users")),
+      getDocs(
+        query(collection(db, "clients"), where("status", "==", "active")),
+      ),
+    ]);
+
+    setTasks(tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setMembers(membersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setClients(clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setLoading(false);
+  }
   async function handleSave() {
     if (!form.title) return;
 
@@ -160,57 +300,80 @@ export default function TasksPage() {
     try {
       const now = new Date().toISOString();
       const member = members.find((m) => m.uid === form.assignedTo);
-      const payload = { ...form, assignedToName: member?.name ?? form.assignedToName, assignedBy: crmUser?.uid ?? "" };
+      const payload = {
+        ...form,
+        assignedToName: member?.name ?? form.assignedToName,
+        assignedBy: crmUser?.uid ?? "",
+      };
 
       if (editing) {
         await updateDoc(doc(db, "tasks", editing.id), payload);
       } else {
-        await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
-        
-        // SEND EMAIL NOTIFICATION TO ASSIGNEE
-        if (member?.email) {
-          try {
-            const dueDateTime = `${form.dueDate} ${form.time || ""}`.trim();
-            const html = `
-              <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
-                <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                  <div style="background:var(--navy);padding:32px;text-align:center;">
-                    <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
-                    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
-                  </div>
-                  <div style="padding:32px;">
-                    <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
-                    <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+        await addDoc(collection(db, "tasks"), {
+          ...payload,
+          progress: 0,
+          done: false,
+          createdAt: now,
+        });
+      }
 
-                    <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
-                      <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${form.title}</h3>
-                      ${form.clientName ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Client:</strong> ${form.clientName}</p>` : ""}
-                      ${dueDateTime ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>` : ""}
-                      ${form.description ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Description:</strong> ${form.description}</p>` : ""}
-                    </div>
-                    
-                    <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
+      // Check if due date is tomorrow — send reminder
+      if (form.dueDate && member?.email) {
+        const due = new Date(form.dueDate);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        if (due.toDateString() === tomorrow.toDateString()) {
+          await sendReminderEmail({ ...form }, member.email, member.name);
+        }
+      }
+
+      if (!editing && member?.email) {
+        // SEND EMAIL NOTIFICATION TO ASSIGNEE
+        try {
+          const dueDateTime = `${form.dueDate} ${form.time || ""}`.trim();
+          const html = `
+            <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
+              <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div style="background:var(--navy);padding:32px;text-align:center;">
+                  <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
+                </div>
+                <div style="padding:32px;">
+                  <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
+                  <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+
+                  <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
+                    <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${form.title}</h3>
+                    ${form.clientName ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Client:</strong> ${form.clientName}</p>` : ""}
+                    ${dueDateTime ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>` : ""}
+                    ${form.description ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Description:</strong> ${form.description}</p>` : ""}
                   </div>
+                  
+                  <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
                 </div>
               </div>
-            `;
+            </div>
+          `;
 
-            await fetch("/api/send-email", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                to: [member.email, "am@theaminternational.com"],
-                subject: `CRM Task Assigned: ${form.title}`,
-                html
-              })
-            });
-          } catch (e) {
-            console.error("Failed to send assignment email", e);
-          }
+          await fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: [member.email, "am@theaminternational.com"],
+              subject: `CRM Task Assigned: ${form.title}`,
+              html
+            })
+          });
+        } catch (e) {
+          console.error("Failed to send assignment email", e);
         }
       }
       setShowModal(false);
-    } finally { setSaving(false); }
+      fetchAll();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function toggleDone(task: any) {
@@ -225,6 +388,8 @@ export default function TasksPage() {
   async function deleteTask(id: string) {
     if (!confirm("Delete this task?")) return;
     await deleteDoc(doc(db, "tasks", id));
+
+    fetchAll();
   }
 
   async function updateStatus(task: any, status: string) {
@@ -237,12 +402,19 @@ export default function TasksPage() {
 
   const filteredTasks = tasks.filter(t => {
     if (viewMode === "team" && t.assignedTo === crmUser?.uid) return false;
-    if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
+    if (typeof typeFilter !== "undefined" && typeFilter !== "all" && t.taskType !== typeFilter) return false;
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
     
     // Hide tasks if their client is archived/inactive
     if (t.clientId && !loadingClients && !clients.some(c => c.id === t.clientId)) return false;
+
+    if (t.relatedType === "project" && t.relatedTo) {
+      const proj = projects.find((p) => p.id === t.relatedTo);
+      if (proj && proj.status === "not-started") {
+        return false;
+      }
+    }
 
     return true;
   });
@@ -257,14 +429,41 @@ export default function TasksPage() {
   };
 
   const getColTasks = (statusKey: string) => {
-    if (statusKey === "not-started") return filteredTasks.filter(t => !["in-progress", "dev", "test", "review", "completed", "done"].includes(t.status));
-    if (statusKey === "in-progress") return filteredTasks.filter(t => ["in-progress", "dev", "test", "review"].includes(t.status));
-    if (statusKey === "completed") return filteredTasks.filter(t => ["completed", "done"].includes(t.status));
+    if (statusKey === "not-started") {
+      return filteredTasks.filter(
+        (t) =>
+          ![
+            "in-progress",
+            "dev",
+            "test",
+            "review",
+            "completed",
+            "done",
+          ].includes(t.status),
+      );
+    }
+
+    if (statusKey === "in-progress") {
+      return filteredTasks.filter((t) =>
+        ["in-progress", "dev", "test", "review"].includes(t.status),
+      );
+    }
+
+    if (statusKey === "completed") {
+      return filteredTasks.filter((t) =>
+        ["completed", "done"].includes(t.status),
+      );
+    }
+
     return [];
   };
 
-  const pInfo = (key: string) => PRIORITIES.find(p => p.key === key) ?? PRIORITIES[1];
-  const tInfo = (key: string) => TASK_TYPES.find(t => t.key === key) ?? TASK_TYPES.find(t => t.key === "admin-action")!;
+  const pInfo = (key: string) =>
+    PRIORITIES.find((p) => p.key === key) ?? PRIORITIES[1];
+
+  const tInfo = (key: string) =>
+    TASK_TYPES.find((t) => t.key === key) ??
+    TASK_TYPES.find((t) => t.key === "admin-action")!;
 
   return (
     <div className="p-8 h-screen flex flex-col bg-[#f8fafc] overflow-hidden">
@@ -328,7 +527,7 @@ export default function TasksPage() {
 
       {/* Kanban Board */}
       <div className="flex-1 flex gap-6 overflow-x-auto pb-4 min-h-0">
-        {TASK_STATUSES.map(col => {
+        {TASK_STATUSES.map((col) => {
           const colTasks = getColTasks(col.key);
           return (
             <div 
@@ -339,24 +538,39 @@ export default function TasksPage() {
             >
               <div className="p-4 border-b border-slate-200 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
                 <h3 className="font-black text-slate-700 uppercase tracking-widest text-xs flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ background: col.color }}
+                  />
                   {col.label}
                 </h3>
-                <span className="bg-white border border-slate-200 text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full">{colTasks.length}</span>
+                <span className="bg-white border border-slate-200 text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {colTasks.length}
+                </span>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {loading ? (
-                  [1,2].map(i => <div key={i} className="h-32 bg-white rounded-2xl animate-pulse border border-slate-100" />)
+                  [1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-32 bg-white rounded-2xl animate-pulse border border-slate-100"
+                    />
+                  ))
                 ) : colTasks.length === 0 ? (
-                  <div className="text-center py-10 text-sm font-medium text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">Drop tasks here</div>
+                  <div className="text-center py-10 text-sm font-medium text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                    Drop tasks here
+                  </div>
                 ) : (
                   <AnimatePresence>
-                    {colTasks.map(task => {
+                    {colTasks.map((task) => {
                       const prio = pInfo(task.priority);
                       const tType = tInfo(task.taskType || "admin-action");
-                      const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
-                      
+                      const isOverdue =
+                        task.dueDate &&
+                        task.status !== "completed" &&
+                        new Date(task.dueDate) < new Date();
+
                       return (
                         <motion.div 
                           layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
@@ -372,10 +586,15 @@ export default function TasksPage() {
                           }}
                           className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col"
                         >
-                          <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
-                          
+                          <div
+                            className="absolute left-0 top-0 bottom-0 w-1"
+                            style={{ background: prio.color }}
+                          />
+
                           <div className="flex justify-between items-start mb-2 pl-2">
-                            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1 ${tType.bg} ${tType.color} ${tType.border}`}>
+                            <span
+                              className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1 ${tType.bg} ${tType.color} ${tType.border}`}
+                            >
                               {tType.icon} {tType.label}
                             </span>
                             <div className="flex items-center gap-1">
@@ -391,29 +610,110 @@ export default function TasksPage() {
                             </div>
                           </div>
 
-                          <h4 className="font-bold text-slate-800 text-sm mb-2 pl-2 leading-tight group-hover:text-[#0D1B3E] transition-colors" style={{ textDecoration: task.status === "completed" ? "line-through" : "none", opacity: task.status === "completed" ? 0.6 : 1 }}>
+                          <h4
+                            className="font-bold text-slate-800 text-sm mb-2 pl-2 leading-tight group-hover:text-[#0D1B3E] transition-colors"
+                            style={{
+                              textDecoration:
+                                task.status === "completed"
+                                  ? "line-through"
+                                  : "none",
+                              opacity: task.status === "completed" ? 0.6 : 1,
+                            }}
+                          >
                             {task.title}
                           </h4>
+                          {task.description && (
+                            <p className="pl-2 text-[11px] text-slate-500 mt-1 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
 
                           <div className="pl-2 mb-3 space-y-1">
-                            {task.relatedType === "project" && task.relatedTo && (
-                              <div className="text-[11px] font-bold text-[#C9A84C] flex items-center gap-1">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-                                <span className="truncate">{projects.find(p => p.id === task.relatedTo)?.title || "Unknown Project"}</span>
-                              </div>
-                            )}
+                            {task.relatedType === "project" &&
+                              task.relatedTo && (
+                                <div className="text-[11px] font-bold text-[#C9A84C] flex items-center gap-1">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <rect
+                                      x="2"
+                                      y="7"
+                                      width="20"
+                                      height="14"
+                                      rx="2"
+                                      ry="2"
+                                    ></rect>
+                                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                                  </svg>
+                                  <span className="truncate">
+                                    {projects.find(
+                                      (p) => p.id === task.relatedTo,
+                                    )?.title || "Unknown Project"}
+                                  </span>
+                                </div>
+                              )}
                             {task.clientName && (
                               <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                <span className="truncate">{task.clientName}</span>
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                  <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                <span className="truncate">
+                                  {task.clientName}
+                                </span>
+                              </div>
+                            )}
+                            {crmUser?.role === "manager" && (
+                              <div className="pl-2 mt-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-semibold text-slate-500">
+                                    Progress
+                                  </span>
+
+                                  <span className="text-[10px] font-bold">
+                                    {task.progress ?? 0}%
+                                  </span>
+                                </div>
+
+                                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-blue-500 transition-all"
+                                    style={{ width: `${task.progress ?? 0}%` }}
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>
 
                           <div className="pl-2 mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5" title={task.assignedToName}>
+                            <div
+                              className="flex items-center gap-1.5"
+                              title={task.assignedToName}
+                            >
                               <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border border-indigo-200">
-                                {task.assignedToName ? task.assignedToName.charAt(0) : "?"}
+                                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border border-indigo-200">
+                                  {task.assignedToName
+                                    ? task.assignedToName.charAt(0)
+                                    : "?"}
+                                </div>
+
+                                <span className="text-[11px] font-medium text-slate-600 truncate max-w-[80px]">
+                                  {task.assignedToName}
+                                </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -423,13 +723,29 @@ export default function TasksPage() {
                                 </span>
                               )}
                               <select
-                                onClick={e => e.stopPropagation()}
-                                onChange={e => { e.stopPropagation(); updateStatus(task, e.target.value); }}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateStatus(task, e.target.value);
+                                }}
                                 value={col.key}
                                 className="text-[10px] font-bold uppercase border-none bg-transparent text-slate-400 cursor-pointer outline-none hover:text-[#0D1B3E]"
                               >
-                                {TASK_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                                {TASK_STATUSES.map((s) => (
+                                  <option key={s.key} value={s.key}>
+                                    {s.label}
+                                  </option>
+                                ))}
                               </select>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTask(task.id);
+                                }}
+                                className="text-red-500 hover:text-red-700 text-xs font-bold"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </div>
                         </motion.div>
@@ -439,7 +755,7 @@ export default function TasksPage() {
                 )}
               </div>
             </div>
-          )
+          );
         })}
       </div>
 
@@ -452,63 +768,154 @@ export default function TasksPage() {
               <h2 className="text-xl font-black text-[#0D1B3E]">{editing ? "Edit Operation Task" : "New Operation Task"}</h2>
               <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
-            
+
             <div className="p-6 space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Task Type</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Task Type
+                </label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                   {TASK_TYPES.filter(tt => crmUser?.role === "admin" || (tt.key !== "follow-up" && tt.key !== "meeting")).map(tt => (
                     <button
                       key={tt.key}
-                      onClick={() => setForm({ ...form, taskType: tt.key as SystemTaskType })}
+                      onClick={() =>
+                        setForm({ ...form, taskType: tt.key as SystemTaskType })
+                      }
                       className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${form.taskType === tt.key ? "border-[#C9A84C] bg-[#C9A84C]/5 shadow-sm" : "border-slate-100 hover:border-slate-200 bg-white"}`}
                     >
                       <span className="text-xl mb-1">{tt.icon}</span>
-                      <span className={`text-[10px] font-black uppercase text-center ${form.taskType === tt.key ? "text-[#0D1B3E]" : "text-slate-400"}`}>{tt.label}</span>
+                      <span
+                        className={`text-[10px] font-black uppercase text-center ${form.taskType === tt.key ? "text-[#0D1B3E]" : "text-slate-400"}`}
+                      >
+                        {tt.label}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Title *</label>
-                <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="E.g., Call client regarding proposal..." />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Title *
+                </label>
+                <input
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="E.g., Call client regarding proposal..."
+                />
               </div>
-              
+
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-                <textarea className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors resize-none" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Add detailed notes or context..." />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors resize-none"
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  placeholder="Add detailed notes or context..."
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Client Link</label>
-                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.clientId} onChange={e => { const c = clients.find(x => x.id === e.target.value); setForm({ ...form, clientId: e.target.value, clientName: c?.company ?? c?.name ?? "" }); }}>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Client Link
+                  </label>
+                  <select
+                    disabled={crmUser?.role === "employee"}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    value={form.clientId}
+                    onChange={(e) => {
+                      const c = clients.find((x) => x.id === e.target.value);
+                      setForm({
+                        ...form,
+                        clientId: e.target.value,
+                        clientName: c?.company ?? c?.name ?? "",
+                      });
+                    }}
+                  >
                     <option value="">No Client Linked</option>
                     {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Project Link (Optional)</label>
-                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.relatedTo} onChange={e => setForm({ ...form, relatedTo: e.target.value, relatedType: e.target.value ? "project" : "" })}>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Project Link (Optional)
+                  </label>
+                  <select
+                    disabled={crmUser?.role === "employee"}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    value={form.relatedTo}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        relatedTo: e.target.value,
+                        relatedType: e.target.value ? "project" : "",
+                      })
+                    }
+                  >
                     <option value="">No Project Linked</option>
-                    {projects.filter(p => p.status !== "completed").map(p => <option key={p.id} value={p.id}>[{p.clientName}] {p.title}</option>)}
+                    {projects
+                      .filter((p) => p.status !== "completed")
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          [{p.clientName}] {p.title}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owner</label>
-                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.assignedTo} onChange={e => { const m = members.find(x => x.uid === e.target.value); setForm({ ...form, assignedTo: e.target.value, assignedToName: m?.name ?? "" }); }}>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Owner
+                  </label>
+                  <select
+                    disabled={crmUser?.role === "employee"}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    value={form.assignedTo}
+                    onChange={(e) => {
+                      const m = members.find((x) => x.uid === e.target.value);
+                      setForm({
+                        ...form,
+                        assignedTo: e.target.value,
+                        assignedToName: m?.name ?? "",
+                      });
+                    }}
+                  >
                     <option value="">Unassigned</option>
-                    {members.map(m => <option key={m.uid} value={m.uid}>{m.name}</option>)}
+                    {members.map((m) => (
+                      <option key={m.uid} value={m.uid}>
+                        {m.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
-                  <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value as TaskPriority })}>
-                    {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Priority
+                  </label>
+                  <select
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors"
+                    value={form.priority}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        priority: e.target.value as TaskPriority,
+                      })
+                    }
+                  >
+                    {PRIORITIES.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -521,9 +928,52 @@ export default function TasksPage() {
                     <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors" type="time" value={form.time || ""} onChange={e => setForm({ ...form, time: e.target.value })} />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Task Progress
+                  </label>
+                  <select
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors"
+                    value={form.progress}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        progress: Number(e.target.value),
+                      })
+                    }
+                  >
+                    {[0, 25, 50, 75, 100].map((value) => (
+                      <option key={value} value={value}>
+                        {value}%
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs mt-1 text-slate-500">
+                    Employees update task completion progress.
+                  </p>
+                </div>
               </div>
+              {form.dueDate &&
+                (() => {
+                  const due = new Date(form.dueDate);
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  return due.toDateString() === tomorrow.toDateString();
+                })() && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+                    style={{
+                      background: "#fef3c7",
+                      color: "#92400e",
+                      border: "1px solid #fde68a",
+                    }}
+                  >
+                    ⚡ Due date is tomorrow — assignee will receive an email
+                    reminder when you save!
+                  </div>
+                )}
             </div>
-            
+
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
               <div className="flex gap-4 items-center">
                 {editing && crmUser?.role !== "employee" ? (
@@ -552,9 +1002,22 @@ export default function TasksPage() {
                 })()}
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowModal(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                <button onClick={handleSave} disabled={saving || !form.title} className="bg-[#C9A84C] hover:bg-[#b0923e] text-white px-8 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50">
-                  {saving ? "Saving..." : editing ? "Save Changes" : "Create Task"}
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !form.title}
+                  className="bg-[#C9A84C] hover:bg-[#b0923e] text-white px-8 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50"
+                >
+                  {saving
+                    ? "Saving..."
+                    : editing
+                      ? "Save Changes"
+                      : "Create Task"}
                 </button>
               </div>
             </div>

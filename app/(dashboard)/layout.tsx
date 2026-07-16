@@ -12,6 +12,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { crmUser, loading } = useAuth();
+
   const router = useRouter();
 
   useEffect(() => {
