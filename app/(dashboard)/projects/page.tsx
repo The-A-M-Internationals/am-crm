@@ -628,7 +628,7 @@ export default function ProjectsPage() {
                   }}
                 >
                   <option value="">-- Select Client --</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                  {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

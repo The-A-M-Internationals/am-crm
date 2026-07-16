@@ -1,5 +1,5 @@
 "use client";
-import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer } from "lucide-react";
+import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock } from "lucide-react";
 
 
 import { useEffect, useState } from "react";
@@ -33,7 +33,7 @@ const TASK_STATUSES = [
 ];
 
 const TASK_TYPES = [
-  { key: "follow-up", label: "Follow-up", icon: "⏰", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
+  { key: "follow-up", label: "Follow-up", icon: <AlarmClock className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
   { key: "meeting", label: "Meeting", icon: <Handshake className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
   { key: "internal-task", label: "Internal Task", icon: <Zap className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" },
   { key: "admin-action", label: "Admin Action", icon: <Settings className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" },
@@ -485,7 +485,7 @@ export default function TasksPage() {
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Client Link</label>
                   <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.clientId} onChange={e => { const c = clients.find(x => x.id === e.target.value); setForm({ ...form, clientId: e.target.value, clientName: c?.company ?? c?.name ?? "" }); }}>
                     <option value="">No Client Linked</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                    {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                   </select>
                 </div>
                 <div>

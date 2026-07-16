@@ -426,7 +426,6 @@ export default function LeadsPage() {
                     <option value="Pre-Qualified">Pre-Qualified</option>
                     <option value="Contact in Future">Contact in Future</option>
                     <option value="Lost Lead">Lost Lead</option>
-                    <option value="Junk Lead">Junk Lead</option>
                   </select>
                 </div>
                 <div>

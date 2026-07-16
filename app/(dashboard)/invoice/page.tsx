@@ -519,7 +519,7 @@ export default function InvoicePage() {
             const svc = SERVICES.find((s) => s.key === inv.service);
             const curr = inv.currency || "AED";
             return (
-              <div key={inv.id} className="crm-card">
+              <div key={inv.id} className={`crm-card ${openMenu === inv.id ? 'relative z-10' : ''}`}>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div
@@ -750,7 +750,7 @@ export default function InvoicePage() {
                     }}
                   >
                     <option value="">-- Select a client --</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                    {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
                   </select>
                 </div>
                 <div>

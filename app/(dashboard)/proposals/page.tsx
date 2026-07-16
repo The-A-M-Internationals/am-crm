@@ -298,7 +298,7 @@ function ProposalsContent() {
         <div ref={activeRef} className="bg-white p-6 rounded-2xl shadow-xl mb-8 border border-slate-200 font-sans relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-[#C9A84C] rounded-t-2xl"></div>
           <h2 className="text-xl font-bold mb-6" style={{ color: "#0D1B3E" }}>{editingId ? "Edit Proposal Details" : "Create New Proposal"}</h2>
-          <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} isEditing={!!editingId} />
+          <ProposalForm form={form} setForm={setForm} subtotal={subtotal} tax={tax} total={total} updateItem={updateItem} addItem={addItem} removeItem={removeItem} handleSave={handleSave} cancelEdit={cancelEdit} saving={saving} isEditing={!!editingId} clients={clients} />
         </div>
       )}
 
@@ -468,7 +468,7 @@ function ProposalsContent() {
   );
 }
 
-function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem, removeItem, handleSave, cancelEdit, saving, isEditing }: any) {
+function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem, removeItem, handleSave, cancelEdit, saving, isEditing, clients }: any) {
   return (
     <div className="space-y-6">
       
@@ -508,7 +508,7 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
           <div>
             <label className="form-label text-xs">Client *</label>
             <select className="form-input py-2.5" value={form.clientId || ""} onChange={e => {
-              const c = clients.find(cl => cl.id === e.target.value);
+              const c = clients.find((cl: any) => cl.id === e.target.value);
               setForm({ 
                 ...form, 
                 clientId: e.target.value, 
@@ -519,7 +519,7 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
               });
             }}>
               <option value="">-- Select Client --</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+              {clients.filter((c: any) => c.active !== false).map((c: any) => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
             </select>
           </div>
           <div><label className="form-label text-xs">Company</label><input className="form-input py-2.5" value={form.company || ""} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Company Ltd" /></div>

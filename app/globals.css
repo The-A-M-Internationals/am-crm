@@ -286,7 +286,7 @@ body.auth-page {
 .crm-table tr:last-child td { border-bottom: none; }
 
 /* ===================== PAGE HEADER ===================== */
-.page-header { margin-bottom: 40px; border-bottom: 1px solid #E5E7EB; padding-bottom: 32px; }
+.page-header { margin-bottom: 0px; border-bottom: none; padding-bottom: 0px; }
 .page-title { font-size: 32px; font-weight: 600; color: var(--navy); font-family: var(--font-outfit); letter-spacing: -0.02em; }
 .page-subtitle { font-size: 15px; color: var(--slate); margin-top: 8px; font-family: var(--font-inter); }
 

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Building2, Calendar, AlertTriangle, Clock, Rocket } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -212,61 +213,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Overdue & Priority Tasks */}
         <div className="crm-card border-l-4 border-l-red-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Attention Required</h2>
-          <div className="space-y-3">
-            {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).length > 0 ? (
-              tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).slice(0, 3).map(t => (
-                <div key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 rounded-lg">
-                  <span className="font-semibold text-red-900 truncate pr-2">{t.title}</span>
-                  <span className="text-red-700 whitespace-nowrap">Overdue</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 italic">No overdue tasks.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Leads Needing Follow Up */}
-        <div className="crm-card border-l-4 border-l-amber-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⏳ Lead Follow-ups</h2>
-          <div className="space-y-3">
-            {leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).length > 0 ? (
-              leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).slice(0, 3).map(l => (
-                <div key={l.id} className="flex justify-between items-center text-xs p-2 bg-amber-50 rounded-lg">
-                  <span className="font-semibold text-amber-900 truncate pr-2">{l.name}</span>
-                  <span className="text-amber-700 whitespace-nowrap">{new Date(l.followUpDate).toLocaleDateString()}</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 italic">No immediate follow-ups.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Projects at Risk */}
-        <div className="crm-card border-l-4 border-l-blue-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">🚀 Upcoming Deadlines</h2>
-          <div className="space-y-3">
-            {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000) && (!p.clientId || clients.some(c => c.id === p.clientId))).length > 0 ? (
-              projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000) && (!p.clientId || clients.some(c => c.id === p.clientId))).slice(0, 3).map(p => (
-                <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-blue-50 rounded-lg">
-                  <span className="font-semibold text-blue-900 truncate pr-2">{p.title}</span>
-                  <span className="text-blue-700 whitespace-nowrap">{new Date(p.deadline).toLocaleDateString()}</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 italic">No upcoming project deadlines.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* COMMAND CENTER (ACTIONABLE ALERTS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {/* Overdue & Priority Tasks */}
-        <div className="crm-card border-l-4 border-l-red-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⚠️ Attention Required</h2>
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500" /> Attention Required
+          </h2>
           <div className="space-y-3">
             {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length > 0 ? (
               tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).slice(0, 3).map(t => (
@@ -283,7 +232,9 @@ export default function DashboardPage() {
 
         {/* Leads Needing Follow Up */}
         <div className="crm-card border-l-4 border-l-amber-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⏳ Lead Follow-ups</h2>
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" /> Lead Follow-ups
+          </h2>
           <div className="space-y-3">
             {leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).length > 0 ? (
               leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).slice(0, 3).map(l => (
@@ -300,7 +251,9 @@ export default function DashboardPage() {
 
         {/* Projects at Risk */}
         <div className="crm-card border-l-4 border-l-blue-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">🚀 Upcoming Deadlines</h2>
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Rocket className="w-4 h-4 text-blue-500" /> Upcoming Deadlines
+          </h2>
           <div className="space-y-3">
             {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).length > 0 ? (
               projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).slice(0, 3).map(p => (
@@ -454,19 +407,21 @@ export default function DashboardPage() {
               <a href="/leads" className="btn-primary mt-2 mx-auto" style={{ fontSize: 11, padding: "4px 12px" }}>+ Add Lead</a>
             </div>
           ) : (
-            <div className="space-y-2">
-              {leads.slice(0, 5).map((lead: any) => {
-                const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage?.toUpperCase() || "LEAD" };
+            <div className="space-y-3 mt-2">
+              {leads.filter(l => l.active !== false).slice(0, 5).map((lead: any) => {
+                const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage || "Lead" };
                 return (
-                  <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: st.bg, color: st.color }}>
+                  <div key={lead.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white" style={{ background: "var(--navy)" }}>
                       {lead.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{lead.name}</p>
-                      <p className="text-xs truncate" style={{ color: "#9ca3af" }}>{lead.company}</p>
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{lead.name}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--slate)" }}>{lead.company}</p>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                    <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold" style={{ background: st.bg, color: st.color }}>
+                      {st.label}
+                    </span>
                   </div>
                 );
               })}
@@ -475,7 +430,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Pending Tasks */}
-        <div className="crm-card">
+        <div className="crm-card flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Pending Tasks</h2>
             <a href="/tasks" className="text-xs font-semibold" style={{ color: "#C9A84C" }}>View all →</a>
@@ -487,21 +442,31 @@ export default function DashboardPage() {
               <p className="text-xs" style={{ color: "#9ca3af" }}>All tasks done! 🎉</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3 mt-2">
               {tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).slice(0, 5).map((task: any) => {
                 const pColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
                 return (
-                  <div key={task.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
+                  <div key={task.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
+                    <div className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{task.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {task.clientName && <p className="text-xs truncate" style={{ color: "#9ca3af" }}>🏢 {task.clientName}</p>}
-                        {task.dueDate && <p className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>}
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{task.title}</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5">
+                        {task.clientName && (
+                          <p className="text-xs flex items-center gap-1 truncate" style={{ color: "var(--slate)" }}>
+                            <Building2 className="w-3.5 h-3.5" /> 
+                            <span className="truncate">{task.clientName}</span>
+                          </p>
+                        )}
+                        {task.dueDate && (
+                          <p className="text-xs flex items-center gap-1 whitespace-nowrap" style={{ color: isOverdue ? "#ef4444" : "var(--slate)" }}>
+                            <Calendar className="w-3.5 h-3.5" /> 
+                            {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full capitalize font-semibold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
+                    <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
                       {task.priority}
                     </span>
                   </div>
