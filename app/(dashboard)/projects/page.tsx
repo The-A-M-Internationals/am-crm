@@ -361,44 +361,6 @@ export default function ProjectsPage() {
     }
   }
 
-  async function handleDelegateTask() {
-    if (!delegateProject || !delegateForm.employeeId || !delegateForm.title) {
-      alert("Please specify employee and task title."); return;
-    }
-    setDelegating(true);
-    try {
-      const employee = members.find(m => m.uid === delegateForm.employeeId);
-      const now = new Date().toISOString();
-      await addDoc(collection(db, "tasks"), {
-        title: delegateForm.title,
-        description: delegateForm.instructions || `Task for project: ${delegateProject.title}`,
-        assignedTo: delegateForm.employeeId,
-        assignedToName: employee?.name || "Team Member",
-        assignedBy: crmUser?.uid || "System",
-        clientId: delegateProject.clientId || "",
-        clientName: delegateProject.clientName || "",
-        relatedTo: delegateProject.id,
-        relatedType: "project",
-        priority: "medium",
-        status: "not-started",
-        done: false,
-        createdAt: now,
-        dueDate: delegateForm.deadline || delegateProject.deadline || now,
-        taskInstructions: delegateForm.instructions || "",
-        masterBlueprint: (delegateProject as any).masterBlueprint || "",
-        leadInstructions: (delegateProject as any).leadInstructions || "",
-        taskType: delegateForm.taskType
-      });
-      alert("Task successfully delegated and assigned!");
-      setDelegateProject(null);
-      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
-    } catch (e: any) {
-      console.error(e);
-      alert("Failed to delegate task: " + e.message);
-    } finally {
-      setDelegating(false);
-    }
-  }
 
   async function updateStatus(project: Project, status: ProjectStatus) {
     await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
