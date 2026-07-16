@@ -107,6 +107,11 @@ export default function RevenuePage() {
   const [showRev, setShowRev] = useState(false);
   const [editingRev, setEditingRev] = useState<any | null>(null);
   const [revForm, setRevForm] = useState({ ...EMPTY_REV });
+  const [revErrors, setRevErrors] = useState<{
+    clientName?: string;
+    description?: string;
+    amount?: string;
+  }>({});
 
   const [saving, setSaving] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
@@ -971,6 +976,7 @@ export default function RevenuePage() {
   function openAddRevenue() {
     setEditingRev(null);
     setRevForm({ ...EMPTY_REV });
+    setRevErrors({});
     setShowRev(true);
   }
 
@@ -987,11 +993,26 @@ export default function RevenuePage() {
       notes: r.notes ?? "",
       currency: r.currency || "AED",
     });
+    setRevErrors({});
     setShowRev(true);
   }
 
   async function saveRevenue() {
-    if (!revForm.description || !revForm.amount) return;
+    const errors: { clientName?: string; description?: string; amount?: string } = {};
+    if (!revForm.clientName || !revForm.clientName.trim()) {
+      errors.clientName = "Please fill this field";
+    }
+    if (!revForm.description || !revForm.description.trim()) {
+      errors.description = "Please fill this field";
+    }
+    if (!revForm.amount || String(revForm.amount).trim() === "") {
+      errors.amount = "Please fill this field";
+    }
+    if (Object.keys(errors).length > 0) {
+      setRevErrors(errors);
+      return;
+    }
+    setRevErrors({});
     setSaving(true);
     try {
       const payload = {
@@ -1961,7 +1982,10 @@ export default function RevenuePage() {
                 {editingRev ? "Edit Revenue Entry" : "Add Revenue Entry"}
               </h2>
               <button
-                onClick={() => setShowRev(false)}
+                onClick={() => {
+                  setShowRev(false);
+                  setRevErrors({});
+                }}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
                 ✕
@@ -1969,16 +1993,24 @@ export default function RevenuePage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="form-label">Client Name</label>
+                <label className="form-label">Client Name *</label>
                 <select
                   className="form-input"
+                  style={
+                    revErrors.clientName
+                      ? { borderColor: "#ef4444" }
+                      : undefined
+                  }
                   value={revForm.clientName || ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setRevForm({
                       ...revForm,
                       clientName: e.target.value,
-                    })
-                  }
+                    });
+                    if (revErrors.clientName) {
+                      setRevErrors({ ...revErrors, clientName: undefined });
+                    }
+                  }}
                 >
                   <option value="">Select Client</option>
                   {clients.map((client) => (
@@ -1987,17 +2019,38 @@ export default function RevenuePage() {
                     </option>
                   ))}
                 </select>
+                {revErrors.clientName && (
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: "#ef4444" }}
+                  >
+                    {revErrors.clientName}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="form-label">Description *</label>
                 <input
                   className="form-input"
-                  value={revForm.description}
-                  onChange={(e) =>
-                    setRevForm({ ...revForm, description: e.target.value })
+                  style={
+                    revErrors.description
+                      ? { borderColor: "#ef4444" }
+                      : undefined
                   }
+                  value={revForm.description}
+                  onChange={(e) => {
+                    setRevForm({ ...revForm, description: e.target.value });
+                    if (revErrors.description) {
+                      setRevErrors({ ...revErrors, description: undefined });
+                    }
+                  }}
                   placeholder="Consulting Fee, Retainer..."
                 />
+                {revErrors.description && (
+                  <p className="text-xs mt-1" style={{ color: "#ef4444" }}>
+                    {revErrors.description}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2025,12 +2078,23 @@ export default function RevenuePage() {
                   <input
                     className="form-input"
                     type="number"
-                    value={revForm.amount}
-                    onChange={(e) =>
-                      setRevForm({ ...revForm, amount: e.target.value })
+                    style={
+                      revErrors.amount ? { borderColor: "#ef4444" } : undefined
                     }
+                    value={revForm.amount}
+                    onChange={(e) => {
+                      setRevForm({ ...revForm, amount: e.target.value });
+                      if (revErrors.amount) {
+                        setRevErrors({ ...revErrors, amount: undefined });
+                      }
+                    }}
                     placeholder="0"
                   />
+                  {revErrors.amount && (
+                    <p className="text-xs mt-1" style={{ color: "#ef4444" }}>
+                      {revErrors.amount}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -2093,7 +2157,10 @@ export default function RevenuePage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowRev(false)}
+                onClick={() => {
+                  setShowRev(false);
+                  setRevErrors({});
+                }}
                 className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
                 style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
               >
@@ -2104,6 +2171,7 @@ export default function RevenuePage() {
                   onClick={() => {
                     delRevenue(editingRev.id);
                     setShowRev(false);
+                    setRevErrors({});
                   }}
                   className="btn-danger px-4"
                 >
