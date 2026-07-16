@@ -268,7 +268,10 @@ export default function TasksPage() {
     <div className="p-8 h-screen flex flex-col bg-[#f8fafc] overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
         <div className="page-header mb-0">
-          <h1 className="text-3xl font-black text-[#0D1B3E] tracking-tight">Operations Board</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Operations Board
+          </h1>
           <p className="text-sm text-slate-500 mt-1">{filteredTasks.length} active items • {viewMode === 'my-desk' ? 'Your Personal Desk' : 'Full Team Overview'}</p>
         </div>
         <div className="flex items-center gap-3">

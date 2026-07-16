@@ -374,7 +374,10 @@ export default function InvoicePage() {
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
               <div style="background:var(--navy);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
-                <h1 style="color:#C9A84C;margin:0;font-size:24px;font-family:Georgia,serif;">A&M</h1>
+                <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            A&M
+          </h1>
                 <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
               </div>
               <div style="background:white;padding:28px;border:1px solid #e8e8f0;border-top:none;border-radius:0 0 10px 10px;">

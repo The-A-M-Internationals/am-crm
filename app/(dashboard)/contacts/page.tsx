@@ -72,7 +72,10 @@ export default function ContactsDirectoryPage() {
     <div className="p-8 pb-20 bg-slate-50 min-h-screen">
       <div className="flex items-center justify-between mb-8">
         <div className="page-header mb-0">
-          <h1 className="page-title text-3xl font-black text-[#0D1B3E] tracking-tight">Contacts Directory</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Contacts Directory
+          </h1>
           <p className="page-subtitle text-slate-500 mt-1">Global registry of clients, leads, and stakeholders.</p>
         </div>
         <button 

@@ -31,7 +31,7 @@ const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }>
   lost:     { color: "#b91c1c", bg: "#fef2f2", label: "Lost" },
 };
 
-function StatCard({ label, value, sub, color, icon, href }: { label: string; value: string | number; sub?: string; color: string; icon: string; href: string }) {
+function StatCard({ label, value, sub, color, icon, href }: { label: string; value: string | number; sub?: string; color: string; icon: React.ReactNode; href: string }) {
   return (
     <Link href={href} className="stat-card group block relative transition-shadow hover:shadow-md cursor-pointer">
       <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color }} />
@@ -169,7 +169,8 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <p className="text-sm font-semibold" style={{ color: "#C9A84C" }}>{greeting},</p>
-          <h1 className="text-3xl font-bold mt-0.5" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             {firstName} 👋
           </h1>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
@@ -201,17 +202,17 @@ export default function DashboardPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" href="/leads" />
-        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" href="/clients" />
-        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed" && (!p.clientId || clients.some(c => c.id === p.clientId))).length} sub="In progress" color="#8b5cf6" icon="🚀" href="/projects" />
-        <StatCard label="Pending Tasks"   value={tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length}    sub="Across all team"                      color="#f59e0b" icon="✅" href="/tasks" />
+        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="var(--navy)" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>} href="/leads" />
+        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="var(--gold)" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} href="/clients" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed" && (!p.clientId || clients.some(c => c.id === p.clientId))).length} sub="In progress" color="#475569" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>} href="/projects" />
+        <StatCard label="Pending Tasks"   value={tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length}    sub="Across all team"                      color="#1F2937" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>} href="/tasks" />
       </div>
 
       {/* COMMAND CENTER (ACTIONABLE ALERTS) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Overdue & Priority Tasks */}
         <div className="crm-card border-l-4 border-l-red-500">
-          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">⚠️ Attention Required</h2>
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Attention Required</h2>
           <div className="space-y-3">
             {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).length > 0 ? (
               tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && (!t.clientId || clients.some(c => c.id === t.clientId))).slice(0, 3).map(t => (

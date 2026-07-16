@@ -376,7 +376,10 @@ export default function CalendarPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div className="page-header mb-0">
-          <h1 className="page-title">Content Calendar</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Content Calendar
+          </h1>
           <p className="page-subtitle">Schedule posts, reels, meetings & deadlines</p>
         </div>
         <div className="flex gap-3">
