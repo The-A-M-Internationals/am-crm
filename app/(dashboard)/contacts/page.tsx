@@ -113,7 +113,7 @@ export default function ContactsDirectoryPage() {
             <div key={contact.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#0D1B3E] to-[#1a3070] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-[var(--navy)] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
                     {contact.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div>

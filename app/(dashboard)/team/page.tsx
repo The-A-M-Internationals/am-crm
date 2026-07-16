@@ -129,7 +129,7 @@ export default function TeamPage() {
             subject: "Welcome to A&M CRM — Your Account is Ready!",
             html: `
               <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-                <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;border-radius:12px 12px 0 0;text-align:center;">
+                <div style="background:var(--navy);padding:32px;border-radius:12px 12px 0 0;text-align:center;">
                   <h1 style="color:#C9A84C;margin:0;font-size:26px;font-family:Georgia,serif;">A&M CRM</h1>
                   <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:13px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
                 </div>

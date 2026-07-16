@@ -151,6 +151,22 @@ export default function LeadsPage() {
     e.preventDefault(); 
   };
 
+  const handleBoardDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const container = e.currentTarget;
+    const threshold = 150;
+    const scrollSpeed = 15;
+    
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    if (x < threshold) {
+      container.scrollLeft -= scrollSpeed;
+    } else if (rect.width - x < threshold) {
+      container.scrollLeft += scrollSpeed;
+    }
+  };
+
   const onDrop = async (e: React.DragEvent, stageKey: LeadStage) => {
     e.preventDefault();
     setDraggingId(null);
@@ -234,7 +250,10 @@ export default function LeadsPage() {
       </div>
 
       {/* Kanban Board Area */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+      <div 
+        className="flex-1 overflow-x-auto overflow-y-hidden pb-4"
+        onDragOver={handleBoardDragOver}
+      >
         {loading ? (
           <div className="flex gap-4 h-full">
             {[1,2,3,4,5].map(i => (

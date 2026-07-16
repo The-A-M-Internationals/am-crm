@@ -64,10 +64,10 @@ export default function LoginPage() {
           style={{ backgroundImage: `url('${BG_IMAGE}')` }}
         />
         {/* Dark overlay with navy tint */}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(13,27,62,0.92) 0%, rgba(8,17,42,0.88) 50%, rgba(13,27,62,0.85) 100%)" }} />
+        <div className="absolute inset-0" style={{ background: "var(--navy) 0%, rgba(8,17,42,0.88) 50%, rgba(13,27,62,0.85) 100%)" }} />
 
         {/* Gold grid overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(rgba(201,168,76,1) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,1) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "var(--navy) 1px, transparent 1px), var(--navy) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
 
         {/* Corner decorations */}
         <div className="absolute top-8 left-8 w-14 h-14 border-l-2 border-t-2 opacity-40" style={{ borderColor: "#C9A84C" }} />
@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col h-full px-14 py-12">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.3), rgba(201,168,76,0.1))", border: "1px solid rgba(201,168,76,0.4)" }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "var(--navy), rgba(201,168,76,0.1))", border: "1px solid rgba(201,168,76,0.4)" }}>
               <span style={{ color: "#C9A84C", fontFamily: "var(--font-playfair)", fontSize: "11px", fontWeight: 700, letterSpacing: "-0.5px" }}>A&M</span>
             </div>
             <div>
@@ -166,12 +166,12 @@ export default function LoginPage() {
         <div className="w-full max-w-[380px] relative" style={{ animation: mounted ? "fadeUp 0.6s ease forwards" : "none", opacity: 0 }}>
 
           {/* Gold accent line */}
-          <div className="h-[2px] w-20 rounded-full mb-8" style={{ background: "linear-gradient(90deg, #C9A84C, rgba(201,168,76,0.2), transparent)" }} />
+          <div className="h-[2px] w-20 rounded-full mb-8" style={{ background: "var(--navy), transparent)" }} />
 
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.05))", border: "1px solid rgba(201,168,76,0.3)", animation: "pulse-gold 3s ease-in-out infinite" }}>
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--navy), rgba(201,168,76,0.05))", border: "1px solid rgba(201,168,76,0.3)", animation: "pulse-gold 3s ease-in-out infinite" }}>
                 <span style={{ color: "#C9A84C", fontFamily: "var(--font-playfair)", fontSize: "11px", fontWeight: 700, letterSpacing: "-0.5px" }}>A&M</span>
               </div>
               <div>
@@ -225,9 +225,9 @@ export default function LoginPage() {
             <button
               type="submit" disabled={loading}
               className="w-full py-4 rounded-xl font-bold text-sm relative overflow-hidden transition-all duration-200 mt-2"
-              style={{ background: loading ? "rgba(201,168,76,0.5)" : "linear-gradient(135deg, #C9A84C, #d4b360, #C9A84C)", color: "#0D1B3E", letterSpacing: "0.08em", backgroundSize: "200% auto" }}
+              style={{ background: loading ? "rgba(201,168,76,0.5)" : "var(--navy)", color: "#0D1B3E", letterSpacing: "0.08em", backgroundSize: "200% auto" }}
             >
-              <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%)", animation: "shimmer 2.5s infinite" }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "var(--navy) 50%, transparent 60%)", animation: "shimmer 2.5s infinite" }} />
               <span className="relative z-10">
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">

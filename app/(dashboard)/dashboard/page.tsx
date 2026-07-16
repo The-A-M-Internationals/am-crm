@@ -264,13 +264,13 @@ export default function DashboardPage() {
       {/* Admin Finance Row */}
       {isAdmin && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="stat-card" style={{ background: "linear-gradient(135deg, #0D1B3E, #1a3070)" }}>
+          <div className="stat-card" style={{ background: "var(--navy)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#C9A84C" }} />
             <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Realized Revenue</p>
             <p className="text-3xl font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</p>
             <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>paid invoices + completed projects + manual</p>
           </div>
-          <div className="stat-card" style={{ background: "linear-gradient(135deg, #1a1a2e, #2a2a4e)" }}>
+          <div className="stat-card" style={{ background: "var(--navy)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#f59e0b" }} />
             <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(245,158,11,0.8)" }}>Pending Revenue</p>
             <p className="text-3xl font-bold" style={{ color: "#f59e0b" }}>AED {pendingRevenue.toLocaleString()}</p>

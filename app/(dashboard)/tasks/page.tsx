@@ -172,7 +172,7 @@ export default function TasksPage() {
             const html = `
               <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
                 <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                  <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                  <div style="background:var(--navy);padding:32px;text-align:center;">
                     <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
                     <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
                   </div>
@@ -233,7 +233,8 @@ export default function TasksPage() {
     await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
   }
 
-  const filteredTasks = tasks.filter((t) => {
+  const filteredTasks = tasks.filter(t => {
+    if (viewMode === "team" && t.assignedTo === crmUser?.uid) return false;
     if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;

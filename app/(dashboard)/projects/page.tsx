@@ -502,27 +502,6 @@ export default function ProjectsPage() {
                         })}
                       </div>
 
-                      <div className="flex flex-col gap-2 mt-auto pt-3 border-t border-slate-100">
-                        {crmUser?.role === "admin" && (
-                          <div className="flex items-center justify-between text-[10px] font-bold">
-                            <span className="text-slate-400 uppercase tracking-widest">Project Value</span>
-                            <span className="text-[#C9A84C] text-xs">{project.currency} {(project.budget)?.toLocaleString() || "0"}</span>
-                          </div>
-                        )}
-                        {crmUser?.role === "admin" && (() => {
-                          const basePaid = project.paid ?? 0;
-                          const loggedPaid = ((project as any).payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
-                          const totalPaid = basePaid + loggedPaid;
-                          const calculatedRemaining = (project.budget ?? 0) - totalPaid;
-                          return (
-                            <div className="flex items-center justify-between text-[10px] font-black bg-slate-50/80 p-2 rounded-lg border border-slate-100 mt-1">
-                              <span className="text-slate-500 uppercase tracking-wider">Paid: <span className="text-emerald-600">{project.currency} {totalPaid.toLocaleString()}</span></span>
-                              <span className="text-slate-500 uppercase tracking-wider">Due: <span className="text-amber-600">{project.currency} {(project.due)?.toLocaleString() || "0"}</span></span>
-                              <span className="text-slate-500 uppercase tracking-wider">Bal: <span className="text-red-600">{project.currency} {calculatedRemaining.toLocaleString()}</span></span>
-                            </div>
-                          );
-                        })()}
-                      </div>
 
                       {/* Quick status change & Delegate Menu */}
                       {canEdit && (
@@ -604,13 +583,7 @@ export default function ProjectsPage() {
                     </div>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">{p.clientName}</p>
                     
-                    {crmUser?.role === "admin" && (
-                      <div className="flex justify-between items-center text-[10px] font-black pt-2 border-t border-slate-100">
-                        <span className="text-slate-400 uppercase tracking-widest">Valued at</span>
-                        <span className="text-slate-800 text-xs">{p.currency} {p.budget?.toLocaleString()}</span>
-                      </div>
-                    )}
-                    
+
                     {/* Revert option */}
                     {canEdit && (
                       <button 

@@ -77,14 +77,14 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="h-screen w-[220px] flex-shrink-0 flex flex-col" style={{ background: "linear-gradient(180deg, #0D1B3E 0%, #07112a 100%)", borderRight: "1px solid rgba(201,168,76,0.1)" }}>
+    <div className="h-screen w-[220px] flex-shrink-0 flex flex-col" style={{ background: "var(--navy)", borderRight: "1px solid rgba(201,168,76,0.1)" }}>
       {/* Logo */}
       <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "linear-gradient(135deg, rgba(201,168,76,0.25), rgba(201,168,76,0.08))", border: "1px solid rgba(201,168,76,0.3)", color: "#C9A84C", fontFamily: "var(--font-playfair)", fontSize: "11px", letterSpacing: "-0.5px" }}>A&M</div>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>A&M</div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">A&M CRM</p>
-            <p className="text-xs leading-tight" style={{ color: "rgba(201,168,76,0.55)" }}>The A&M Internationals</p>
+            <p className="text-xs leading-tight" style={{ color: "var(--gold-light)", opacity: 0.8 }}>The A&M Internationals</p>
           </div>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default function Sidebar() {
         {financeItems.length > 0 && (
           <>
             <div className="pt-3 pb-1 px-2">
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(201,168,76,0.4)" }}>Finance</p>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(197,168,90,0.4)" }}>Finance</p>
             </div>
             {financeItems.map((item) => <NavLink key={item.href} item={item} />)}
           </>

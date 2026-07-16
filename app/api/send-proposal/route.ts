@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     if (proposal.isRichDocument) {
       htmlBody = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #1a1a2e; line-height: 1.6;">
-          <div style="background: linear-gradient(135deg, #0D1B3E, #1a3070); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
+          <div style="background: var(--navy); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
             <h1 style="color: #C9A84C; margin: 0; font-size: 28px; font-family: Georgia, serif; letter-spacing: 1px;">A&M CRM</h1>
             <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 11px; letter-spacing: 3px; font-weight: bold; text-transform: uppercase;">The A&M Internationals FZC</p>
           </div>
@@ -154,7 +154,7 @@ export async function POST(req: Request) {
     } else {
       htmlBody = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a2e; line-height: 1.6;">
-          <div style="background: linear-gradient(135deg, #0D1B3E, #1a3070); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
+          <div style="background: var(--navy); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
             <h1 style="color: #C9A84C; margin: 0; font-size: 28px; font-family: Georgia, serif; letter-spacing: 1px;">A&M CRM</h1>
             <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 11px; letter-spacing: 3px; font-weight: bold; text-transform: uppercase;">The A&M Internationals FZC</p>
           </div>

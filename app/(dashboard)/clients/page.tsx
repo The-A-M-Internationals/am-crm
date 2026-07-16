@@ -306,7 +306,7 @@ export default function ClientsPage() {
                 onClick={() => router.push(`/clients/${client.id}`)}
                 className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:border-[#C9A84C]/30 transition-all duration-300 cursor-pointer group flex flex-col justify-between min-h-[200px] relative overflow-hidden"
               >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#0D1B3E] to-[#C9A84C] transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+                <div className="absolute top-0 left-0 w-full h-1 bg-slate-50 border border-slate-200 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
                 
                 <div>
                   <div className="flex justify-between items-start mb-6">

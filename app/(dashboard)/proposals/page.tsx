@@ -317,7 +317,7 @@ function ProposalsContent() {
                   
                   {/* Left: Client & Core Info */}
                   <div className="flex items-center gap-5 flex-1 min-w-0">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-black text-xl shadow-sm" style={{ background: `linear-gradient(135deg, ${st.color} 0%, #0D1B3E 100%)` }}>
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-black text-xl shadow-sm" style={{ background: `var(--navy)` }}>
                       {p.clientName?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">

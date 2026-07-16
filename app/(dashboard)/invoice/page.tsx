@@ -373,7 +373,7 @@ export default function InvoicePage() {
           subject: `Invoice ${inv.invoiceNumber} from The A&M Internationals`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
+              <div style="background:var(--navy);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
                 <h1 style="color:#C9A84C;margin:0;font-size:24px;font-family:Georgia,serif;">A&M</h1>
                 <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
               </div>
@@ -1061,7 +1061,7 @@ export default function InvoicePage() {
                       style={{
                         width: 44,
                         height: 44,
-                        background: "linear-gradient(135deg,#0D1B3E,#1a3070)",
+                        background: "var(--navy)",
                         borderRadius: 10,
                         display: "flex",
                         alignItems: "center",

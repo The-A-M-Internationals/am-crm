@@ -28,25 +28,24 @@ export default function DashboardLayout({
       <div
         className="min-h-screen flex flex-col items-center justify-center gap-4"
         style={{
-          background: "linear-gradient(135deg, #0D1B3E 0%, #08112a 100%)",
+          background: "var(--navy)",
         }}
       >
         {/* A&M logo */}
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center mb-2"
           style={{
-            background:
-              "linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.05))",
-            border: "1px solid rgba(201,168,76,0.3)",
+            background: "rgba(197, 168, 90, 0.05)",
+            border: "1px solid rgba(197, 168, 90, 0.3)",
           }}
         >
           <span
             style={{
-              color: "#C9A84C",
-              fontFamily: "var(--font-playfair)",
-              fontSize: "13px",
-              fontWeight: 700,
-              letterSpacing: "-0.5px",
+              color: "var(--gold)",
+              fontFamily: "var(--font-outfit)",
+              fontSize: "14px",
+              fontWeight: 600,
+              letterSpacing: "0px",
             }}
           >
             A&M
@@ -57,17 +56,16 @@ export default function DashboardLayout({
         <div
           className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
           style={{
-            borderColor: "rgba(201,168,76,0.3)",
-            borderTopColor: "#C9A84C",
+            borderColor: "rgba(197, 168, 90, 0.2)",
+            borderTopColor: "var(--gold)",
           }}
         />
 
         {/* Text */}
         <p
-          className="text-xs tracking-widest uppercase"
-          style={{ color: "rgba(201,168,76,0.5)" }}
+          style={{ color: "var(--gold-dark)" }}
         >
-          Loading...
+          Loading Dashboard...
         </p>
       </div>
     );
@@ -79,7 +77,7 @@ export default function DashboardLayout({
       <div
         className="min-h-screen"
         style={{
-          background: "linear-gradient(135deg, #0D1B3E 0%, #08112a 100%)",
+          background: "var(--navy)",
         }}
       />
     );
@@ -88,7 +86,7 @@ export default function DashboardLayout({
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ background: "#f0f2f8" }}
+      style={{ background: "#F4F5F7" }}
     >
       <Sidebar />
       <main className="flex-1 overflow-y-auto">{children}</main>
