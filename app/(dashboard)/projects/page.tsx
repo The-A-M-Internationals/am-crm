@@ -361,6 +361,45 @@ export default function ProjectsPage() {
     }
   }
 
+  async function handleDelegateTask() {
+    if (!delegateProject || !delegateForm.employeeId || !delegateForm.title) {
+      alert("Please specify employee and task title."); return;
+    }
+    setDelegating(true);
+    try {
+      const employee = members.find(m => m.uid === delegateForm.employeeId);
+      const now = new Date().toISOString();
+      await addDoc(collection(db, "tasks"), {
+        title: delegateForm.title,
+        description: delegateForm.instructions || `Task for project: ${delegateProject.title}`,
+        assignedTo: delegateForm.employeeId,
+        assignedToName: employee?.name || "Team Member",
+        assignedBy: crmUser?.uid || "System",
+        clientId: delegateProject.clientId || "",
+        clientName: delegateProject.clientName || "",
+        relatedTo: delegateProject.id,
+        relatedType: "project",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: delegateForm.deadline || delegateProject.deadline || now,
+        taskInstructions: delegateForm.instructions || "",
+        masterBlueprint: (delegateProject as any).masterBlueprint || "",
+        leadInstructions: (delegateProject as any).leadInstructions || "",
+        taskType: delegateForm.taskType
+      });
+      alert("Task successfully delegated and assigned!");
+      setDelegateProject(null);
+      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
+    } catch (e: any) {
+      console.error(e);
+      alert("Failed to delegate task: " + e.message);
+    } finally {
+      setDelegating(false);
+    }
+  }
+
   async function updateStatus(project: Project, status: ProjectStatus) {
     await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
     
@@ -874,6 +913,78 @@ export default function ProjectsPage() {
                   <option value="project-task">Project Task</option>
                   {crmUser?.role === "admin" && <option value="meeting">Internal Meeting</option>}
                   {crmUser?.role === "admin" && <option value="follow-up">Follow-up</option>}
+                  <option value="internal-task">Internal Task</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Assign To *</label>
+                <select 
+                  className="form-input" 
+                  value={delegateForm.employeeId} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, employeeId: e.target.value })}
+                >
+                  <option value="">Select team member...</option>
+                  {members.map((m) => <option key={m.uid} value={m.uid}>{m.name} ({m.role})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Deadline</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  value={delegateForm.deadline} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, deadline: e.target.value })} 
+                />
+              </div>
+              <div>
+                <label className="form-label">Task Instructions / Notes</label>
+                <textarea 
+                  className="form-input resize-none" 
+                  rows={4} 
+                  value={delegateForm.instructions} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, instructions: e.target.value })} 
+                  placeholder="Provide specific directions, scope constraints, and expectations..." 
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setDelegateProject(null)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium" style={{ borderColor: "#e5e7eb", color: "#6b7280" }}>Cancel</button>
+              <button onClick={handleDelegateTask} disabled={delegating} className="flex-1 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-50" style={{ background: "#C9A84C", color: "#0D1B3E" }}>
+                {delegating ? "Assigning..." : "Assign Task"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delegate Modal */}
+      {delegateProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "white" }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Delegate Task</h2>
+              <button onClick={() => setDelegateProject(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">Task Title *</label>
+                <input 
+                  className="form-input" 
+                  value={delegateForm.title} 
+                  onChange={(e) => setDelegateForm({ ...delegateForm, title: e.target.value })} 
+                  placeholder="e.g. Design Homepage UI" 
+                />
+              </div>
+              <div>
+                <label className="form-label">Task Type *</label>
+                <select 
+                  className="form-input mb-4"
+                  value={delegateForm.taskType}
+                  onChange={(e) => setDelegateForm({ ...delegateForm, taskType: e.target.value as SystemTaskType })}
+                >
+                  <option value="project-task">Project Task</option>
+                  <option value="meeting">Internal Meeting</option>
+                  <option value="follow-up">Follow-up</option>
                   <option value="internal-task">Internal Task</option>
                 </select>
               </div>
