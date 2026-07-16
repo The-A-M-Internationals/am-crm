@@ -26,12 +26,12 @@ export default function RootPage() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ background: "var(--navy)" }}
+      style={{ background: "linear-gradient(135deg, #0D1B3E 0%, #08112a 100%)" }}
     >
       <div
         className="w-14 h-14 rounded-2xl flex items-center justify-center mb-2"
         style={{
-          background: "var(--navy), rgba(201,168,76,0.05))",
+          background: "linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.05))",
           border: "1px solid rgba(201,168,76,0.3)",
         }}
       >

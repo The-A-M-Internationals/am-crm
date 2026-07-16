@@ -1,4 +1,6 @@
 "use client";
+import { Rocket, MessageSquare, Check, Target, Clipboard } from "lucide-react";
+
 
 import { useEffect, useState, useRef } from "react";
 import { doc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where } from "firebase/firestore";
@@ -186,7 +188,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                 </span>
                 {task.dueDate && (
                   <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg tracking-widest border bg-amber-50 text-amber-600 border-amber-200">
-                    🎯 Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    <Target className="inline-block w-4 h-4 shrink-0 mr-1" /> Due: {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                   </span>
                 )}
                 <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg tracking-widest border bg-slate-50 text-slate-500 border-slate-200">
@@ -207,7 +209,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
             }`}
           >
-            📋 Instructions & Blueprints
+            <Clipboard className="inline-block w-4 h-4 shrink-0 mr-1" /> Instructions & Blueprints
           </button>
           <button 
             onClick={() => setActiveTab("chat")}
@@ -217,7 +219,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
             }`}
           >
-            💬 Progress & Communication Hub
+            <MessageSquare className="inline-block w-4 h-4 shrink-0 mr-1" /> Progress & Communication Hub
           </button>
         </div>
 
@@ -298,7 +300,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
                                 : "bg-white text-slate-400 border border-slate-200 hover:scale-105"
                             }`}
                           >
-                            {step.pct === 100 && isCompleted ? "✓" : step.pct === 0 ? "🚀" : step.pct}
+                            {step.pct === 100 && isCompleted ? <Check className="inline-block w-4 h-4 shrink-0 mr-1" /> : step.pct === 0 ? <Rocket className="inline-block w-4 h-4 shrink-0 mr-1" /> : step.pct}
                           </button>
                           <span className={`text-[8px] font-black tracking-widest uppercase absolute -bottom-6 whitespace-nowrap ${isCompleted ? "text-[#0D1B3E]" : "text-slate-400"}`}>
                             {step.label}

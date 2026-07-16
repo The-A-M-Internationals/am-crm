@@ -1,4 +1,6 @@
 "use client";
+import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
@@ -32,10 +34,10 @@ const TASK_STATUSES = [
 
 const TASK_TYPES = [
   { key: "follow-up", label: "Follow-up", icon: "⏰", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
-  { key: "meeting", label: "Meeting", icon: "🤝", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
-  { key: "internal-task", label: "Internal Task", icon: "⚡", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" },
-  { key: "admin-action", label: "Admin Action", icon: "⚙️", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" },
-  { key: "project-task", label: "Project Task", icon: "🔨", color: "text-cyan-600", bg: "bg-cyan-50", border: "border-cyan-200" },
+  { key: "meeting", label: "Meeting", icon: <Handshake className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
+  { key: "internal-task", label: "Internal Task", icon: <Zap className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" },
+  { key: "admin-action", label: "Admin Action", icon: <Settings className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200" },
+  { key: "project-task", label: "Project Task", icon: <Hammer className="inline-block w-4 h-4 shrink-0 mr-1" />, color: "text-cyan-600", bg: "bg-cyan-50", border: "border-cyan-200" },
 ];
 
 const EMPTY_FORM = {
@@ -133,7 +135,7 @@ export default function TasksPage() {
         assignedTo: form.assignedTo ? [form.assignedTo] : []
       });
       setForm(f => ({ ...f, relatedTo: docRef.id, relatedType: "project" }));
-      alert("✅ Project created and linked!");
+      alert("Project created and linked!");
     } catch (e) { console.error(e); alert("Failed to create project"); } 
     finally { setCreatingProject(false); }
   }
@@ -266,8 +268,8 @@ export default function TasksPage() {
 
   return (
     <div className="p-8 h-screen flex flex-col bg-[#f8fafc] overflow-hidden">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
-        <div className="page-header mb-0">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 shrink-0">
+        <div className="page-header mb-0 border-0 pb-0">
           <h1 className="page-title flex items-center gap-3">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             Operations Board
@@ -301,7 +303,7 @@ export default function TasksPage() {
       </div>
 
       {/* Clean Filters */}
-      <div className="flex flex-wrap gap-4 mb-6 shrink-0 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 items-center">
+      <div className="flex flex-wrap gap-4 mb-4 shrink-0 bg-white p-3 rounded-xl shadow-sm border border-slate-200 items-center">
         <select 
           className="form-input w-48 text-sm" 
           value={typeFilter} 
@@ -380,7 +382,7 @@ export default function TasksPage() {
                               {isOverdue && <span className="bg-red-50 text-red-600 border border-red-100 text-[9px] font-black uppercase px-1.5 py-0.5 rounded">Overdue</span>}
                               {crmUser?.role !== "employee" && (
                                 <button onClick={(e) => { e.stopPropagation(); openEdit(task); }} className="w-5 h-5 rounded-md border border-slate-200 bg-white text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-[#0D1B3E] transition-all" title="Edit Task details">
-                                  ✏️
+                                  <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" />
                                 </button>
                               )}
                               <button onClick={(e) => { e.stopPropagation(); toggleDone(task); }} className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${task.status === "completed" ? "bg-emerald-500 border-emerald-600 text-white" : "bg-slate-50 border-slate-200 text-transparent hover:border-emerald-400 hover:text-emerald-200"}`}>
@@ -417,7 +419,7 @@ export default function TasksPage() {
                             <div className="flex items-center gap-2">
                               {task.dueDate && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${isOverdue ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"}`}>
-                                  📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} {task.time ? `at ${task.time}` : ""}
+                                  <Calendar className="inline-block w-4 h-4 shrink-0 mr-1" /> {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} {task.time ? `at ${task.time}` : ""}
                                 </span>
                               )}
                               <select
@@ -443,11 +445,12 @@ export default function TasksPage() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-8">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h2 className="text-xl font-black text-[#0D1B3E]">{editing ? "Edit Operation Task" : "New Operation Task"}</h2>
-              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors">✕</button>
+              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="p-6 space-y-5">
@@ -554,6 +557,7 @@ export default function TasksPage() {
                   {saving ? "Saving..." : editing ? "Save Changes" : "Create Task"}
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>

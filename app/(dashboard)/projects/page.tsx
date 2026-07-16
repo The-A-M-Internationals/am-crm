@@ -1,4 +1,6 @@
 "use client";
+import { X, AlertTriangle } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, onSnapshot, getDoc } from "firebase/firestore";
@@ -353,7 +355,7 @@ export default function ProjectsPage() {
       setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
     } catch (e: any) {
       console.error(e);
-      alert("Failed to delegate task: " + e.message);
+      alert("Failed to delegate task:" + e.message);
     } finally {
       setDelegating(false);
     }
@@ -464,7 +466,7 @@ export default function ProjectsPage() {
                               <>
                                 <span className="text-slate-300">•</span>
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isOverdue ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500"}`}>
-                                  {isOverdue ? "⚠ " : ""}Due: {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                  {isOverdue ? <AlertTriangle className="inline-block w-4 h-4 shrink-0 mr-1" />  : ""}Due: {new Date(project.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                                 </span>
                               </>
                             )}
@@ -610,7 +612,7 @@ export default function ProjectsPage() {
           <div className="w-full max-w-lg rounded-2xl p-6 overflow-y-auto max-h-[90vh]" style={{ background: "white" }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>{editing ? "Edit Project" : "New Project"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="space-y-4">
               <div><label className="form-label">Project Title *</label><input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Website Redesign" /></div>
@@ -850,7 +852,7 @@ export default function ProjectsPage() {
           <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "white" }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>Delegate Task</h2>
-              <button onClick={() => setDelegateProject(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setDelegateProject(null)} className="text-gray-400 hover:text-gray-600 text-xl"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="space-y-4">
               <div>

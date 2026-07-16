@@ -358,7 +358,7 @@ export default function InvoicePage() {
   async function sendEmail(inv: any) {
     if (!inv.clientEmail) {
       alert(
-        "❌ No client email on this invoice! Please edit the invoice and add a client email first.",
+        "No client email on this invoice! Please edit the invoice and add a client email first.",
       );
       return;
     }
@@ -405,17 +405,17 @@ export default function InvoicePage() {
 
       if (result.error) {
         alert(
-          `❌ Failed to send email!\n\nError: ${JSON.stringify(result.error)}`,
+          `Failed to send email!\n\nError: ${JSON.stringify(result.error)}`,
         );
       } else if (result.skipped) {
         alert(
           "⚠️ Email skipped — RESEND_API_KEY not configured in environment variables.",
         );
       } else {
-        alert(`✅ Invoice email sent to ${inv.clientEmail} successfully!`);
+        alert(`Invoice email sent to ${inv.clientEmail} successfully!`);
       }
     } catch (err: any) {
-      alert(`❌ Network error: ${err.message}`);
+      alert(`Network error: ${err.message}`);
     } finally {
       setSending(false);
     }
@@ -424,7 +424,7 @@ export default function InvoicePage() {
   function sendWhatsApp(inv: any) {
     const phone = inv.clientPhone?.replace(/\D/g, "");
     if (!phone) {
-      alert("❌ No client phone number on this invoice!");
+      alert("No client phone number on this invoice!");
       return;
     }
     const curr = inv.currency || "AED";

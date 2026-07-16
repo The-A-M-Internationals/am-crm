@@ -95,12 +95,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/cron/reminders");
       const data = await res.json();
       if (data.success) {
-        alert(`✅ Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
+        alert(`Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
       } else {
-        alert(`❌ Error: ${data.error || "Failed to trigger"}`);
+        alert(`Error: ${data.error || "Failed to trigger"}`);
       }
     } catch (err) {
-      alert("❌ Network error triggering reminders");
+      alert("Network error triggering reminders");
     } finally {
       setTriggering(false);
     }

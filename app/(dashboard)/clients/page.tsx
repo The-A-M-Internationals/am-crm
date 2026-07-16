@@ -1,4 +1,6 @@
 "use client";
+import { X } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs, writeBatch } from "firebase/firestore";
@@ -394,7 +396,7 @@ export default function ClientsPage() {
               <h2 className="text-lg font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>
                 {editing ? "Edit Client" : "Add New Client"}
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">

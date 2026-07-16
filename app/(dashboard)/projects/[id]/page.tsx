@@ -1,4 +1,6 @@
 "use client";
+import { X, Trash2, ClipboardList, Search, Mail, Building2, DollarSign, Pencil, User, Bell } from "lucide-react";
+
 
 import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove } from "firebase/firestore";
@@ -476,7 +478,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       alert("Task successfully delegated and assigned!");
     } catch (err: any) {
       console.error(err);
-      alert("Failed to delegate task: " + (err.message || String(err)));
+      alert("Failed to delegate task:" + (err.message || String(err)));
     } finally {
       isDelegatingRef.current = false;
       setDelegating(false);
@@ -545,7 +547,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       toast("Log committed successfully!", "success");
     } catch (err: any) {
       console.error(err);
-      toast("Failed to commit log entry: " + (err.message || String(err)), "error");
+      toast("Failed to commit log entry:" + (err.message || String(err)), "error");
     }
   }
 
@@ -786,7 +788,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       onClick={() => { setBlueprintValue(project.masterBlueprint || ""); setEditingBlueprint(true); }}
                       className="text-xs font-semibold text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all"
                     >
-                      ✏️ Edit
+                      <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                     </button>
                   )}
                 </div>
@@ -820,7 +822,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       onClick={() => { setInstructionsValue(project.leadInstructions || ""); setEditingInstructions(true); }}
                       className="text-xs font-semibold text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all"
                     >
-                      ✏️ Edit
+                      <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                     </button>
                   )}
                 </div>
@@ -873,7 +875,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       onClick={() => setEditingTechHub(true)}
                       className="text-xs font-bold text-[#C9A84C] hover:underline"
                     >
-                      ✏️ Edit Provisioning
+                      <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit Provisioning
                     </button>
                   )}
                 </div>
@@ -920,7 +922,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               }}
                               className="text-white hover:text-red-400 font-bold"
                             >
-                              ✕
+                              <X className="inline-block w-4 h-4 shrink-0 mr-1" />
                             </button>
                           </span>
                         ))}
@@ -1289,11 +1291,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold px-3 h-9 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32 flex-shrink-0"
                             >
                               <option value="" disabled hidden>Options...</option>
-                              <option value="inspect">🔍 Inspect</option>
+                              <option value="inspect"><Search className="inline-block w-4 h-4 shrink-0 mr-1" /> Inspect</option>
                               {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                                 <>
-                                  <option value="note">📝 Instructions</option>
-                                  <option value="delete">🗑️ Delete</option>
+                                  <option value="note"><ClipboardList className="inline-block w-4 h-4 shrink-0 mr-1" /> Instructions</option>
+                                  <option value="delete"><Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete</option>
                                 </>
                               )}
                             </select>
@@ -1476,19 +1478,19 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         }}
                         className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
                       >
-                        <span className="text-sm">💰</span> Log Manual Payment
+                        <span className="text-sm"><DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Log Manual Payment
                       </button>
                       <button 
                         onClick={openEditFinancials}
                         className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
                       >
-                        <span className="text-sm">✏️</span> Edit Financials
+                        <span className="text-sm"><Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Edit Financials
                       </button>
                       <button 
                         onClick={openReminder}
                         className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
                       >
-                        <span className="text-sm">🔔</span> Send Payment Reminder
+                        <span className="text-sm"><Bell className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Send Payment Reminder
                       </button>
                     </div>
                   </div>
@@ -1629,7 +1631,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 onClick={() => { setShowPaymentModal(false); setEditingPaymentId(null); setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" }); }}
                 className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -1695,7 +1697,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black text-slate-900">Edit Financials</h3>
-              <button onClick={() => setShowFinancialsModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowFinancialsModal(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="space-y-4">
@@ -1764,7 +1766,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           <div className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black text-slate-900">Send Payment Reminder</h3>
-              <button onClick={() => setShowReminderModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowReminderModal(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="space-y-4">
@@ -1791,7 +1793,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 disabled={sendingReminder}
                 className="flex-1 py-3 bg-[#0D1B3E] hover:bg-[#1a3070] text-white rounded-xl font-bold transition-all disabled:opacity-50 flex justify-center items-center gap-2"
               >
-                {sendingReminder ? "Sending..." : <><span>✉️</span> Send Reminder Email</>}
+                {sendingReminder ? "Sending..." : <><span><Mail className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Send Reminder Email</>}
               </button>
             </div>
           </div>
@@ -1804,7 +1806,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black text-slate-900">Delegate Task</h3>
-              <button onClick={() => setShowDelegateModal(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowDelegateModal(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="space-y-4">
@@ -1907,7 +1909,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 <h3 className="text-xl font-black text-red-600 mb-1">Duplicate Task Assignment</h3>
                 <p className="text-xs text-slate-500">This employee is already assigned to an active task on this project: <strong className="text-slate-800">{duplicateConflictTask.title}</strong></p>
               </div>
-              <button onClick={() => setDuplicateConflictTask(null)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setDuplicateConflictTask(null)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="space-y-4">
@@ -2048,12 +2050,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     <div className="flex items-center gap-2 mt-2">
                       {selectedDrawerTask.clientName && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                          🏢 {selectedDrawerTask.clientName}
+                          <Building2 className="inline-block w-4 h-4 shrink-0 mr-1" /> {selectedDrawerTask.clientName}
                         </span>
                       )}
                       {selectedDrawerTask.assignedToName && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-600">
-                          👤 Assignee: {selectedDrawerTask.assignedToName}
+                          <User className="inline-block w-4 h-4 shrink-0 mr-1" /> Assignee: {selectedDrawerTask.assignedToName}
                         </span>
                       )}
                     </div>
@@ -2062,7 +2064,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     onClick={() => setSelectedDrawerTask(null)} 
                     className="text-slate-400 hover:text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-xl font-bold"
                   >
-                    ✕
+                    <X className="inline-block w-4 h-4 shrink-0 mr-1" />
                   </button>
                 </div>
 
@@ -2157,7 +2159,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       }} 
                       className="px-4 py-2 border rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border-red-200 transition-all"
                     >
-                      ✕ Delete Task
+                      <X className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Task
                     </button>
                   </div>
                 )}

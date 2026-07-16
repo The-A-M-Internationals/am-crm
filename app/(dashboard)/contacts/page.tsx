@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import { X, Search, Phone, Mail } from "lucide-react";
 
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, addDoc } from "firebase/firestore";
@@ -89,7 +90,7 @@ export default function ContactsDirectoryPage() {
       {/* Omnipresent Fuzzy Match Search Bar */}
       <div className="mb-8 relative w-full max-w-2xl">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <span className="text-slate-400 text-lg">🔍</span>
+          <span className="text-slate-400 text-lg"><Search className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
         </div>
         <input
           type="text"
@@ -116,7 +117,7 @@ export default function ContactsDirectoryPage() {
             <div key={contact.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-[var(--navy)] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-[#0D1B3E] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
                     {contact.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div>
@@ -128,7 +129,7 @@ export default function ContactsDirectoryPage() {
               
               <div className="space-y-2.5 mt-5">
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="w-5 flex justify-center text-slate-400">📞</span>
+                  <span className="w-5 flex justify-center text-slate-400"><Phone className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                   {contact.phone ? (
                     <a href={`tel:${contact.phone}`} className="font-medium text-slate-600 hover:text-blue-500 hover:underline transition-colors truncate">
                       {contact.phone}
@@ -138,7 +139,7 @@ export default function ContactsDirectoryPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="w-5 flex justify-center text-slate-400">✉️</span>
+                  <span className="w-5 flex justify-center text-slate-400"><Mail className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                   {contact.email ? (
                     <a href={`mailto:${contact.email}`} className="font-medium text-slate-600 hover:text-blue-500 hover:underline transition-colors truncate">
                       {contact.email}
@@ -172,7 +173,7 @@ export default function ContactsDirectoryPage() {
                 onClick={() => setShowAddModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             

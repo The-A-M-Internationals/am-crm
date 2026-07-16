@@ -89,7 +89,7 @@ export default function DashboardLayout({
       style={{ background: "#F4F5F7" }}
     >
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex-1 overflow-y-auto flex flex-col">{children}</main>
     </div>
   );
 }

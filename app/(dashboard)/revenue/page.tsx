@@ -1,4 +1,6 @@
 "use client";
+import { X, Trash2, Pencil } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import {
@@ -933,13 +935,13 @@ export default function RevenuePage() {
                                 border: "1px solid #bfdbfe",
                               }}
                             >
-                              ✏️ Edit
+                              <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                             </button>
                             <button
                               onClick={() => delExpense(e.id)}
                               className="btn-danger"
                             >
-                              🗑 Delete
+                              <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                             </button>
                           </div>
                         </td>
@@ -1047,13 +1049,13 @@ export default function RevenuePage() {
                                   border: "1px solid #bbf7d0",
                                 }}
                               >
-                                ✏️ Edit
+                                <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                               </button>
                               <button
                                 onClick={() => delRevenue(r.id)}
                                 className="btn-danger"
                               >
-                                🗑 Delete
+                                <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                               </button>
                             </div>
                           </td>
@@ -1080,7 +1082,7 @@ export default function RevenuePage() {
                 onClick={() => setShowExp(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -1195,7 +1197,7 @@ export default function RevenuePage() {
                   }}
                   className="btn-danger px-4"
                 >
-                  🗑 Delete
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                 </button>
               )}
               <button
@@ -1226,7 +1228,7 @@ export default function RevenuePage() {
                 onClick={() => setShowRev(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -1371,7 +1373,7 @@ export default function RevenuePage() {
                   }}
                   className="btn-danger px-4"
                 >
-                  🗑 Delete
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                 </button>
               )}
               <button

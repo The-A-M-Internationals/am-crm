@@ -1,4 +1,6 @@
 "use client";
+import { X, Trash2, Hand, DollarSign, Mail, Pencil, User, Check, Globe, Key } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import {
@@ -134,13 +136,13 @@ export default function TeamPage() {
                   <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:13px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
                 </div>
                 <div style="background:white;padding:32px;border:1px solid #e8e8f0;border-top:none;border-radius:0 0 12px 12px;">
-                  <h2 style="color:#0D1B3E;margin:0 0 8px;">Welcome, ${form.name}! 👋</h2>
+                  <h2 style="color:#0D1B3E;margin:0 0 8px;">Welcome, ${form.name}! <Hand className="inline-block w-4 h-4 shrink-0 mr-1" /></h2>
                   <p style="color:#6b7280;">You've been added to the A&M CRM. Here are your login details:</p>
                   <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:20px;border-radius:0 10px 10px 0;margin:20px 0;">
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🌐 CRM URL:</strong> <a href="https://crm.theaminternationals.com" style="color:#C9A84C;">crm.theaminternationals.com</a></p>
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>📧 Email:</strong> ${form.email}</p>
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🔑 Password:</strong> ${form.password}</p>
-                    <p style="margin:0;font-size:13px;color:#374151;"><strong>👤 Role:</strong> ${form.role.charAt(0).toUpperCase() + form.role.slice(1)}</p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Globe className="inline-block w-4 h-4 shrink-0 mr-1" /> CRM URL:</strong> <a href="https://crm.theaminternationals.com" style="color:#C9A84C;">crm.theaminternationals.com</a></p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Mail className="inline-block w-4 h-4 shrink-0 mr-1" /> Email:</strong> ${form.email}</p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Key className="inline-block w-4 h-4 shrink-0 mr-1" /> Password:</strong> ${form.password}</p>
+                    <p style="margin:0;font-size:13px;color:#374151;"><strong><User className="inline-block w-4 h-4 shrink-0 mr-1" /> Role:</strong> ${form.role.charAt(0).toUpperCase() + form.role.slice(1)}</p>
                   </div>
                   <p style="color:#9ca3af;font-size:12px;">Please change your password after first login. For support contact <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a></p>
                   <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · Elevating the World, Elegantly</p>
@@ -180,7 +182,7 @@ export default function TeamPage() {
 
       fetchMembers();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      alert("Error:" + err.message);
     }
   }
 
@@ -265,7 +267,7 @@ export default function TeamPage() {
                       className="text-xs px-1.5 py-0.5 rounded font-bold"
                       style={{ background: "#C9A84C18", color: "#C9A84C" }}
                     >
-                      💰
+                      <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" />
                     </span>
                   )}
                 </div>
@@ -354,14 +356,14 @@ export default function TeamPage() {
                           className="badge"
                           style={{ background: "#d1fae5", color: "#065f46" }}
                         >
-                          ✓ Yes
+                          <Check className="inline-block w-4 h-4 shrink-0 mr-1" /> Yes
                         </span>
                       ) : (
                         <span
                           className="badge"
                           style={{ background: "#fee2e2", color: "#991b1b" }}
                         >
-                          ✕ No
+                          <X className="inline-block w-4 h-4 shrink-0 mr-1" /> No
                         </span>
                       )}
                     </td>
@@ -382,7 +384,7 @@ export default function TeamPage() {
                               cursor: "pointer",
                             }}
                           >
-                            ✏️ Edit
+                            <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                           </button>
 
                           <button
@@ -396,7 +398,7 @@ export default function TeamPage() {
                               cursor: "pointer",
                             }}
                           >
-                            🗑 Revoke
+                            <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Revoke
                           </button>
                         </div>
                       )}
@@ -426,7 +428,7 @@ export default function TeamPage() {
                 onClick={() => setEditingMember(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
 
@@ -492,7 +494,7 @@ export default function TeamPage() {
                                 color: "#C9A84C",
                               }}
                             >
-                              💰 Finance
+                              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" /> Finance
                             </span>
                           )}
                         </div>
@@ -506,7 +508,7 @@ export default function TeamPage() {
                       </div>
 
                       {editRole === r.key && (
-                        <span style={{ color: r.color }}>✓</span>
+                        <span style={{ color: r.color }}><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                       )}
                     </button>
                   ))}
@@ -547,7 +549,7 @@ export default function TeamPage() {
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -630,7 +632,7 @@ export default function TeamPage() {
                                 color: "#C9A84C",
                               }}
                             >
-                              💰 Finance
+                              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" /> Finance
                             </span>
                           )}
                         </div>
@@ -642,7 +644,7 @@ export default function TeamPage() {
                         </p>
                       </div>
                       {form.role === r.key && (
-                        <span style={{ color: r.color }}>✓</span>
+                        <span style={{ color: r.color }}><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                       )}
                     </button>
                   ))}
@@ -668,7 +670,7 @@ export default function TeamPage() {
                   border: "1px solid #bfdbfe",
                 }}
               >
-                📧 A welcome email with login credentials will be sent
+                <Mail className="inline-block w-4 h-4 shrink-0 mr-1" /> A welcome email with login credentials will be sent
                 automatically!
               </div>
             </div>

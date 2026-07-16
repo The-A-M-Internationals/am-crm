@@ -1,4 +1,6 @@
 "use client";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User } from "lucide-react";
+
 
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
@@ -137,7 +139,7 @@ export default function LeadsPage() {
       toast(`Stage updated to ${stage}`, "success");
     } catch (error: any) {
       console.error("Error moving stage:", error);
-      toast("Failed to update stage: " + (error.message || "Unknown error"), "error");
+      toast("Failed to update stage:" + (error.message || "Unknown error"), "error");
     }
   }
 
@@ -214,35 +216,35 @@ export default function LeadsPage() {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Leads</p>
             <p className="text-2xl font-black text-slate-800">{totalLeads}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl">📊</div>
+          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl"><BarChart3 className="inline-block w-4 h-4 shrink-0 mr-1" /></div>
         </div>
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">In Progress</p>
             <p className="text-2xl font-black text-blue-900">{inProgress}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl">🚀</div>
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl"><Rocket className="inline-block w-4 h-4 shrink-0 mr-1" /></div>
         </div>
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Won Leads</p>
             <p className="text-2xl font-black text-emerald-900">{wonLeads}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-xl">🏆</div>
+          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-xl"><Trophy className="inline-block w-4 h-4 shrink-0 mr-1" /></div>
         </div>
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-rose-500 uppercase tracking-wider mb-1">Lost Leads</p>
             <p className="text-2xl font-black text-rose-900">{lostLeads}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-xl">📉</div>
+          <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-xl"><TrendingDown className="inline-block w-4 h-4 shrink-0 mr-1" /></div>
         </div>
       </div>
 
       {/* Search Bar */}
       <div className="mb-6 flex-shrink-0">
         <div className="relative max-w-md">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Search className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
           <input
             className="w-full bg-white border border-slate-200 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
             placeholder="Search leads by name or company..."
@@ -320,7 +322,7 @@ export default function LeadsPage() {
                             </span>
                             {isOverdue && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
-                                ⚠️ Overdue
+                                <AlertTriangle className="inline-block w-4 h-4 shrink-0 mr-1" /> Overdue
                               </span>
                             )}
                           </div>
@@ -329,7 +331,7 @@ export default function LeadsPage() {
                           <div className="mb-3">
                             <h4 className="font-bold text-[15px] text-slate-900 leading-tight mb-0.5 group-hover:text-blue-600 transition-colors">{lead.company}</h4>
                             <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                              <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[8px]">👤</span>
+                              <span className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center text-[8px]"><User className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                               {lead.name}
                             </p>
                           </div>
@@ -344,7 +346,7 @@ export default function LeadsPage() {
                               )}
                               {lead.followUpDate && (
                                 <p className="text-[11px] font-semibold flex items-center gap-1" style={{ color: isOverdue ? "#ef4444" : "#64748b" }}>
-                                  📅 {new Date(lead.followUpDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                  <Calendar className="inline-block w-4 h-4 shrink-0 mr-1" /> {new Date(lead.followUpDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                                 </p>
                               )}
                             </div>
@@ -386,7 +388,7 @@ export default function LeadsPage() {
           <div className="modal-box shadow-2xl" style={{ maxWidth: 600 }}>
             <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
               <h2 className="text-xl font-bold text-slate-900">{editing ? "Edit Lead" : "Add New Lead"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

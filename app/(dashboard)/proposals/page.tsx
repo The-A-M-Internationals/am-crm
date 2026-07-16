@@ -1,4 +1,6 @@
 "use client";
+import { X, Eye, Pencil, Check } from "lucide-react";
+
 
 import { useEffect, useState, Suspense, useRef } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, getDocs } from "firebase/firestore";
@@ -361,7 +363,7 @@ function ProposalsContent() {
                           if (p.status !== "accepted" && p.status !== "rejected") {
                             await PipelineService.handleProposalStatusChange(p, "sent");
                           }
-                          alert("Proposal sent successfully to " + p.clientEmail);
+                          alert("Proposal sent successfully to" + p.clientEmail);
                         } catch (err) {
                           alert("Error sending proposal");
                         }
@@ -399,8 +401,8 @@ function ProposalsContent() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className="sm:hidden">
-                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); viewProposal(p.id); }}>👁 View Proposal</button>
-                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); startEditing(p); }}>✏ Edit Details</button>
+                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); viewProposal(p.id); }}><Eye className="inline-block w-4 h-4 shrink-0 mr-1" /> View Proposal</button>
+                            <button className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setOpenMenu(null); startEditing(p); }}><Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit Details</button>
                             <div className="border-t border-slate-100 my-1"></div>
                           </div>
                           
@@ -479,7 +481,7 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
               >
                 {isSelected && (
                   <div className="absolute top-2 right-2 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-[10px] text-white">✓</span>
+                    <span className="text-[10px] text-white"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                   </div>
                 )}
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow-sm" style={{ background: s.bg, color: s.text }}>
@@ -548,7 +550,7 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
                 placeholder="0"
               />
               <span className="text-xs font-bold text-right">{form.currency} {item.amount.toLocaleString()}</span>
-              {form.items.length > 1 && <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600">✕</button>}
+              {form.items.length > 1 && <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>}
             </div>
           ))}
         </div>

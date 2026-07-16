@@ -1,4 +1,6 @@
 "use client";
+import { Mail, Building2, DollarSign, Bell, Check, Palette } from "lucide-react";
+
 
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -115,7 +117,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#0D1B3E1a", color: "#0D1B3E" }}
             >
-              🏢
+              <Building2 className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Agency Information
           </h2>
@@ -175,7 +177,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#C9A84C1a", color: "#C9A84C" }}
             >
-              🎨
+              <Palette className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Brand Colors
           </h2>
@@ -222,7 +224,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#dbeafe", color: "#1d4ed8" }}
             >
-              ✉
+              <Mail className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Email Configuration (Resend)
           </h2>
@@ -270,7 +272,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#d1fae5", color: "#065f46" }}
             >
-              🔔
+              <Bell className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Notifications
           </h2>
@@ -316,7 +318,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#fef3c7", color: "#92400e" }}
             >
-              💰
+              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Invoice & Proposal Defaults
           </h2>
@@ -367,7 +369,7 @@ export default function SettingsPage() {
             letterSpacing: "0.05em",
           }}
         >
-          {saved ? "✓ Settings Saved!" : "SAVE SETTINGS"}
+          {saved ? <><Check className="inline-block w-4 h-4 shrink-0 mr-1" /> Settings Saved!</> : "SAVE SETTINGS"}
         </button>
       </div>
     </div>

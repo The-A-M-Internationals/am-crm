@@ -1,4 +1,6 @@
 "use client";
+import { X, Trash2, FileText, Pencil, Check } from "lucide-react";
+
 
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -314,7 +316,7 @@ export default function ProposalDetailPage() {
         setHistoryIndex(prev => prev + 1);
       }
       
-      alert("Proposal sent successfully to " + proposal.clientEmail);
+      alert("Proposal sent successfully to" + proposal.clientEmail);
     } catch (err) {
       console.error("Error sending proposal:", err);
       alert("Error sending proposal. Please try again.");
@@ -376,7 +378,7 @@ export default function ProposalDetailPage() {
         createdAt: new Date().toISOString(),
       });
       setShowFollowUpModal(false);
-      alert("✅ Follow-up task successfully added to your Operations Board!");
+      alert("Follow-up task successfully added to your Operations Board!");
     } catch (err) {
       console.error(err);
       alert("Failed to set follow-up.");
@@ -452,7 +454,7 @@ export default function ProposalDetailPage() {
       alert("Proposal signed and accepted successfully!");
     } catch (err: any) {
       console.error(err);
-      alert("Error signing proposal: " + (err.message || String(err)));
+      alert("Error signing proposal:" + (err.message || String(err)));
     } finally {
       setSubmittingSign(false);
     }
@@ -492,7 +494,7 @@ export default function ProposalDetailPage() {
       alert("Proposal has been rejected.");
     } catch (err: any) {
       console.error("Error rejecting proposal:", err);
-      alert("Error rejecting proposal. Please try again: " + (err.message || String(err)));
+      alert("Error rejecting proposal. Please try again:" + (err.message || String(err)));
     } finally {
       setSubmittingSign(false);
     }
@@ -593,25 +595,25 @@ export default function ProposalDetailPage() {
                  {showStatusMenu && (
                    <div className="absolute right-0 top-14 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl w-64 py-2 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                      <button onClick={() => { setIsEditing(!isEditing); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-slate-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
-                       <span className="text-lg opacity-70">✏️</span> {isEditing ? "Exit Edit Mode" : "Edit Details"}
+                       <span className="text-lg opacity-70"><Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /></span> {isEditing ? "Exit Edit Mode" : "Edit Details"}
                      </button>
                      <button onClick={() => { setShowFollowUpModal(true); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-amber-50 flex items-center gap-3 font-semibold text-amber-700 transition-colors">
                        <span className="text-lg">⏰</span> Add Follow-up
                      </button>
                      <div className="border-t border-slate-100 my-1" />
                      <button onClick={() => { handleStatusChange("accepted"); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-emerald-50 flex items-center gap-3 font-bold text-emerald-700 transition-colors">
-                       <span className="text-lg">✓</span> Mark as Accepted
+                       <span className="text-lg"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Mark as Accepted
                      </button>
                      <button onClick={() => { handleStatusChange("rejected"); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-red-50 flex items-center gap-3 font-bold text-red-700 transition-colors">
-                       <span className="text-lg">✕</span> Mark as Rejected
+                       <span className="text-lg"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Mark as Rejected
                      </button>
                      <div className="border-t border-slate-100 my-1" />
                      <button onClick={() => { handleDuplicateProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-slate-50 flex items-center gap-3 font-semibold text-slate-700 transition-colors">
-                       <span className="text-lg opacity-70">📄</span> Duplicate Proposal
+                       <span className="text-lg opacity-70"><FileText className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Duplicate Proposal
                      </button>
                      <div className="border-t border-slate-100 my-1" />
                      <button onClick={() => { handleDeleteProposal(); setShowStatusMenu(false); }} className="w-full text-left px-5 py-3 text-sm hover:bg-red-50 flex items-center gap-3 font-bold text-red-700 transition-colors">
-                       <span className="text-lg">🗑️</span> Delete Proposal
+                       <span className="text-lg"><Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Delete Proposal
                      </button>
                    </div>
                  )}
@@ -832,11 +834,11 @@ export default function ProposalDetailPage() {
               </>
             ) : proposal.status === "rejected" ? (
               <div className="px-6 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm flex items-center gap-2">
-                <span className="text-lg">✕</span> Proposal Declined
+                <span className="text-lg"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Proposal Declined
               </div>
             ) : (
               <div className="px-6 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm flex items-center gap-2">
-                <span className="text-lg">✓</span> Signed & Accepted
+                <span className="text-lg"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Signed & Accepted
               </div>
             )}
           </div>
@@ -1023,7 +1025,7 @@ export default function ProposalDetailPage() {
                 onClick={() => setShowSignModal(false)}
                 className="text-slate-400 hover:text-white transition-colors text-xl font-bold"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             
@@ -1108,7 +1110,7 @@ export default function ProposalDetailPage() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-sm w-full overflow-hidden">
             <div className="bg-amber-500 p-5 text-white flex justify-between items-center">
               <h3 className="text-lg font-black tracking-tight">Set Follow-up</h3>
-              <button onClick={() => setShowFollowUpModal(false)} className="text-amber-100 hover:text-white text-xl font-bold">✕</button>
+              <button onClick={() => setShowFollowUpModal(false)} className="text-amber-100 hover:text-white text-xl font-bold"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <form onSubmit={handleSaveFollowUp} className="p-6 space-y-4">
               <div>
@@ -1148,7 +1150,7 @@ export default function ProposalDetailPage() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-lg w-full overflow-hidden max-h-[80vh] flex flex-col">
             <div className="bg-[#0D1B3E] p-5 text-white flex justify-between items-center shrink-0">
               <h3 className="text-lg font-black tracking-tight">Version History</h3>
-              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white text-xl font-bold">✕</button>
+              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white text-xl font-bold"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="p-6 overflow-y-auto space-y-4">
               {history.map((h, i) => (

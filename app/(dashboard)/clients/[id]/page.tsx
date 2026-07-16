@@ -1,4 +1,6 @@
 "use client";
+import { X, ClipboardList, Rocket, CheckCircle2, Handshake, Contact, FileText } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import { addDoc, collection, doc, getDocs, onSnapshot, query, where, updateDoc } from "firebase/firestore";
@@ -127,7 +129,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
       setShowQuickTask(false);
       setQuickTaskForm({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
     } catch (e: any) {
-      alert("Failed: " + e.message);
+      alert("Failed:" + e.message);
     } finally {
       setSubmittingTask(false);
     }
@@ -204,7 +206,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           {/* CLIENT SUMMARY / NOTES */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-              <span className="text-lg">📝</span> Client Summary & Context
+              <span className="text-lg"><ClipboardList className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Client Summary & Context
             </h2>
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[80px]">
               {client.notes ? (
@@ -219,7 +221,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="text-lg">🚀</span> Projects
+                <span className="text-lg"><Rocket className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Projects
               </h2>
             </div>
             
@@ -249,7 +251,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="text-lg">✅</span> Tasks
+                <span className="text-lg"><CheckCircle2 className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Tasks
               </h2>
             </div>
             {visibleTasks.length === 0 ? (
@@ -305,7 +307,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
             <h3 className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3 relative z-10">
               <button onClick={() => setShowQuickTask(true)} className="col-span-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-white/10 flex flex-col items-center gap-1.5">
-                <span className="text-base">🤝</span> Schedule Meeting
+                <span className="text-base"><Handshake className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Schedule Meeting
               </button>
               <button onClick={() => router.push(`/clients?edit=${client.id}`)} className="col-span-2 py-2.5 bg-[#C9A84C] hover:bg-[#b0923e] text-[#0D1B3E] rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm">
                 Edit Client Details
@@ -368,7 +370,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           {/* CONTACTS DIRECTORY */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-              <span className="text-lg">📇</span> Directory
+              <span className="text-lg"><Contact className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Directory
             </h3>
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50">
@@ -400,7 +402,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           {/* PROPOSALS HISTORY */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="text-lg">📄</span> Proposals History
+              <span className="text-lg"><FileText className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Proposals History
             </h3>
             {proposals.length === 0 ? (
               <div className="text-center py-6 text-slate-400 text-xs font-medium border border-dashed border-slate-200 rounded-xl">No proposals.</div>
@@ -435,7 +437,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black text-slate-900 capitalize">Schedule a Meeting</h3>
-              <button onClick={() => setShowQuickTask(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => setShowQuickTask(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             
             <div className="space-y-4">
