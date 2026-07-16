@@ -3,16 +3,7 @@ import { X, ClipboardList, Rocket, CheckCircle2, Handshake, Contact, FileText } 
 
 
 import { useEffect, useState } from "react";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-  updateDoc,
-} from "firebase/firestore";
+import { addDoc, collection, doc, getDocs, onSnapshot, query, where, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { Client, Proposal, Task, Invoice } from "@/types";
@@ -20,11 +11,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import CreateProjectModal from "@/components/CreateProjectModal";
 
-export default function ClientProfilePage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ClientProfilePage({ params }: { params: { id: string } }) {
   const { crmUser } = useAuth();
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
@@ -37,17 +24,7 @@ export default function ClientProfilePage({
 
   // Quick Task State
   const [showQuickTask, setShowQuickTask] = useState(false);
-  const [quickTaskType, setQuickTaskType] = useState<
-    "follow-up" | "meeting" | null
-  >(null);
-  const [quickTaskForm, setQuickTaskForm] = useState({
-    type: "meeting",
-    title: "",
-    description: "",
-    assignedTo: "",
-    dueDate: "",
-    time: "",
-  });
+  const [quickTaskForm, setQuickTaskForm] = useState({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
   const [submittingTask, setSubmittingTask] = useState(false);
 
   // New Project Modal State
@@ -55,7 +32,7 @@ export default function ClientProfilePage({
 
   useEffect(() => {
     if (!params.id) return;
-
+    
     // Fetch Client
     const unsubClient = onSnapshot(doc(db, "clients", params.id), (docSnap) => {
       if (docSnap.exists()) {
@@ -85,7 +62,6 @@ export default function ClientProfilePage({
       setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice)));
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching invoices snapshot", error);
       setLoading(false);
     });
 
@@ -113,25 +89,18 @@ export default function ClientProfilePage({
 
   const getInitials = (name: string) => {
     if (!name) return "?";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase();
+    return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
   };
 
   async function submitQuickTask() {
-    if (!quickTaskForm.title || !quickTaskForm.assignedTo)
-      return alert("Title and Assignee are required.");
+    if (!quickTaskForm.title) return alert("Title is required.");
     setSubmittingTask(true);
     try {
-      const employee = members.find((m) => m.uid === quickTaskForm.assignedTo);
       await addDoc(collection(db, "tasks"), {
         title: quickTaskForm.title,
         description: quickTaskForm.description,
-        assignedTo: quickTaskForm.assignedTo || "",
-        assignedToName: employee?.name || crmUser?.name || "System",
+        assignedTo: crmUser?.uid || "",
+        assignedToName: crmUser?.name || "System",
         assignedBy: crmUser?.uid || "System",
         clientId: client?.id || "",
         clientName: client?.company || client?.name || "",
@@ -142,9 +111,9 @@ export default function ClientProfilePage({
         done: false,
         taskType: quickTaskForm.type,
         createdAt: new Date().toISOString(),
-        dueDate: quickTaskForm.dueDate || new Date().toISOString(),
+        dueDate: quickTaskForm.dueDate || new Date().toISOString()
       });
-      if (quickTaskForm.type === "meeting" || quickTaskType === "meeting") {
+      if (quickTaskForm.type === "meeting") {
         let timeParams = "";
         if (quickTaskForm.dueDate && quickTaskForm.time) {
            const startDate = new Date(`${quickTaskForm.dueDate}T${quickTaskForm.time}`);
@@ -158,8 +127,7 @@ export default function ClientProfilePage({
       }
 
       setShowQuickTask(false);
-      setQuickTaskType(null);
-      setQuickTaskForm({ type: "meeting", title: "", description: "", assignedTo: "", dueDate: "", time: "" });
+      setQuickTaskForm({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
     } catch (e: any) {
       alert("Failed:" + e.message);
     } finally {
@@ -180,6 +148,7 @@ export default function ClientProfilePage({
 
   return (
     <div className="p-4 md:p-8 min-h-screen bg-[#f8fafc] font-sans">
+      
       {/* Top Navigation */}
       <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -284,9 +253,6 @@ export default function ClientProfilePage({
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <span className="text-lg"><CheckCircle2 className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Tasks
               </h2>
-              <button onClick={() => router.push(`/tasks`)} className="text-xs font-bold text-[#C9A84C] hover:text-[#b0923e] transition-colors">
-                View All
-              </button>
             </div>
             {visibleTasks.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs font-medium border border-dashed border-slate-200 rounded-xl">No tasks assigned to you.</div>
@@ -340,11 +306,8 @@ export default function ClientProfilePage({
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
             <h3 className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3 relative z-10">
-              <button onClick={() => { setShowQuickTask(true); setQuickTaskType("meeting"); setQuickTaskForm({...quickTaskForm, type: "meeting"}); }} className="col-span-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-white/10 flex flex-col items-center gap-1.5">
+              <button onClick={() => setShowQuickTask(true)} className="col-span-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-white/10 flex flex-col items-center gap-1.5">
                 <span className="text-base"><Handshake className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Schedule Meeting
-              </button>
-              <button onClick={() => { setShowQuickTask(true); setQuickTaskType("follow-up"); setQuickTaskForm({...quickTaskForm, type: "follow-up"}); }} className="col-span-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-white/10 flex flex-col items-center gap-1.5">
-                <span className="text-base">📝</span> Log Follow-up
               </button>
               <button onClick={() => router.push(`/clients?edit=${client.id}`)} className="col-span-2 py-2.5 bg-[#C9A84C] hover:bg-[#b0923e] text-[#0D1B3E] rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm">
                 Edit Client Details
@@ -451,22 +414,20 @@ export default function ClientProfilePage({
                       <span className="font-bold text-[#0D1B3E] text-xs group-hover:text-blue-700 transition-colors">{prop.service || "Standard"} Proposal</span>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{new Date(prop.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-black text-slate-800 text-xs">{prop.currency === "USD" ? "$" : "AED"} {prop.total?.toLocaleString() || 0}</span>
-                      <span className={`text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border ${
-                        prop.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                        prop.status === 'rejected' ? 'bg-red-50 text-red-600 border-red-100' :
-                        prop.status === 'sent' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                        'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
-                        {prop.status}
-                      </span>
-                    </div>
+                    <span className={`text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border ${
+                      prop.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                      prop.status === 'rejected' ? 'bg-red-50 text-red-600 border-red-100' :
+                      prop.status === 'sent' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                      'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                      {prop.status}
+                    </span>
                   </Link>
                 ))}
               </div>
             )}
           </div>
+
         </div>
       </div>
 
@@ -475,60 +436,24 @@ export default function ClientProfilePage({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black text-slate-900 capitalize">
-                {quickTaskType === "meeting" ? "Schedule a Meeting" : `New ${quickTaskType?.replace("-", " ")}`}
-              </h3>
-              <button
-                onClick={() => { setShowQuickTask(false); setQuickTaskType(null); }}
-                className="text-slate-400 hover:text-slate-700"
-              >
-                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
-              </button>
+              <h3 className="text-lg font-black text-slate-900 capitalize">Schedule a Meeting</h3>
+              <button onClick={() => setShowQuickTask(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
-
+            
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
+                <label className="block text-xs font-bold text-slate-500 mb-1">Title *</label>
+                <input 
+                  type="text" 
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
-                  placeholder={`e.g. ${quickTaskType === "meeting" ? "Kickoff Sync" : "Check in on proposal"}`}
+                  placeholder="e.g. Kickoff Sync or Catch-up"
                   value={quickTaskForm.title}
-                  onChange={(e) =>
-                    setQuickTaskForm({
-                      ...quickTaskForm,
-                      title: e.target.value,
-                    })
-                  }
+                  onChange={e => setQuickTaskForm({...quickTaskForm, title: e.target.value})}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">
-                    Assign To *
-                  </label>
-                  <select
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
-                    value={quickTaskForm.assignedTo}
-                    onChange={(e) =>
-                      setQuickTaskForm({
-                        ...quickTaskForm,
-                        assignedTo: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Select team member...</option>
-                    {members.map((m) => (
-                      <option key={m.uid} value={m.uid}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Date / Deadline</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Date</label>
                   <input 
                     type="date" 
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
@@ -536,54 +461,32 @@ export default function ClientProfilePage({
                     onChange={e => setQuickTaskForm({...quickTaskForm, dueDate: e.target.value})}
                   />
                 </div>
-                {quickTaskType === "meeting" && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
-                    <input 
-                      type="time" 
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
-                      value={quickTaskForm.time}
-                      onChange={e => setQuickTaskForm({...quickTaskForm, time: e.target.value})}
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
+                  <input 
+                    type="time" 
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                    value={quickTaskForm.time}
+                    onChange={e => setQuickTaskForm({...quickTaskForm, time: e.target.value})}
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">
-                  Notes
-                </label>
-                <textarea
+                <label className="block text-xs font-bold text-slate-500 mb-1">Notes</label>
+                <textarea 
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] resize-none"
                   rows={3}
                   placeholder="Context for this action..."
                   value={quickTaskForm.description}
-                  onChange={(e) =>
-                    setQuickTaskForm({
-                      ...quickTaskForm,
-                      description: e.target.value,
-                    })
-                  }
+                  onChange={e => setQuickTaskForm({...quickTaskForm, description: e.target.value})}
                 />
               </div>
             </div>
 
             <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => { setShowQuickTask(false); setQuickTaskType(null); }}
-                className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitQuickTask}
-                disabled={
-                  submittingTask ||
-                  !quickTaskForm.title ||
-                  !quickTaskForm.assignedTo
-                }
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-colors shadow-md disabled:opacity-50 text-white ${quickTaskType === "meeting" ? "bg-[#6264A7] hover:bg-[#464775]" : "bg-[#0D1B3E] hover:opacity-90"}`}
-              >
-                {submittingTask ? "Saving..." : quickTaskType === "meeting" ? "Save & Schedule in Teams" : "Create"}
+              <button onClick={() => setShowQuickTask(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600">Cancel</button>
+              <button onClick={submitQuickTask} disabled={submittingTask} className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-md disabled:opacity-50 text-white bg-[#6264A7] hover:bg-[#464775]">
+                {submittingTask ? "Saving..." : "Save & Schedule in Teams"}
               </button>
             </div>
           </div>
