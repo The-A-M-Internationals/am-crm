@@ -631,6 +631,61 @@ export const PipelineService = {
   },
 
   /**
+   * Universal Task Status Update logic (handles both completion and progress).
+   * Smartly updates parent project status if needed.
+   */
+  async handleTaskStatusUpdate(task: any, newStatus: string, userId: string) {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    
+    let prog = task.progress || 0;
+    if (newStatus === "not-started") prog = 0;
+    if (newStatus === "in-progress" && (prog === 0 || prog === 100)) prog = 25;
+    
+    const isCompleted = newStatus === "completed" || newStatus === "done";
+    const dbStatus = newStatus === "done" ? "completed" : newStatus;
+
+    batch.update(doc(db, "tasks", task.id), { 
+      status: dbStatus, 
+      done: isCompleted,
+      progress: prog,
+      updatedAt: now
+    });
+
+    if (task.relatedType === "project" && task.relatedTo) {
+      const projRef = doc(db, "projects", task.relatedTo);
+      const projSnap = await getDoc(projRef);
+      
+      if (projSnap.exists()) {
+        const pData = projSnap.data();
+        
+        if (isCompleted) {
+          const tasksQ = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+          const tasksSnap = await getDocs(tasksQ);
+          
+          const allOtherTasksCompleted = tasksSnap.docs
+            .filter(d => d.id !== task.id)
+            .every(d => {
+              const s = d.data().status;
+              return s === "completed" || s === "done";
+            });
+
+          if (allOtherTasksCompleted) {
+            batch.update(projRef, { status: "completed", updatedAt: now });
+            await this.draftInvoiceForProject(task.relatedTo, userId, batch);
+          } else if (pData.status === "not-started") {
+             batch.update(projRef, { status: "in-progress", updatedAt: now });
+          }
+        } else if (dbStatus !== "not-started" && pData.status === "not-started") {
+          batch.update(projRef, { status: "in-progress", updatedAt: now });
+        }
+      }
+    }
+
+    await batch.commit();
+  },
+
+  /**
    * Task completion handoff to Project & Invoice Staging.
    * Implementation: Absolute Bi-directional Reactivity.
    */
@@ -769,7 +824,7 @@ export const PipelineService = {
   },
 
   /**
-   * Hard deletes a Client and cascades to delete all their Projects, Tasks, Proposals, and Invoices.
+   * Hard deletes a Client and cascades to delete all their Projects, Tasks, Proposals, Leads, Invoices, etc.
    */
   async deleteClientAndRelations(clientId: string) {
     const batch = writeBatch(db);
@@ -777,28 +832,30 @@ export const PipelineService = {
     // 1. Delete Client
     batch.delete(doc(db, "clients", clientId));
 
-    // 2. Delete Projects
+    // 2. Find all projects to securely cascade their child entities
     const projQ = query(collection(db, "projects"), where("clientId", "==", clientId));
     const projSnap = await getDocs(projQ);
-    projSnap.forEach(d => batch.delete(d.ref));
+    const projectIds: string[] = [];
+    projSnap.forEach(d => projectIds.push(d.id));
 
-    // 3. Delete Tasks
-    const taskQ = query(collection(db, "tasks"), where("clientId", "==", clientId));
-    const taskSnap = await getDocs(taskQ);
-    taskSnap.forEach(d => batch.delete(d.ref));
+    // 3. Delete all related data strictly by clientId
+    const collectionsToDelete = ["projects", "tasks", "invoices", "proposals", "leads", "manual_revenue"];
+    for (const collName of collectionsToDelete) {
+      const q = query(collection(db, collName), where("clientId", "==", clientId));
+      const snap = await getDocs(q);
+      snap.forEach(d => batch.delete(doc(db, collName, d.id)));
+    }
 
-    // 4. Retain Proposals (do not delete them so they don't vanish)
-    const propQ = query(collection(db, "proposals"), where("clientId", "==", clientId));
-    const propSnap = await getDocs(propQ);
-    propSnap.forEach(d => {
-      // Unlink the client ID but keep the proposal and clientName intact
-      batch.update(d.ref, { clientId: "" });
-    });
-
-    // 5. Delete Invoices
-    const invQ = query(collection(db, "invoices"), where("clientId", "==", clientId));
-    const invSnap = await getDocs(invQ);
-    invSnap.forEach(d => batch.delete(d.ref));
+    // 4. Cascade delete any child items by projectId (in case they lacked a clientId reference)
+    for (const pId of projectIds) {
+      const pTaskQ = query(collection(db, "tasks"), where("relatedTo", "==", pId));
+      const pTaskSnap = await getDocs(pTaskQ);
+      pTaskSnap.forEach(d => batch.delete(doc(db, "tasks", d.id)));
+      
+      const pInvQ = query(collection(db, "invoices"), where("projectId", "==", pId));
+      const pInvSnap = await getDocs(pInvQ);
+      pInvSnap.forEach(d => batch.delete(doc(db, "invoices", d.id)));
+    }
 
     await batch.commit();
   },

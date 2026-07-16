@@ -198,23 +198,7 @@ export default function ClientsPage() {
   async function deleteClient(id: string) {
     if (!confirm("PERMANENT DELETE: Are you sure you want to completely remove this client? This will also delete all their projects, tasks, invoices, proposals, and leads. This cannot be undone.")) return;
     try {
-      const batch = writeBatch(db);
-      
-      // 1. Delete the client
-      batch.delete(doc(db, "clients", id));
-
-      // 2. Cascade delete all associated data
-      const collectionsToDelete = ["projects", "tasks", "invoices", "proposals", "leads", "manual_revenue"];
-      
-      for (const collName of collectionsToDelete) {
-        const q = query(collection(db, collName), where("clientId", "==", id));
-        const snap = await getDocs(q);
-        snap.forEach(d => {
-          batch.delete(doc(db, collName, d.id));
-        });
-      }
-
-      await batch.commit();
+      await PipelineService.deleteClientAndRelations(id);
       console.log("Client and all associated data deleted permanently.");
     } catch (error) {
       console.error("Error deleting client:", error);

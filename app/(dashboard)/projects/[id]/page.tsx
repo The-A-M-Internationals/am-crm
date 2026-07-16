@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/toast";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { PipelineService } from "@/lib/pipeline-service";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -508,13 +509,17 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       return;
     }
     try {
+      await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
+      
       const isCompleted = status === "completed" || status === "done";
       const dbStatus = status === "done" ? "completed" : status;
-      await updateDoc(doc(db, "tasks", task.id), { status: dbStatus, done: isCompleted });
       
       if (selectedDrawerTask && selectedDrawerTask.id === task.id) {
         setSelectedDrawerTask({ ...selectedDrawerTask, status: dbStatus, done: isCompleted });
       }
+      
+      // Auto-refresh project to get the latest status if it was changed by PipelineService
+      fetchProject();
     } catch (e) {
       console.error(e);
       toast("Failed to update status", "error");

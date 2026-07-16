@@ -140,6 +140,20 @@ export default function TasksPage() {
 
   async function handleSave() {
     if (!form.title) return;
+
+    if (form.relatedTo && form.relatedType === "project") {
+      const isDuplicate = tasks.some(
+        t => t.relatedTo === form.relatedTo && 
+             t.title.trim().toLowerCase() === form.title.trim().toLowerCase() && 
+             (!editing || t.id !== editing?.id)
+      );
+
+      if (isDuplicate) {
+        alert("WARNING: A task with this exact title already exists on this project. Please use a unique title or append a sequence index.");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const now = new Date().toISOString();
@@ -203,8 +217,7 @@ export default function TasksPage() {
       return;
     }
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
-    if (newStatus === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
-    else await updateDoc(doc(db, "tasks", task.id), { done: false, status: "in-progress", progress: task.progress === 100 ? 75 : (task.progress || 25) });
+    await PipelineService.handleTaskStatusUpdate(task, newStatus, crmUser?.uid ?? "");
   }
 
   async function deleteTask(id: string) {
@@ -217,17 +230,7 @@ export default function TasksPage() {
       alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
       return;
     }
-    if (status === "completed") await PipelineService.handleTaskCompletion(task, crmUser?.uid ?? "");
-    else {
-      let prog = task.progress || 0;
-      if (status === "not-started") prog = 0;
-      if (status === "in-progress" && (prog === 0 || prog === 100)) prog = 25;
-      
-      await updateDoc(doc(db, "tasks", task.id), { status, done: false, progress: prog });
-      if (status === "not-started" && task.relatedType === "project" && task.relatedTo) {
-        await updateDoc(doc(db, "projects", task.relatedTo), { status: "not-started", updatedAt: new Date().toISOString() });
-      }
-    }
+    await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
   }
 
   const filteredTasks = tasks.filter((t) => {
