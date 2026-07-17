@@ -82,6 +82,10 @@ export default function TeamPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [resettingMember, setResettingMember] = useState<CRMUser | null>(null);
+  const [tempPassword, setTempPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
   const [editRole, setEditRole] = useState<UserRole>("employee");
@@ -388,6 +392,25 @@ export default function TeamPage() {
                           </button>
 
                           <button
+                            title="Reset Password"
+                            onClick={() => {
+                              setResettingMember(member);
+                              setTempPassword("");
+                              setResetError("");
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
+                            style={{
+                              background: "#FEF9C3",
+                              color: "#854D0E",
+                              border: "1px solid #FEF08A",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <svg className="inline-block w-4 h-4 shrink-0 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            Reset Password
+                          </button>
+
+                          <button
                             title="Remove Member"
                             onClick={() => deleteMember(member.uid)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
@@ -688,6 +711,84 @@ export default function TeamPage() {
                 className="btn-primary flex-1 justify-center disabled:opacity-50"
               >
                 {saving ? "Creating..." : "Add Member & Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/* Reset Password Modal */}
+      {resettingMember && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 400 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="modal-title mb-0">Reset Password</h2>
+              <button
+                onClick={() => setResettingMember(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+              >
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div
+                className="text-sm px-3 py-2 rounded-xl mb-2"
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                Set a temporary PIN for:
+                <strong> {resettingMember.name}</strong>
+              </div>
+
+              <div>
+                <label className="form-label">Temporary Password/PIN</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 123456"
+                  className="form-input"
+                  value={tempPassword}
+                  onChange={(e) => setTempPassword(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">Must be at least 6 characters. They will be forced to change this immediately after logging in.</p>
+              </div>
+
+              {resetError && <div className="text-red-500 text-xs px-3 py-2 bg-red-50 rounded-lg">{resetError}</div>}
+
+              <button
+                disabled={resetLoading || tempPassword.length < 6}
+                onClick={async () => {
+                  setResetLoading(true);
+                  setResetError("");
+                  try {
+                    const res = await fetch("/api/team", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: resettingMember.name,
+                        email: resettingMember.email,
+                        role: resettingMember.role,
+                        password: tempPassword,
+                      }),
+                    });
+
+                    if (!res.ok) {
+                      const data = await res.json();
+                      throw new Error(data.error || "Failed to reset password.");
+                    }
+
+                    alert(`Password reset successfully to ${tempPassword}. The user will be prompted to create a new password on login.`);
+                    setResettingMember(null);
+                  } catch (err: any) {
+                    setResetError(err.message);
+                  } finally {
+                    setResetLoading(false);
+                  }
+                }}
+                className="btn-primary w-full justify-center"
+              >
+                {resetLoading ? "Saving..." : "Set Temporary Password"}
               </button>
             </div>
           </div>
