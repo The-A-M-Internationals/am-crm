@@ -2196,6 +2196,7 @@ export default function DynamicTemplate({
                 <div className="mb-4">
                   <div className="border-b border-[#CCCCCC] pb-2 h-20 flex items-end">
                     {proposal.clientSignatureImage ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={proposal.clientSignatureImage} alt="Signature" className="max-h-16 object-contain mix-blend-multiply" />
                     ) : (
                       <p className="font-serif italic text-2xl text-indigo-900 tracking-wider">

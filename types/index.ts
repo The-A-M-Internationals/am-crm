@@ -43,6 +43,7 @@ export interface CRMUser {
   email: string;
   role: UserRole;
   avatar?: string;
+  requiresPasswordChange?: boolean;
   createdAt: string;
 }
 
@@ -127,14 +128,15 @@ export interface Project {
     completed: boolean;
   }[];
   payments?: PaymentLog[];
-  createdAt: string;
-  updatedAt: string;
+  techStack?: string[];
   figmaUrl?: string;
   repoUrl?: string;
   stagingUrl?: string;
   productionUrl?: string;
-  techStack?: string[];
   coreFocus?: string;
+  createdAt: string;
+  updatedAt: string;
+
 
   sharedFiles?: {
     name: string;
@@ -291,6 +293,7 @@ export interface Proposal {
   validUntil?: string;
   createdBy: string;
   sentAt?: string;
+  viewedAt?: string;
   clientSignatureName?: string;
   clientSignatureTitle?: string;
   clientSignatureImage?: string;

@@ -1,4 +1,10 @@
 "use client";
+import { X, Trash2, Pencil } from "lucide-react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 
 import { useEffect, useState } from "react";
 import {
@@ -24,10 +30,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+
 
 const PIE_COLORS = [
   "#0D1B3E",
@@ -95,11 +98,9 @@ export default function RevenuePage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [manualRev, setManualRev] = useState<any[]>([]);
+  const [dbClients, setDbClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"expenses" | "manual_revenue">(
-    "expenses",
-  );
-
+  const [activeTab, setActiveTab] = useState<"expenses" | "manual_revenue">("expenses");
   const [showExp, setShowExp] = useState(false);
   const [editingExp, setEditingExp] = useState<any | null>(null);
   const [expForm, setExpForm] = useState({ ...EMPTY_EXP });
@@ -149,32 +150,16 @@ export default function RevenuePage() {
 
   async function fetchData() {
     try {
-      const [invSnap, expSnap, revSnap] = await Promise.all([
+      const [invSnap, expSnap, revSnap, cliSnap] = await Promise.all([
         getDocs(collection(db, "invoices")),
         getDocs(collection(db, "expenses")),
         getDocs(collection(db, "manual_revenue")),
+        getDocs(collection(db, "clients"))
       ]);
-
-      setInvoices(
-        invSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })),
-      );
-
-      setExpenses(
-        expSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })),
-      );
-
-      setManualRev(
-        revSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })),
-      );
+      setInvoices(invSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setExpenses(expSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setManualRev(revSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setDbClients(cliSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } finally {
       setLoading(false);
     }
@@ -972,7 +957,7 @@ export default function RevenuePage() {
     doc.save(`Revenue_Report_${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
-  // Revenue helpers
+
   function openAddRevenue() {
     setEditingRev(null);
     setRevForm({ ...EMPTY_REV });
@@ -1000,13 +985,13 @@ export default function RevenuePage() {
   async function saveRevenue() {
     const errors: { clientName?: string; description?: string; amount?: string } = {};
     if (!revForm.clientName || !revForm.clientName.trim()) {
-      errors.clientName = "Please fill this field";
+      errors.clientName = "Client Name is required";
     }
     if (!revForm.description || !revForm.description.trim()) {
-      errors.description = "Please fill this field";
+      errors.description = "Description is required";
     }
     if (!revForm.amount || String(revForm.amount).trim() === "") {
-      errors.amount = "Please fill this field";
+      errors.amount = "Amount is required";
     }
     if (Object.keys(errors).length > 0) {
       setRevErrors(errors);
@@ -1051,33 +1036,31 @@ export default function RevenuePage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="page-header mb-0">
-          <h1 className="page-title">Revenue</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Revenue
+          </h1>
           <p className="page-subtitle">
             Financial overview — Admin only · {year}
           </p>
         </div>
-
         <div className="flex items-center gap-3">
-          <button
-            onClick={openAddRevenue}
-            className="btn-secondary"
-            style={{ borderColor: "#22c55e", color: "#22c55e" }}
-          >
+          <button onClick={openAddRevenue} className="btn-secondary" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
             <span className="text-base">+</span> Add Revenue/Profit
           </button>
-
+          
           <div className="relative">
             <button
               onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              className="px-4 py-2 rounded-xl text-white font-semibold"
-              style={{ background: "#22c55e" }}
+              className="btn-primary"
             >
-              📥 Download Report
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 
+              Download Report
             </button>
-
+            
             {showDownloadMenu && (
               <div
-                className="absolute right-0 mt-2 bg-white border rounded-xl shadow-lg z-50"
+                className="absolute right-0 mt-2 bg-white border rounded-xl shadow-lg z-50 py-1"
                 style={{ minWidth: "180px" }}
               >
                 <button
@@ -1085,17 +1068,16 @@ export default function RevenuePage() {
                     downloadExcelReport();
                     setShowDownloadMenu(false);
                   }}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
                 >
                   📊 Excel Report
                 </button>
-
                 <button
                   onClick={() => {
                     downloadPDFReport();
                     setShowDownloadMenu(false);
                   }}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
                 >
                   📄 PDF Report
                 </button>
@@ -1189,10 +1171,9 @@ export default function RevenuePage() {
               onChange={(e) => setSelectedClient(e.target.value)}
             >
               <option value="">Select Client</option>
-
-              {clients.map((client) => (
-                <option key={client} value={client}>
-                  {client}
+              {dbClients.filter(c => c.active !== false).map((client) => (
+                <option key={client.id} value={client.company || client.name}>
+                  {client.company || client.name}
                 </option>
               ))}
             </select>
@@ -1678,14 +1659,14 @@ export default function RevenuePage() {
                                 border: "1px solid #bfdbfe",
                               }}
                             >
-                              ✏️ Edit
+                              <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                             </button>
 
                             <button
                               onClick={() => delExpense(e.id)}
                               className="btn-danger"
                             >
-                              🗑 Delete
+                              <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                             </button>
                           </div>
                         </td>
@@ -1803,13 +1784,13 @@ export default function RevenuePage() {
                                   border: "1px solid #bbf7d0",
                                 }}
                               >
-                                ✏️ Edit
+                                <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
                               </button>
                               <button
                                 onClick={() => delRevenue(r.id)}
                                 className="btn-danger"
                               >
-                                🗑 Delete
+                                <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                               </button>
                             </div>
                           </td>
@@ -1836,7 +1817,7 @@ export default function RevenuePage() {
                 onClick={() => setShowExp(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -1854,10 +1835,9 @@ export default function RevenuePage() {
                   }
                 >
                   <option value="">Select Client</option>
-
-                  {clients.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  {dbClients.filter(c => c.active !== false).map((client) => (
+                    <option key={client.id} value={client.company || client.name}>
+                      {client.company || client.name}
                     </option>
                   ))}
                 </select>
@@ -1890,7 +1870,7 @@ export default function RevenuePage() {
                     <option value="AED">AED</option>
                     <option value="INR">INR</option>
                     <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
+
                   </select>
                 </div>
                 <div>
@@ -1954,7 +1934,7 @@ export default function RevenuePage() {
                   }}
                   className="btn-danger px-4"
                 >
-                  🗑 Delete
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                 </button>
               )}
               <button
@@ -1988,7 +1968,7 @@ export default function RevenuePage() {
                 }}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -2012,10 +1992,10 @@ export default function RevenuePage() {
                     }
                   }}
                 >
-                  <option value="">Select Client</option>
-                  {clients.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  <option value="">-- Select Client --</option>
+                  {dbClients.filter(c => c.active !== false).map((client) => (
+                    <option key={client.id} value={client.company || client.name}>
+                      {client.company || client.name}
                     </option>
                   ))}
                 </select>
@@ -2068,7 +2048,7 @@ export default function RevenuePage() {
                     <option value="AED">AED</option>
                     <option value="INR">INR</option>
                     <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
+
                   </select>
                 </div>
                 <div>
@@ -2175,7 +2155,7 @@ export default function RevenuePage() {
                   }}
                   className="btn-danger px-4"
                 >
-                  🗑 Delete
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete
                 </button>
               )}
               <button

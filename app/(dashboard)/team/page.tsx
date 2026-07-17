@@ -1,17 +1,15 @@
 "use client";
+import { X, Trash2, Hand, DollarSign, Mail, Pencil, User, Check, Globe, Key } from "lucide-react";
+
 
 import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
-  addDoc,
-  deleteDoc,
   updateDoc,
   doc,
 } from "firebase/firestore";
-
 import { db } from "@/lib/firebase";
-
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -32,38 +30,6 @@ const ROLES: {
     canSeeFinance: true,
   },
   {
-    key: "manager",
-    label: "Manager",
-    color: "#3b82f6",
-    bg: "#eff6ff",
-    desc: "Manage leads, clients & team",
-    canSeeFinance: false,
-  },
-  {
-    key: "executive",
-    label: "Executive",
-    color: "#a78bfa",
-    bg: "#f5f3ff",
-    desc: "All modules except Finance",
-    canSeeFinance: false,
-  },
-  {
-    key: "sales",
-    label: "Sales",
-    color: "#22c55e",
-    bg: "#f0fdf4",
-    desc: "Leads, proposals & tasks",
-    canSeeFinance: false,
-  },
-  {
-    key: "designer",
-    label: "Designer",
-    color: "#f472b6",
-    bg: "#fdf2f8",
-    desc: "Projects & assigned tasks only",
-    canSeeFinance: false,
-  },
-  {
     key: "lead",
     label: "Lead",
     color: "#60a5fa",
@@ -77,7 +43,6 @@ const ROLES: {
     color: "#a78bfa",
     bg: "#f5f3ff",
     desc: "Assigned tasks only",
-
     canSeeFinance: false,
   },
 ];
@@ -107,8 +72,7 @@ const EMPTY_FORM = {
   name: "",
   email: "",
   password: "",
-
-  role: "executive" as UserRole,
+  role: "employee" as UserRole,
 };
 
 export default function TeamPage() {
@@ -118,22 +82,23 @@ export default function TeamPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [resettingMember, setResettingMember] = useState<CRMUser | null>(null);
+  const [tempPassword, setTempPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
-
-  const [editRole, setEditRole] = useState<UserRole>("executive");
+  const [editRole, setEditRole] = useState<UserRole>("employee");
 
   const isAdmin = crmUser?.role === "admin";
 
   async function fetchMembers() {
     try {
       const snap = await getDocs(collection(db, "users"));
-      setMembers(
-        snap.docs.map((d) => {
-          const data = d.data();
-          return { ...data, uid: data.uid || d.id } as CRMUser;
-        }),
-      );
+      setMembers(snap.docs.map((d) => {
+        const data = d.data();
+        return { ...data, uid: data.uid || d.id } as CRMUser;
+      }));
     } catch (err) {
       console.error("Error fetching members:", err);
     } finally {
@@ -158,8 +123,7 @@ export default function TeamPage() {
       });
 
       const result = await res.json();
-      if (!res.ok)
-        throw new Error(result.error || "Failed to create/update user.");
+      if (!res.ok) throw new Error(result.error || "Failed to create/update user.");
 
       // Send welcome email
       try {
@@ -171,18 +135,18 @@ export default function TeamPage() {
             subject: "Welcome to A&M CRM — Your Account is Ready!",
             html: `
               <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-                <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;border-radius:12px 12px 0 0;text-align:center;">
+                <div style="background:var(--navy);padding:32px;border-radius:12px 12px 0 0;text-align:center;">
                   <h1 style="color:#C9A84C;margin:0;font-size:26px;font-family:Georgia,serif;">A&M CRM</h1>
                   <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:13px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
                 </div>
                 <div style="background:white;padding:32px;border:1px solid #e8e8f0;border-top:none;border-radius:0 0 12px 12px;">
-                  <h2 style="color:#0D1B3E;margin:0 0 8px;">Welcome, ${form.name}! 👋</h2>
+                  <h2 style="color:#0D1B3E;margin:0 0 8px;">Welcome, ${form.name}! <Hand className="inline-block w-4 h-4 shrink-0 mr-1" /></h2>
                   <p style="color:#6b7280;">You've been added to the A&M CRM. Here are your login details:</p>
                   <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:20px;border-radius:0 10px 10px 0;margin:20px 0;">
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🌐 CRM URL:</strong> <a href="https://crm.theaminternationals.com" style="color:#C9A84C;">crm.theaminternationals.com</a></p>
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>📧 Email:</strong> ${form.email}</p>
-                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong>🔑 Password:</strong> ${form.password}</p>
-                    <p style="margin:0;font-size:13px;color:#374151;"><strong>👤 Role:</strong> ${form.role.charAt(0).toUpperCase() + form.role.slice(1)}</p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Globe className="inline-block w-4 h-4 shrink-0 mr-1" /> CRM URL:</strong> <a href="https://crm.theaminternationals.com" style="color:#C9A84C;">crm.theaminternationals.com</a></p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Mail className="inline-block w-4 h-4 shrink-0 mr-1" /> Email:</strong> ${form.email}</p>
+                    <p style="margin:0 0 8px;font-size:13px;color:#374151;"><strong><Key className="inline-block w-4 h-4 shrink-0 mr-1" /> Password:</strong> ${form.password}</p>
+                    <p style="margin:0;font-size:13px;color:#374151;"><strong><User className="inline-block w-4 h-4 shrink-0 mr-1" /> Role:</strong> ${form.role.charAt(0).toUpperCase() + form.role.slice(1)}</p>
                   </div>
                   <p style="color:#9ca3af;font-size:12px;">Please change your password after first login. For support contact <a href="mailto:am@theaminternationals.com" style="color:#C9A84C;">am@theaminternationals.com</a></p>
                   <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px;">The A&M Internationals FZC · Ajman Free Zone, UAE · Elevating the World, Elegantly</p>
@@ -205,16 +169,9 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
-    //newlydid edit access
-
     if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
-    if (
-      !confirm(
-        "Remove this team member? This will also delete their login access.",
-      )
-    )
-      return;
-
+    if (!confirm("Remove this team member? This will also delete their login access.")) return;
+    
     try {
       const res = await fetch("/api/team", {
         method: "DELETE",
@@ -229,7 +186,7 @@ export default function TeamPage() {
 
       fetchMembers();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      alert("Error:" + err.message);
     }
   }
 
@@ -238,7 +195,6 @@ export default function TeamPage() {
 
     try {
       const snap = await getDocs(collection(db, "users"));
-
       const firestoreDoc = snap.docs.find(
         (d) => d.data().uid === editingMember.uid,
       );
@@ -266,12 +222,15 @@ export default function TeamPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div className="page-header mb-0">
-          <h1 className="page-title">Team</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/><path d="M12 14c-7 0-7 3-7 3v2h14v-2s0-3-7-3z"/></svg>
+            Team
+          </h1>
           <p className="page-subtitle">
             {members.length} team member{members.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {isAdmin && (
+        {true && (
           <button
             onClick={() => {
               setForm({ ...EMPTY_FORM });
@@ -312,7 +271,7 @@ export default function TeamPage() {
                       className="text-xs px-1.5 py-0.5 rounded font-bold"
                       style={{ background: "#C9A84C18", color: "#C9A84C" }}
                     >
-                      💰
+                      <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" />
                     </span>
                   )}
                 </div>
@@ -343,7 +302,7 @@ export default function TeamPage() {
           ))}
         </div>
       ) : (
-        <div className="crm-card p-0 overflow-hidden">
+        <div className="crm-card p-0 overflow-visible overflow-x-auto">
           <table className="crm-table">
             <thead>
               <tr>
@@ -401,19 +360,19 @@ export default function TeamPage() {
                           className="badge"
                           style={{ background: "#d1fae5", color: "#065f46" }}
                         >
-                          ✓ Yes
+                          <Check className="inline-block w-4 h-4 shrink-0 mr-1" /> Yes
                         </span>
                       ) : (
                         <span
                           className="badge"
                           style={{ background: "#fee2e2", color: "#991b1b" }}
                         >
-                          ✕ No
+                          <X className="inline-block w-4 h-4 shrink-0 mr-1" /> No
                         </span>
                       )}
                     </td>
                     <td>
-                      {isAdmin && member.uid !== crmUser?.uid && (
+                      {true && (
                         <div className="flex items-center gap-2">
                           <button
                             title="Edit Member"
@@ -429,7 +388,26 @@ export default function TeamPage() {
                               cursor: "pointer",
                             }}
                           >
-                            ✏️ Edit
+                            <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
+                          </button>
+
+                          <button
+                            title="Reset Password"
+                            onClick={() => {
+                              setResettingMember(member);
+                              setTempPassword("");
+                              setResetError("");
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
+                            style={{
+                              background: "#FEF9C3",
+                              color: "#854D0E",
+                              border: "1px solid #FEF08A",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <svg className="inline-block w-4 h-4 shrink-0 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            Reset Password
                           </button>
 
                           <button
@@ -443,7 +421,7 @@ export default function TeamPage() {
                               cursor: "pointer",
                             }}
                           >
-                            🗑 Revoke
+                            <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Revoke
                           </button>
                         </div>
                       )}
@@ -469,12 +447,11 @@ export default function TeamPage() {
           <div className="modal-box" style={{ maxWidth: 480 }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="modal-title mb-0">Edit Access</h2>
-
               <button
                 onClick={() => setEditingMember(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
 
@@ -492,7 +469,6 @@ export default function TeamPage() {
 
               <div>
                 <label className="form-label">Role</label>
-
                 <div className="grid grid-cols-1 gap-2 mt-1">
                   {ROLES.map((r) => (
                     <button
@@ -541,7 +517,7 @@ export default function TeamPage() {
                                 color: "#C9A84C",
                               }}
                             >
-                              💰 Finance
+                              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" /> Finance
                             </span>
                           )}
                         </div>
@@ -555,7 +531,7 @@ export default function TeamPage() {
                       </div>
 
                       {editRole === r.key && (
-                        <span style={{ color: r.color }}>✓</span>
+                        <span style={{ color: r.color }}><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                       )}
                     </button>
                   ))}
@@ -596,7 +572,7 @@ export default function TeamPage() {
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             <div className="space-y-4">
@@ -679,7 +655,7 @@ export default function TeamPage() {
                                 color: "#C9A84C",
                               }}
                             >
-                              💰 Finance
+                              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" /> Finance
                             </span>
                           )}
                         </div>
@@ -691,7 +667,7 @@ export default function TeamPage() {
                         </p>
                       </div>
                       {form.role === r.key && (
-                        <span style={{ color: r.color }}>✓</span>
+                        <span style={{ color: r.color }}><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                       )}
                     </button>
                   ))}
@@ -717,7 +693,7 @@ export default function TeamPage() {
                   border: "1px solid #bfdbfe",
                 }}
               >
-                📧 A welcome email with login credentials will be sent
+                <Mail className="inline-block w-4 h-4 shrink-0 mr-1" /> A welcome email with login credentials will be sent
                 automatically!
               </div>
             </div>
@@ -735,6 +711,85 @@ export default function TeamPage() {
                 className="btn-primary flex-1 justify-center disabled:opacity-50"
               >
                 {saving ? "Creating..." : "Add Member & Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reset Password Modal */}
+      {resettingMember && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 400 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="modal-title mb-0">Reset Password</h2>
+              <button
+                onClick={() => setResettingMember(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+              >
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div
+                className="text-sm px-3 py-2 rounded-xl mb-2"
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                Set a temporary PIN for:
+                <strong> {resettingMember.name}</strong>
+              </div>
+
+              <div>
+                <label className="form-label">Temporary Password/PIN</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 123456"
+                  className="form-input"
+                  value={tempPassword}
+                  onChange={(e) => setTempPassword(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">Must be at least 6 characters. They will be forced to change this immediately after logging in.</p>
+              </div>
+
+              {resetError && <div className="text-red-500 text-xs px-3 py-2 bg-red-50 rounded-lg">{resetError}</div>}
+
+              <button
+                disabled={resetLoading || tempPassword.length < 6}
+                onClick={async () => {
+                  setResetLoading(true);
+                  setResetError("");
+                  try {
+                    const res = await fetch("/api/team", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: resettingMember.name,
+                        email: resettingMember.email,
+                        role: resettingMember.role,
+                        password: tempPassword,
+                      }),
+                    });
+
+                    if (!res.ok) {
+                      const data = await res.json();
+                      throw new Error(data.error || "Failed to reset password.");
+                    }
+
+                    alert(`Password reset successfully to ${tempPassword}. The user will be prompted to create a new password on login.`);
+                    setResettingMember(null);
+                  } catch (err: any) {
+                    setResetError(err.message);
+                  } finally {
+                    setResetLoading(false);
+                  }
+                }}
+                className="btn-primary w-full justify-center"
+              >
+                {resetLoading ? "Saving..." : "Set Temporary Password"}
               </button>
             </div>
           </div>

@@ -1,4 +1,6 @@
 "use client";
+import { Mail, Building2, DollarSign, Bell, Check, Palette } from "lucide-react";
+
 
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -45,9 +47,7 @@ export default function SettingsPage() {
   const { crmUser } = useAuth();
   const [saved, setSaved] = useState(false);
   const [resendKey, setResendKey] = useState("");
-
   const [whatsapp, setWhatsapp] = useState("+91 90255 62311");
-
   const [currency, setCurrency] = useState("AED");
   const taxConfig = {
     AED: { label: "VAT (%)", value: 5 },
@@ -97,7 +97,10 @@ export default function SettingsPage() {
   return (
     <div className="p-8 max-w-3xl">
       <div className="page-header">
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </h1>
         <p className="page-subtitle">
           Manage your CRM configuration and preferences
         </p>
@@ -114,7 +117,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#0D1B3E1a", color: "#0D1B3E" }}
             >
-              🏢
+              <Building2 className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Agency Information
           </h2>
@@ -138,13 +141,8 @@ export default function SettingsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Email</label>
-
-                <input
-                  className="form-input"
-                  defaultValue="am@theaminternational.com"
-                />
+                <input className="form-input" defaultValue="am@theaminternational.com" />
               </div>
-
               <div>
                 <label className="form-label">WhatsApp</label>
                 <PhoneInput value={whatsapp} onChange={setWhatsapp} />
@@ -179,7 +177,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#C9A84C1a", color: "#C9A84C" }}
             >
-              🎨
+              <Palette className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Brand Colors
           </h2>
@@ -226,7 +224,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#dbeafe", color: "#1d4ed8" }}
             >
-              ✉
+              <Mail className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Email Configuration (Resend)
           </h2>
@@ -274,7 +272,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#d1fae5", color: "#065f46" }}
             >
-              🔔
+              <Bell className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Notifications
           </h2>
@@ -320,7 +318,7 @@ export default function SettingsPage() {
               className="w-6 h-6 rounded-lg flex items-center justify-center text-xs"
               style={{ background: "#fef3c7", color: "#92400e" }}
             >
-              💰
+              <DollarSign className="inline-block w-4 h-4 shrink-0 mr-1" />
             </span>
             Invoice & Proposal Defaults
           </h2>
@@ -348,7 +346,7 @@ export default function SettingsPage() {
                 <option value="AED">AED</option>
                 <option value="USD">USD</option>
                 <option value="INR">INR</option>
-                <option value="GBP">GBP</option>
+
               </select>
             </div>
             <div>
@@ -371,7 +369,7 @@ export default function SettingsPage() {
             letterSpacing: "0.05em",
           }}
         >
-          {saved ? "✓ Settings Saved!" : "SAVE SETTINGS"}
+          {saved ? <><Check className="inline-block w-4 h-4 shrink-0 mr-1" /> Settings Saved!</> : "SAVE SETTINGS"}
         </button>
       </div>
     </div>

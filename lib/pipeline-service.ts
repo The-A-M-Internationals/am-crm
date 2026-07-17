@@ -11,7 +11,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Lead, LeadStage, ServiceTag } from "@/types";
+import { Lead, LeadStage, ServiceTag, Client } from "@/types";
 import { getMasterTemplate } from "./proposal-templates";
 
 /**
@@ -89,25 +89,8 @@ export const PipelineService = {
     const shouldBeActive = acceptedProps.length > 0;
 
     if (shouldBeActive) {
-      if (clientSnap.empty) {
-        // Instantiate new active Client profile carrying over the proposal's metadata
-        const latestProp = acceptedProps.map(d => d.data()).sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0];
-        const newClientRef = doc(collection(db, "clients"));
-        batch.set(newClientRef, {
-          name: latestProp.clientName || "Unknown",
-          company: latestProp.company || latestProp.clientName || "Unknown",
-          email: normEmail,
-          phone: latestProp.phone || "",
-          services: latestProp.service ? [latestProp.service] : [],
-          status: "active",
-          active: true,
-          currency: latestProp.currency || "AED",
-          fromLeadId: latestProp.fromLeadId || "",
-          createdAt: now,
-          updatedAt: now
-        });
-      } else {
-        // Enforce existing clients stay active
+      if (!clientSnap.empty) {
+        // Enforce existing clients stay active and merge services
         clientSnap.forEach(d => {
            const cData = d.data();
            const services = new Set(cData.services || []);
@@ -120,6 +103,9 @@ export const PipelineService = {
            }
         });
       }
+      // Note: We DO NOT create a new client here anymore to prevent race conditions.
+      // Client creation is handled explicitly by the action that accepted the proposal 
+      // (either api/accept-proposal/route.ts or handleProposalStatusChange).
     } else {
       // Cascading signal: instantly deactivate/hide client record
       clientSnap.forEach(d => {
@@ -129,18 +115,30 @@ export const PipelineService = {
          }
       });
     }
-
     await batch.commit();
   },
   
   /**
-   * Syncs Lead profile details to Client Profile (e.g. if phone or name is updated)
+   * Syncs Lead profile details to Proposals and Clients dynamically.
    */
-  async syncLeadToClient(lead: Lead) {
+  async syncLeadDetails(lead: Lead) {
     const batch = writeBatch(db);
     const email = normalizeEmail(lead.email);
 
-    // Update Client if it exists
+    // 1. Sync to Proposals
+    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", lead.id));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => {
+      batch.update(d.ref, {
+        clientName: lead.name,
+        clientEmail: email,
+        company: lead.company || lead.name,
+        phone: lead.phone || "",
+        updatedAt: new Date().toISOString()
+      });
+    });
+
+    // 2. Sync to Client if it exists
     const clientQ = query(collection(db, "clients"), where("email", "==", email));
     const clientSnap = await getDocs(clientQ);
     
@@ -156,6 +154,98 @@ export const PipelineService = {
         phone: lead.phone || "",
         services: services,
         updatedAt: new Date().toISOString()
+      });
+    });
+
+    await batch.commit();
+  },
+
+  /**
+   * Syncs Client profile details to Projects, Tasks, and Proposals dynamically.
+   */
+  async syncClientDetails(client: Client) {
+    const batch = writeBatch(db);
+    const newName = client.name;
+    const newCompany = client.company || client.name;
+    const newEmail = normalizeEmail(client.email);
+    const now = new Date().toISOString();
+
+    // 1. Update Projects
+    const projQ = query(collection(db, "projects"), where("clientId", "==", client.id));
+    const projSnap = await getDocs(projQ);
+    projSnap.forEach(d => {
+      const updateData: any = { 
+        clientName: newCompany, 
+        clientEmail: newEmail, 
+        updatedAt: now 
+      };
+      if (client.budget !== undefined) updateData.budget = client.budget;
+      if (client.paid !== undefined) updateData.paid = client.paid;
+      if (client.due !== undefined) updateData.due = client.due;
+      if (client.remaining !== undefined) updateData.remaining = client.remaining;
+      if (client.currency !== undefined) updateData.currency = client.currency;
+      
+      batch.update(d.ref, updateData);
+    });
+
+    // 2. Update Tasks
+    const taskQ = query(collection(db, "tasks"), where("clientId", "==", client.id));
+    const taskSnap = await getDocs(taskQ);
+    taskSnap.forEach(d => batch.update(d.ref, { clientName: newCompany, updatedAt: now }));
+
+    // 3. Update Proposals
+    const propQ = query(collection(db, "proposals"), where("clientId", "==", client.id));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => batch.update(d.ref, { 
+      clientName: newName, 
+      clientEmail: newEmail, 
+      company: newCompany, 
+      phone: client.phone || "",
+      updatedAt: now
+    }));
+
+    // 4. Update Invoices (if any)
+    const invQ = query(collection(db, "invoices"), where("clientId", "==", client.id));
+    const invSnap = await getDocs(invQ);
+    invSnap.forEach(d => batch.update(d.ref, {
+      clientName: newCompany,
+      clientEmail: newEmail,
+      clientPhone: client.phone || "",
+      clientAddress: client.address || "",
+      updatedAt: now
+    }));
+
+    await batch.commit();
+  },
+
+  /**
+   * Syncs Proposal details (name, company, email, phone) back to the Lead and Client dynamically.
+   */
+  async syncProposalDetails(proposal: any) {
+    const batch = writeBatch(db);
+    const email = normalizeEmail(proposal.clientEmail);
+    const now = new Date().toISOString();
+
+    // 1. Sync back to Lead (if fromLeadId exists)
+    if (proposal.fromLeadId) {
+      batch.update(doc(db, "leads", proposal.fromLeadId), {
+        name: proposal.clientName,
+        company: proposal.company || proposal.clientName,
+        email: email,
+        phone: proposal.phone || "",
+        updatedAt: now
+      });
+    }
+
+    // 2. Sync back to Client (if exists by email)
+    const clientQ = query(collection(db, "clients"), where("email", "==", email));
+    const clientSnap = await getDocs(clientQ);
+    clientSnap.forEach(d => {
+      batch.update(d.ref, {
+        name: proposal.clientName,
+        company: proposal.company || proposal.clientName,
+        phone: proposal.phone || "",
+        updatedAt: now
       });
     });
 
@@ -296,6 +386,32 @@ export const PipelineService = {
           active: leadActive,
           updatedAt: now 
         });
+      }
+    }
+
+    // 3. Smart Client Creation for manual accepted status
+    if (leadStage === "won") {
+      const email = normalizeEmail(proposal.clientEmail);
+      if (email) {
+        const clientQ = query(collection(db, "clients"), where("email", "==", email));
+        const clientSnap = await getDocs(clientQ);
+        if (clientSnap.empty) {
+          const newClientRef = doc(collection(db, "clients"));
+          batch.set(newClientRef, {
+            name: proposal.clientName || "Unknown",
+            company: proposal.company || proposal.clientName || "Unknown",
+            email: email,
+            phone: proposal.phone || "",
+            services: proposal.service ? [proposal.service] : [],
+            status: "active",
+            active: true,
+            currency: proposal.currency || "AED",
+            fromLeadId: proposal.fromLeadId || "",
+            createdAt: now,
+            updatedAt: now,
+            acceptedProposalId: proposal.id
+          });
+        }
       }
     }
 
@@ -445,7 +561,7 @@ export const PipelineService = {
   /**
    * Generic stage update for Meeting/Lead etc.
    */
-  async updateStage(lead: Lead, stage: string) {
+  async updateStage(lead: Lead, stage: string, userId?: string) {
     const batch = writeBatch(db);
     const email = normalizeEmail(lead.email);
     const now = new Date().toISOString();
@@ -456,21 +572,37 @@ export const PipelineService = {
       updatedAt: now 
     });
 
-    // Auto-create a follow-up task based on the new stage
+    // Find existing follow-up task to prevent duplicates
+    const taskQ = query(collection(db, "tasks"), where("relatedTo", "==", lead.id), where("relatedType", "==", "lead"));
+    const taskSnap = await getDocs(taskQ);
+    
     const followUpTitle = `Follow up on ${lead.name} (${stage} stage)`;
-    const taskRef = doc(collection(db, "tasks"));
-    batch.set(taskRef, {
-      title: followUpTitle,
-      relatedTo: lead.id,
-      relatedType: "lead",
-      priority: "medium",
-      status: "not-started",
-      done: false,
-      createdAt: now,
-      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-      description: `Auto-generated follow up for stage: ${stage}`,
-      assignedTo: "" // can be picked up by lead manager
-    });
+
+    if (!taskSnap.empty) {
+      taskSnap.forEach(d => {
+        batch.update(doc(db, "tasks", d.id), {
+          title: followUpTitle,
+          description: `Auto-generated follow up for stage: ${stage}`,
+          updatedAt: now,
+          status: "not-started",
+          done: false
+        });
+      });
+    } else {
+      const taskRef = doc(collection(db, "tasks"));
+      batch.set(taskRef, {
+        title: followUpTitle,
+        relatedTo: lead.id,
+        relatedType: "lead",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
+        description: `Auto-generated follow up for stage: ${stage}`,
+        assignedTo: userId || "" 
+      });
+    }
 
     // Sync any associated proposal to the same status (e.g. 'meeting' or 'lead')
     // This will remove it from the Proposals page if it was there
@@ -522,6 +654,61 @@ export const PipelineService = {
       
       // Also trigger invoice drafting if manually completed
       await this.draftInvoiceForProject(projectId, userId, batch);
+    }
+
+    await batch.commit();
+  },
+
+  /**
+   * Universal Task Status Update logic (handles both completion and progress).
+   * Smartly updates parent project status if needed.
+   */
+  async handleTaskStatusUpdate(task: any, newStatus: string, userId: string) {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    
+    let prog = task.progress || 0;
+    if (newStatus === "not-started") prog = 0;
+    if (newStatus === "in-progress" && (prog === 0 || prog === 100)) prog = 25;
+    
+    const isCompleted = newStatus === "completed" || newStatus === "done";
+    const dbStatus = newStatus === "done" ? "completed" : newStatus;
+
+    batch.update(doc(db, "tasks", task.id), { 
+      status: dbStatus, 
+      done: isCompleted,
+      progress: prog,
+      updatedAt: now
+    });
+
+    if (task.relatedType === "project" && task.relatedTo) {
+      const projRef = doc(db, "projects", task.relatedTo);
+      const projSnap = await getDoc(projRef);
+      
+      if (projSnap.exists()) {
+        const pData = projSnap.data();
+        
+        if (isCompleted) {
+          const tasksQ = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
+          const tasksSnap = await getDocs(tasksQ);
+          
+          const allOtherTasksCompleted = tasksSnap.docs
+            .filter(d => d.id !== task.id)
+            .every(d => {
+              const s = d.data().status;
+              return s === "completed" || s === "done";
+            });
+
+          if (allOtherTasksCompleted) {
+            batch.update(projRef, { status: "completed", updatedAt: now });
+            await this.draftInvoiceForProject(task.relatedTo, userId, batch);
+          } else if (pData.status === "not-started") {
+             batch.update(projRef, { status: "in-progress", updatedAt: now });
+          }
+        } else if (dbStatus !== "not-started" && pData.status === "not-started") {
+          batch.update(projRef, { status: "in-progress", updatedAt: now });
+        }
+      }
     }
 
     await batch.commit();
@@ -632,9 +819,9 @@ export const PipelineService = {
         }];
       }
 
-      const subtotal = items.reduce((s: number, i: any) => s + (i.amount || 0), 0);
-      const tax = subtotal * 0.05;
-      const total = subtotal + tax;
+      const subtotal = Number(items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0));
+      const tax = Number((subtotal * 0.05).toFixed(2));
+      const total = Number((subtotal + tax).toFixed(2));
 
       batch.set(invRef, {
         clientId: projectData.clientId || "",
@@ -650,6 +837,8 @@ export const PipelineService = {
         subtotal: subtotal || 0,
         tax: tax || 0,
         total: total || 0,
+        paidAmount: Number(projectData.paid) || 0,
+        remainingAmount: total - (Number(projectData.paid) || 0),
         currency: currency || "AED",
         status: "unpaid",
         invoiceNumber: invoiceNumber || "",
@@ -663,5 +852,76 @@ export const PipelineService = {
     } catch (err) {
       console.error("Invoice Drafting Error:", err);
     }
+  },
+
+  /**
+   * Hard deletes a Client and cascades to delete all their Projects, Tasks, Proposals, Leads, Invoices, etc.
+   */
+  async deleteClientAndRelations(clientId: string) {
+    const batch = writeBatch(db);
+    
+    // 1. Delete Client
+    batch.delete(doc(db, "clients", clientId));
+
+    // 2. Find all projects to securely cascade their child entities
+    const projQ = query(collection(db, "projects"), where("clientId", "==", clientId));
+    const projSnap = await getDocs(projQ);
+    const projectIds: string[] = [];
+    projSnap.forEach(d => projectIds.push(d.id));
+
+    // 3. Delete all related data strictly by clientId
+    const collectionsToDelete = ["projects", "tasks", "invoices", "proposals", "leads", "manual_revenue"];
+    for (const collName of collectionsToDelete) {
+      const q = query(collection(db, collName), where("clientId", "==", clientId));
+      const snap = await getDocs(q);
+      snap.forEach(d => batch.delete(doc(db, collName, d.id)));
+    }
+
+    // 4. Cascade delete any child items by projectId (in case they lacked a clientId reference)
+    for (const pId of projectIds) {
+      const pTaskQ = query(collection(db, "tasks"), where("relatedTo", "==", pId));
+      const pTaskSnap = await getDocs(pTaskQ);
+      pTaskSnap.forEach(d => batch.delete(doc(db, "tasks", d.id)));
+      
+      const pInvQ = query(collection(db, "invoices"), where("projectId", "==", pId));
+      const pInvSnap = await getDocs(pInvQ);
+      pInvSnap.forEach(d => batch.delete(doc(db, "invoices", d.id)));
+    }
+
+    await batch.commit();
+  },
+
+  /**
+   * Hard deletes a Lead and cascades to delete generated proposals.
+   */
+  async deleteLeadAndRelations(leadId: string) {
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "leads", leadId));
+
+    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", leadId));
+    const propSnap = await getDocs(propQ);
+    propSnap.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
+  },
+
+  /**
+   * Hard deletes a Project and cascades to delete tasks and invoices.
+   */
+  async deleteProjectAndRelations(projectId: string) {
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "projects", projectId));
+
+    const taskQ = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
+    const taskSnap = await getDocs(taskQ);
+    taskSnap.forEach(d => batch.delete(d.ref));
+
+    const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
+    const invSnap = await getDocs(invQ);
+    invSnap.forEach(d => batch.delete(d.ref));
+
+    await batch.commit();
   }
 };

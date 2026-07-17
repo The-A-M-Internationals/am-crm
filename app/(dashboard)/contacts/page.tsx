@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import { X, Search, Phone, Mail } from "lucide-react";
 
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, addDoc } from "firebase/firestore";
@@ -72,7 +73,10 @@ export default function ContactsDirectoryPage() {
     <div className="p-8 pb-20 bg-slate-50 min-h-screen">
       <div className="flex items-center justify-between mb-8">
         <div className="page-header mb-0">
-          <h1 className="page-title text-3xl font-black text-[#0D1B3E] tracking-tight">Contacts Directory</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Contacts Directory
+          </h1>
           <p className="page-subtitle text-slate-500 mt-1">Global registry of clients, leads, and stakeholders.</p>
         </div>
         <button 
@@ -86,7 +90,7 @@ export default function ContactsDirectoryPage() {
       {/* Omnipresent Fuzzy Match Search Bar */}
       <div className="mb-8 relative w-full max-w-2xl">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <span className="text-slate-400 text-lg">🔍</span>
+          <span className="text-slate-400 text-lg"><Search className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
         </div>
         <input
           type="text"
@@ -113,7 +117,7 @@ export default function ContactsDirectoryPage() {
             <div key={contact.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#0D1B3E] to-[#1a3070] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-[#0D1B3E] flex items-center justify-center text-white font-bold text-lg shadow-inner flex-shrink-0">
                     {contact.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div>
@@ -125,7 +129,7 @@ export default function ContactsDirectoryPage() {
               
               <div className="space-y-2.5 mt-5">
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="w-5 flex justify-center text-slate-400">📞</span>
+                  <span className="w-5 flex justify-center text-slate-400"><Phone className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                   {contact.phone ? (
                     <a href={`tel:${contact.phone}`} className="font-medium text-slate-600 hover:text-blue-500 hover:underline transition-colors truncate">
                       {contact.phone}
@@ -135,7 +139,7 @@ export default function ContactsDirectoryPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="w-5 flex justify-center text-slate-400">✉️</span>
+                  <span className="w-5 flex justify-center text-slate-400"><Mail className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
                   {contact.email ? (
                     <a href={`mailto:${contact.email}`} className="font-medium text-slate-600 hover:text-blue-500 hover:underline transition-colors truncate">
                       {contact.email}
@@ -169,7 +173,7 @@ export default function ContactsDirectoryPage() {
                 onClick={() => setShowAddModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
-                ✕
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
               </button>
             </div>
             

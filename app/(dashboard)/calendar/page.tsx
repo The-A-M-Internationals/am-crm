@@ -1,4 +1,6 @@
 "use client";
+import { CalendarDays, X, Trash2 } from "lucide-react";
+
 
 import { useEffect, useState, useRef } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
@@ -295,7 +297,7 @@ export default function CalendarPage() {
           const html = `
             <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
               <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:32px;text-align:center;">
+                <div style="background:var(--navy);padding:32px;text-align:center;">
                   <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
                   <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
                 </div>
@@ -376,7 +378,10 @@ export default function CalendarPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div className="page-header mb-0">
-          <h1 className="page-title">Content Calendar</h1>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Content Calendar
+          </h1>
           <p className="page-subtitle">Schedule posts, reels, meetings & deadlines</p>
         </div>
         <div className="flex gap-3">
@@ -419,7 +424,7 @@ export default function CalendarPage() {
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${isToday ? "bg-[#0D1B3E] text-white" : ""}`}>{day}</div>
                   {dayEvents.slice(0, 3).map(ev => {
                     const t = typeInfo(ev.type);
-                    return <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded-md mb-0.5 truncate font-medium" style={{ background: t.bg, color: t.color }}>{ev.isHoliday ? "🏝️ " : ""}{ev.title}</div>;
+                    return <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded-md mb-0.5 truncate font-medium" style={{ background: t.bg, color: t.color }}>{ev.isHoliday ? <CalendarDays className="inline-block w-4 h-4 shrink-0 mr-1" />  : ""}{ev.title}</div>;
                   })}
                 </div>
               );
@@ -439,7 +444,7 @@ export default function CalendarPage() {
                   const t = typeInfo(ev.type);
                   return (
                     <div key={ev.id} className={`p-3 rounded-xl border ${ev.isHoliday ? "" : "cursor-pointer"}`} style={{ borderColor: t.color + "33", background: t.bg + "55" }} onClick={() => !ev.isHoliday && openEdit(ev)}>
-                      <p className="text-sm font-semibold">{ev.isHoliday ? "🏝️ " : ""}{ev.title}</p>
+                      <p className="text-sm font-semibold">{ev.isHoliday ? <CalendarDays className="inline-block w-4 h-4 shrink-0 mr-1" />  : ""}{ev.title}</p>
                       <div className="flex gap-2 mt-1">
                         <span className="badge" style={{ background: t.bg, color: t.color, fontSize: "10px" }}>{ev.type === "other" && ev.customType ? ev.customType : t.label}</span>
                         {ev.platform && <span className="text-xs text-gray-400">{ev.platform}</span>}
@@ -475,7 +480,7 @@ export default function CalendarPage() {
           <div className="modal-box" style={{ maxWidth: 480 }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="modal-title mb-0">{editing ? "Edit Event" : "Add Event"}</h2>
-              <button onClick={() => setShowModal(false)}>✕</button>
+              <button onClick={() => setShowModal(false)}><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
             </div>
             <div className="space-y-4">
               <div><label className="form-label">Title *</label><input className="form-input" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Event title" /></div>
@@ -538,7 +543,7 @@ export default function CalendarPage() {
             <div className="flex gap-3 mt-6">
               {editing && (
                 <button onClick={() => { deleteEvent(editing.id); setShowModal(false); }} className="py-2.5 px-4 rounded-xl border text-sm font-semibold text-red-500 border-red-200 hover:bg-red-50 transition-colors" title="Delete Event">
-                  🗑
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" />
                 </button>
               )}
               <button onClick={()=>setShowModal(false)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold">Cancel</button>
