@@ -236,7 +236,10 @@ export default function TasksPage() {
   }
 
   const filteredTasks = tasks.filter(t => {
-    if (viewMode === "team" && t.assignedTo === crmUser?.uid) return false;
+    if (viewMode === "team") {
+      if (t.assignedTo === crmUser?.uid) return false;
+      if (t.relatedType === "lead") return false; // Hide all lead follow-ups from team view
+    }
     if (typeFilter !== "all" && t.taskType !== typeFilter) return false;
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
@@ -363,14 +366,16 @@ export default function TasksPage() {
                           key={task.id} 
                           draggable
                           onDragStart={(e: any) => e.dataTransfer.setData("taskId", task.id)}
-                          onClick={() => {
-                            if (["follow-up", "meeting", "admin-action"].includes(task.taskType)) {
-                              openEdit(task);
+                          onClick={(e) => {
+                            if (task.relatedType === "lead") {
+                              return; // No specific page for lead follow-ups
+                            } else if (task.taskType === "system") {
+                              router.push(`/projects/${task.relatedTo}`);
                             } else {
                               router.push(`/tasks/${task.id}`);
                             }
                           }}
-                          className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all cursor-pointer group relative overflow-hidden flex flex-col"
+                          className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all group relative overflow-hidden flex flex-col ${task.relatedType === 'lead' ? 'cursor-default' : 'cursor-pointer'}`}
                         >
                           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
                           

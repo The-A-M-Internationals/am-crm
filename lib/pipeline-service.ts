@@ -561,7 +561,7 @@ export const PipelineService = {
   /**
    * Generic stage update for Meeting/Lead etc.
    */
-  async updateStage(lead: Lead, stage: string) {
+  async updateStage(lead: Lead, stage: string, userId?: string) {
     const batch = writeBatch(db);
     const email = normalizeEmail(lead.email);
     const now = new Date().toISOString();
@@ -572,21 +572,37 @@ export const PipelineService = {
       updatedAt: now 
     });
 
-    // Auto-create a follow-up task based on the new stage
+    // Find existing follow-up task to prevent duplicates
+    const taskQ = query(collection(db, "tasks"), where("relatedTo", "==", lead.id), where("relatedType", "==", "lead"));
+    const taskSnap = await getDocs(taskQ);
+    
     const followUpTitle = `Follow up on ${lead.name} (${stage} stage)`;
-    const taskRef = doc(collection(db, "tasks"));
-    batch.set(taskRef, {
-      title: followUpTitle,
-      relatedTo: lead.id,
-      relatedType: "lead",
-      priority: "medium",
-      status: "not-started",
-      done: false,
-      createdAt: now,
-      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-      description: `Auto-generated follow up for stage: ${stage}`,
-      assignedTo: "" // can be picked up by lead manager
-    });
+
+    if (!taskSnap.empty) {
+      taskSnap.forEach(d => {
+        batch.update(doc(db, "tasks", d.id), {
+          title: followUpTitle,
+          description: `Auto-generated follow up for stage: ${stage}`,
+          updatedAt: now,
+          status: "not-started",
+          done: false
+        });
+      });
+    } else {
+      const taskRef = doc(collection(db, "tasks"));
+      batch.set(taskRef, {
+        title: followUpTitle,
+        relatedTo: lead.id,
+        relatedType: "lead",
+        priority: "medium",
+        status: "not-started",
+        done: false,
+        createdAt: now,
+        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
+        description: `Auto-generated follow up for stage: ${stage}`,
+        assignedTo: userId || "" 
+      });
+    }
 
     // Sync any associated proposal to the same status (e.g. 'meeting' or 'lead')
     // This will remove it from the Proposals page if it was there

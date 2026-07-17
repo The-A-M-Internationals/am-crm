@@ -112,7 +112,7 @@ export default function LeadsPage() {
         await PipelineService.transitionToProposal(leadData, crmUser?.uid ?? "");
         router.push(`/proposals?editLead=${leadId}`);
       }
-      else await PipelineService.updateStage(leadData, form.stage);
+      else await PipelineService.updateStage(leadData as Lead, form.stage, crmUser?.uid);
 
       setShowModal(false);
       toast("Lead saved successfully!", "success");
@@ -135,7 +135,7 @@ export default function LeadsPage() {
         await PipelineService.transitionToProposal(lead, crmUser?.uid ?? "");
         router.push(`/proposals?editLead=${lead.id}`);
       }
-      else await PipelineService.updateStage(lead, stage);
+      else await PipelineService.updateStage(lead, stage, crmUser?.uid);
       toast(`Stage updated to ${stage}`, "success");
     } catch (error: any) {
       console.error("Error moving stage:", error);

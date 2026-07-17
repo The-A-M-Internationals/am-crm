@@ -277,9 +277,11 @@ function ProposalsContent() {
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-1">Pipeline Value</p>
-            <p className="text-2xl font-black text-amber-900 tracking-tight"><span className="text-sm font-bold text-amber-600/70 mr-1">AED</span>{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-2xl font-black text-amber-900 tracking-tight">{totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-xl text-amber-500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+            <span className="text-[11px] font-black">AED</span>
+          </div>
         </div>
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
