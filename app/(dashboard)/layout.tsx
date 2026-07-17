@@ -18,6 +18,10 @@ export default function DashboardLayout({
     if (!loading && !crmUser) {
       router.replace("/login");
     } else if (crmUser) {
+      if (crmUser.requiresPasswordChange) {
+        router.replace("/setup-password");
+        return;
+      }
       PipelineService.initGlobalPipelineListener();
     }
 

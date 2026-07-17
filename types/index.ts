@@ -43,6 +43,7 @@ export interface CRMUser {
   email: string;
   role: UserRole;
   avatar?: string;
+  requiresPasswordChange?: boolean;
   createdAt: string;
 }
 

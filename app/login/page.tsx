@@ -163,7 +163,24 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold mb-2 tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>Password</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-xs font-bold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>Password</label>
+                <button type="button" onClick={async () => {
+                  if (!email) {
+                    setError("Please enter your email first to reset password.");
+                    return;
+                  }
+                  try {
+                    const { sendPasswordResetEmail } = await import("firebase/auth");
+                    const { auth } = await import("@/lib/firebase");
+                    await sendPasswordResetEmail(auth, email);
+                    setError("");
+                    alert("Password reset email sent! Check your inbox.");
+                  } catch (err: any) {
+                    setError(err.message || "Error sending reset email.");
+                  }
+                }} className="text-xs font-bold hover:underline" style={{ color: "#C9A84C" }}>Forgot Password?</button>
+              </div>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required
                 className="w-full px-4 py-3.5 rounded-xl text-sm text-white outline-none transition-all duration-200"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1.5px solid rgba(255,255,255,0.08)" }}
