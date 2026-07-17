@@ -1,5 +1,5 @@
 "use client";
-import { X, Trash2, Hand, DollarSign, Mail, Pencil, User, Check, Globe, Key } from "lucide-react";
+import { X, Trash2, Hand, DollarSign, Mail, Pencil, User, Check, Globe, Key, MoreVertical } from "lucide-react";
 
 
 import { useEffect, useState } from "react";
@@ -89,6 +89,7 @@ export default function TeamPage() {
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
   const [editRole, setEditRole] = useState<UserRole>("employee");
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const isAdmin = crmUser?.role === "admin";
 
@@ -340,7 +341,7 @@ export default function TeamPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="text-sm" style={{ color: "#6b7280" }}>
+                    <td className="text-sm whitespace-normal break-words" style={{ color: "#6b7280", maxWidth: "220px" }}>
                       {member.email}
                     </td>
                     <td>
@@ -373,56 +374,63 @@ export default function TeamPage() {
                     </td>
                     <td>
                       {true && (
-                        <div className="flex items-center gap-2">
+                        <div className="relative">
                           <button
-                            title="Edit Member"
-                            onClick={() => {
-                              setEditingMember(member);
-                              setEditRole(member.role);
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
-                            style={{
-                              background: "#EEF4FF",
-                              color: "#2563EB",
-                              border: "1px solid #BFDBFE",
-                              cursor: "pointer",
-                            }}
+                            onClick={() => setActiveDropdown(activeDropdown === member.uid ? null : member.uid)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors"
                           >
-                            <Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /> Edit
+                            <MoreVertical className="w-5 h-5" />
                           </button>
 
-                          <button
-                            title="Reset Password"
-                            onClick={() => {
-                              setResettingMember(member);
-                              setTempPassword("");
-                              setResetError("");
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
-                            style={{
-                              background: "#FEF9C3",
-                              color: "#854D0E",
-                              border: "1px solid #FEF08A",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <svg className="inline-block w-4 h-4 shrink-0 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                            Reset Password
-                          </button>
-
-                          <button
-                            title="Remove Member"
-                            onClick={() => deleteMember(member.uid)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105"
-                            style={{
-                              background: "#FEF2F2",
-                              color: "#DC2626",
-                              border: "1px solid #FECACA",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Revoke
-                          </button>
+                          {activeDropdown === member.uid && (
+                            <>
+                              {/* Invisible overlay to catch outside clicks */}
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setActiveDropdown(null)}
+                              />
+                              
+                              <div className="absolute right-0 mt-1 w-44 whitespace-nowrap bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-20 overflow-hidden transform opacity-100 scale-100 transition-all origin-top-right">
+                                <button
+                                  onClick={() => {
+                                    setEditingMember(member);
+                                    setEditRole(member.role);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                  <Pencil className="w-4 h-4 mr-2 text-blue-500" />
+                                  Edit Access
+                                </button>
+                                
+                                <button
+                                  onClick={() => {
+                                    setResettingMember(member);
+                                    setTempPassword("");
+                                    setResetError("");
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                  <Key className="w-4 h-4 mr-2 text-amber-500" />
+                                  Reset Password
+                                </button>
+                                
+                                <div className="h-px bg-gray-100 my-1"></div>
+                                
+                                <button
+                                  onClick={() => {
+                                    deleteMember(member.uid);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Revoke Access
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </td>
