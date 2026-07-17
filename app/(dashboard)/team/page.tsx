@@ -715,6 +715,7 @@ export default function TeamPage() {
             </div>
           </div>
         </div>
+      )}
       {/* Reset Password Modal */}
       {resettingMember && (
         <div className="modal-overlay">
