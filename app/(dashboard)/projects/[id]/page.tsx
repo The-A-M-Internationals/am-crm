@@ -1174,7 +1174,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                       <button 
                         onClick={() => setShowDelegateModal(true)}
-                        className="px-4 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-opacity hover:opacity-90 bg-slate-900 text-white shadow-sm"
+                        className="px-4 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-opacity hover:opacity-90 shadow-sm"
+                        style={{ background: "#0D1B3E", color: "#FFFFFF" }}
                       >
                         + Delegate Task
                       </button>
