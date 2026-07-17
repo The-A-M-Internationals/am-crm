@@ -262,6 +262,16 @@ body.auth-page {
 }
 .form-input::placeholder { color: #9CA3AF; }
 
+/* Hide spin buttons for number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* ===================== TABLE ===================== */
 .crm-table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .crm-table th {

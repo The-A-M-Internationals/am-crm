@@ -26,8 +26,7 @@ const CURRENCIES = [
   { code: "AED", label: "AED (Dirham)" },
   { code: "USD", label: "USD (Dollar)" },
   { code: "INR", label: "INR (Rupee)" },
-  { code: "EUR", label: "EUR (Euro)" },
-  { code: "GBP", label: "GBP (Pound)" },
+
 ];
 
 const EMPTY_FORM = {
@@ -148,6 +147,7 @@ export default function ClientsPage() {
 
       if (editing) {
         await updateDoc(doc(db, "clients", editing.id), payload);
+        await PipelineService.syncClientDetails({ id: editing.id, ...payload } as any);
       } else {
         await addDoc(collection(db, "clients"), { ...payload, createdAt: now, active: true });
       }

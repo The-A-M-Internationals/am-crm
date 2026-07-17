@@ -1870,7 +1870,7 @@ export default function RevenuePage() {
                     <option value="AED">AED</option>
                     <option value="INR">INR</option>
                     <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
+
                   </select>
                 </div>
                 <div>
@@ -2048,7 +2048,7 @@ export default function RevenuePage() {
                     <option value="AED">AED</option>
                     <option value="INR">INR</option>
                     <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
+
                   </select>
                 </div>
                 <div>

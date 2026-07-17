@@ -33,8 +33,7 @@ const CURRENCIES = [
   { code: "AED", label: "AED (Dirham)" },
   { code: "USD", label: "USD (Dollar)" },
   { code: "INR", label: "INR (Rupee)" },
-  { code: "EUR", label: "EUR (Euro)" },
-  { code: "GBP", label: "GBP (Pound)" },
+
 ];
 
 import { getMasterTemplate } from "@/lib/proposal-templates";

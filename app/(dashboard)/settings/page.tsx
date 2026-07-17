@@ -346,7 +346,7 @@ export default function SettingsPage() {
                 <option value="AED">AED</option>
                 <option value="USD">USD</option>
                 <option value="INR">INR</option>
-                <option value="GBP">GBP</option>
+
               </select>
             </div>
             <div>

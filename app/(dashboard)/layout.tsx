@@ -20,6 +20,33 @@ export default function DashboardLayout({
     } else if (crmUser) {
       PipelineService.initGlobalPipelineListener();
     }
+
+    const handleWheel = (e: WheelEvent) => {
+      if (document.activeElement instanceof HTMLInputElement && document.activeElement.type === "number") {
+        e.preventDefault();
+        document.activeElement.blur();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement && 
+        document.activeElement.type === "number" &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown")
+      ) {
+        e.preventDefault();
+      }
+    };
+    
+    // Prevent accidental scroll-wheel changes on number inputs globally
+    // passive: false is REQUIRED to use preventDefault()
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+    
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [crmUser, loading, router]);
 
   // Full navy loading screen — no white flash

@@ -3,7 +3,7 @@ import { X, Trash2, ClipboardList, Search, Mail, Building2, DollarSign, Pencil, 
 
 
 import { useEffect, useState, useRef } from "react";
-import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Project, ProjectTask, ServiceTag, ProjectStatus, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -254,12 +254,31 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       });
 
       setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
+      setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
       setShowPaymentModal(false);
       setEditingPaymentId(null);
-      setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
     } catch (e) {
       console.error(e);
-      alert("Failed to save payment.");
+      alert("Failed to log payment");
+    } finally {
+      setLoggingPayment(false);
+    }
+  }
+
+  async function handleGenerateInvoice() {
+    if (!project) return;
+    if (!confirm("Are you sure you want to generate a draft invoice for this project?")) return;
+    
+    setLoggingPayment(true);
+    try {
+      const batch = writeBatch(db);
+      await PipelineService.draftInvoiceForProject(project.id, crmUser?.uid || "", batch);
+      await batch.commit();
+      
+      alert("Invoice drafted successfully! Redirecting...");
+      router.push("/invoice");
+    } catch (e: any) {
+      alert("Failed to generate invoice: " + e.message);
     } finally {
       setLoggingPayment(false);
     }
@@ -1079,76 +1098,81 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   ? Math.round(projectTasks.reduce((sum, t) => sum + getTaskProgressVal(t.status), 0) / totalTasksCount)
                   : 0;
 
-                let activePhaseIndex = 0;
-                if (progressMean <= 25) activePhaseIndex = 0;
-                else if (progressMean <= 50) activePhaseIndex = 1;
-                else if (progressMean <= 75) activePhaseIndex = 2;
-                else activePhaseIndex = 3;
-
-                const activeStyles = [
-                  "bg-blue-600 text-white shadow-sm border-blue-600",
-                  "bg-emerald-500 text-white shadow-sm border-emerald-500",
-                  "bg-purple-500 text-white shadow-sm border-purple-500",
-                  "bg-amber-500 text-white shadow-sm border-amber-500",
+                const phases = [
+                  { label: "Scope & Wireframes", range: "0-25%" },
+                  { label: "Component Eng.", range: "26-50%" },
+                  { label: "Logic & Integration", range: "51-75%" },
+                  { label: "Optimization & Handoff", range: "76-100%" }
                 ];
                 
-                const lineFillColor = [
-                  "bg-blue-500",
-                  "bg-emerald-500",
-                  "bg-purple-500",
-                  "bg-amber-500",
-                ];
+                // Determine active phase based on progress mean
+                let activeIndex = 0;
+                if (progressMean > 75) activeIndex = 3;
+                else if (progressMean > 50) activeIndex = 2;
+                else if (progressMean > 25) activeIndex = 1;
+                else activeIndex = 0;
 
                 return (
-                  <div className="bg-white border border-slate-200/60 rounded-xl p-6 shadow-sm">
-                    <h3 className="text-sm font-bold mb-4" style={{ color: "#0D1B3E" }}>Macro-Phase Progress Rail</h3>
+                  <div className="bg-white border border-slate-200/70 rounded-2xl p-8 shadow-sm mb-6 transition-all hover:shadow-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-12">
+                      <div>
+                        <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Project Timeline</h3>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Macro-phase progress overview</p>
+                      </div>
+                      <div className="mt-4 sm:mt-0 px-4 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-black tracking-widest border border-blue-100 shadow-inner">
+                        {progressMean}% COMPLETE
+                      </div>
+                    </div>
                     
-                    <div className="relative flex items-center justify-between mt-10 mb-16 px-4 md:px-8">
-                      {/* Background Connecting Line */}
-                      <div className="absolute top-4 left-8 right-8 h-1 bg-slate-100 z-0 rounded-full" />
+                    <div className="relative mt-8 mb-16 px-4 md:px-8">
+                      {/* Base Track */}
+                      <div className="absolute top-5 left-8 right-8 h-1.5 bg-slate-100 rounded-full shadow-inner" />
                       
-                      {/* Active Fill Connecting Line */}
+                      {/* Active Fill Track */}
                       <div 
-                        className={`absolute left-8 top-4 h-1 z-0 transition-all duration-500 rounded-full ${lineFillColor[activePhaseIndex]}`} 
+                        className="absolute top-5 left-8 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ease-out shadow-sm" 
                         style={{ width: `calc(${Math.max(0, Math.min(100, progressMean))}% - 4rem)` }}
                       />
                       
-                      {[
-                        { label: "Scope & Wireframes", range: "0-25%" },
-                        { label: "Component Eng.", range: "26-50%" },
-                        { label: "Logic & Integration", range: "51-75%" },
-                        { label: "Optimization & Handoff", range: "76-100%" }
-                      ].map((phase, idx) => {
-                        const isActive = idx === activePhaseIndex;
-                        const isCompleted = progressMean > (idx === 0 ? 25 : idx === 1 ? 50 : idx === 2 ? 75 : 100);
-                        return (
-                          <div key={idx} className="flex flex-col items-center relative z-10">
-                            {/* Circle Node */}
-                            <div 
-                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-all duration-300 relative z-10 ${
-                                isActive 
-                                  ? activeStyles[idx]
-                                  : isCompleted 
-                                    ? "bg-slate-700 border-slate-700 text-white"
-                                    : "bg-white border-slate-200 text-slate-400"
-                              }`}
-                            >
-                              {idx + 1}
+                      <div className="relative flex justify-between items-center z-10">
+                        {phases.map((phase, idx) => {
+                          const isCompleted = progressMean >= (idx + 1) * 25 || (idx === 0 && progressMean > 0);
+                          const isActive = idx === activeIndex;
+
+                          return (
+                            <div key={idx} className="relative flex flex-col items-center w-10">
+                              {/* Node Circle */}
+                              <div 
+                                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-500 ring-4 bg-white ${
+                                  isCompleted
+                                    ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white ring-blue-50 shadow-md shadow-blue-500/20 border-0"
+                                    : isActive
+                                      ? "text-indigo-600 ring-indigo-50 border-2 border-indigo-500 shadow-lg shadow-indigo-500/30 scale-110"
+                                      : "text-slate-400 ring-transparent border-2 border-slate-200"
+                                }`}
+                              >
+                                {isCompleted && !isActive ? (
+                                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  idx + 1
+                                )}
+                              </div>
+                              
+                              {/* Label */}
+                              <div className="absolute top-14 left-1/2 -translate-x-1/2 w-32 text-center pt-2">
+                                <p className={`text-xs font-bold tracking-wide transition-colors duration-300 ${
+                                  isActive ? 'text-indigo-700' : isCompleted ? 'text-slate-800' : 'text-slate-400'
+                                }`}>
+                                  {phase.label}
+                                </p>
+                                <p className="text-[10px] font-semibold text-slate-400 mt-1 tracking-wider">{phase.range}</p>
+                              </div>
                             </div>
-                            {/* Label Vertical Stack */}
-                            <div className="absolute top-10 left-1/2 -translate-x-1/2 text-center w-32 flex flex-col items-center justify-start pt-1">
-                              <p className={`text-[10px] font-semibold tracking-wide leading-tight ${isActive ? 'text-slate-800' : isCompleted ? 'text-slate-600' : 'text-slate-400'}`}>
-                                {phase.label}
-                              </p>
-                              <p className="text-[9px] font-medium text-slate-400 mt-0.5">{phase.range}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="mt-8 text-center text-xs font-semibold text-slate-500 border-t pt-4 border-slate-50">
-                      Overall Progress Mean: <span className="text-blue-600 font-bold text-sm ml-1">{progressMean}%</span> based on {totalTasksCount} tasks.
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1486,6 +1510,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
                       >
                         <span className="text-sm"><Pencil className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Edit Financials
+                      </button>
+                      <button 
+                        onClick={handleGenerateInvoice}
+                        className="w-full text-left px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3 transition-colors"
+                      >
+                        <span className="text-sm"><ClipboardList className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Generate Invoice
                       </button>
                       <button 
                         onClick={openReminder}

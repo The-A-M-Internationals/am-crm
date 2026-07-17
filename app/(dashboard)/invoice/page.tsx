@@ -476,14 +476,14 @@ export default function InvoicePage() {
         {[
           {
             label: "Total Invoiced",
-            value: `AED ${invoices.reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`,
+            value: `AED ${invoices.reduce((s, i) => s + (Number(i.total) || 0), 0).toLocaleString()}`,
             color: "#0D1B3E",
           },
           {
             label: "Paid",
             value: `AED ${invoices
               .filter((i) => i.status === "paid")
-              .reduce((s, i) => s + (i.total || 0), 0)
+              .reduce((s, i) => s + (Number(i.total) || 0), 0)
               .toLocaleString()}`,
             color: "#065f46",
           },
@@ -491,7 +491,7 @@ export default function InvoicePage() {
             label: "Outstanding",
             value: `AED ${invoices
               .filter((i) => i.status !== "paid")
-              .reduce((s, i) => s + (i.total || 0), 0)
+              .reduce((s, i) => s + (Number(i.total) || 0), 0)
               .toLocaleString()}`,
             color: "#ef4444",
           },
@@ -859,8 +859,7 @@ export default function InvoicePage() {
                   >
                     <option value="AED">AED</option>
                     <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
+
                     <option value="INR">INR</option>
                     <option value="SAR">SAR</option>
                     <option value="QAR">QAR</option>

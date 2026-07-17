@@ -173,7 +173,20 @@ export const PipelineService = {
     // 1. Update Projects
     const projQ = query(collection(db, "projects"), where("clientId", "==", client.id));
     const projSnap = await getDocs(projQ);
-    projSnap.forEach(d => batch.update(d.ref, { clientName: newCompany, clientEmail: newEmail, updatedAt: now }));
+    projSnap.forEach(d => {
+      const updateData: any = { 
+        clientName: newCompany, 
+        clientEmail: newEmail, 
+        updatedAt: now 
+      };
+      if (client.budget !== undefined) updateData.budget = client.budget;
+      if (client.paid !== undefined) updateData.paid = client.paid;
+      if (client.due !== undefined) updateData.due = client.due;
+      if (client.remaining !== undefined) updateData.remaining = client.remaining;
+      if (client.currency !== undefined) updateData.currency = client.currency;
+      
+      batch.update(d.ref, updateData);
+    });
 
     // 2. Update Tasks
     const taskQ = query(collection(db, "tasks"), where("clientId", "==", client.id));
@@ -790,9 +803,9 @@ export const PipelineService = {
         }];
       }
 
-      const subtotal = items.reduce((s: number, i: any) => s + (i.amount || 0), 0);
-      const tax = subtotal * 0.05;
-      const total = subtotal + tax;
+      const subtotal = Number(items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0));
+      const tax = Number((subtotal * 0.05).toFixed(2));
+      const total = Number((subtotal + tax).toFixed(2));
 
       batch.set(invRef, {
         clientId: projectData.clientId || "",
@@ -808,6 +821,8 @@ export const PipelineService = {
         subtotal: subtotal || 0,
         tax: tax || 0,
         total: total || 0,
+        paidAmount: Number(projectData.paid) || 0,
+        remainingAmount: total - (Number(projectData.paid) || 0),
         currency: currency || "AED",
         status: "unpaid",
         invoiceNumber: invoiceNumber || "",
