@@ -24,6 +24,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const PIE_COLORS = [
   "#0D1B3E",
@@ -68,22 +72,22 @@ const EMPTY_EXP = {
   date: "",
 };
 
-const EMPTY_REV = { 
-  description: "", 
-  amount: "", 
-  category: "Manual Entry", 
+const EMPTY_REV = {
+  description: "",
+  amount: "",
+  category: "Manual Entry",
   date: "",
   clientName: "",
   paymentMethod: "Bank Transfer",
   status: "received",
   notes: "",
-  currency: "AED"
+  currency: "AED",
 };
 
 const PAY_METHODS = ["Bank Transfer", "Cash", "Card", "Stripe", "Other"];
 const REV_STATUSES = [
   { key: "received", label: "Received", color: "#16a34a", bg: "#f0fdf4" },
-  { key: "pending",  label: "Pending",  color: "#d97706", bg: "#fffbeb" }
+  { key: "pending", label: "Pending", color: "#d97706", bg: "#fffbeb" },
 ];
 
 export default function RevenuePage() {
@@ -92,8 +96,10 @@ export default function RevenuePage() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [manualRev, setManualRev] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"expenses" | "manual_revenue">("expenses");
-  
+  const [activeTab, setActiveTab] = useState<"expenses" | "manual_revenue">(
+    "expenses",
+  );
+
   const [showExp, setShowExp] = useState(false);
   const [editingExp, setEditingExp] = useState<any | null>(null);
   const [expForm, setExpForm] = useState({ ...EMPTY_EXP });
@@ -101,9 +107,15 @@ export default function RevenuePage() {
   const [showRev, setShowRev] = useState(false);
   const [editingRev, setEditingRev] = useState<any | null>(null);
   const [revForm, setRevForm] = useState({ ...EMPTY_REV });
+  const [revErrors, setRevErrors] = useState<{
+    clientName?: string;
+    description?: string;
+    amount?: string;
+  }>({});
 
   const [saving, setSaving] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [rates, setRates] = useState<Record<string, number>>({
     AED: 1,
     USD: 3.67,
@@ -113,10 +125,13 @@ export default function RevenuePage() {
 
   // Wait to do return until after hooks
 
+  // Fetching exchange rates for currency conversion
   async function fetchExchangeRates() {
     try {
       const res = await fetch("https://api.exchangerate-api.com/v4/latest/AED");
+
       const data = await res.json();
+
       setRates({
         AED: 1,
         USD: 1 / data.rates.USD,
@@ -139,9 +154,27 @@ export default function RevenuePage() {
         getDocs(collection(db, "expenses")),
         getDocs(collection(db, "manual_revenue")),
       ]);
-      setInvoices(invSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setExpenses(expSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setManualRev(revSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      setInvoices(
+        invSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })),
+      );
+
+      setExpenses(
+        expSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })),
+      );
+
+      setManualRev(
+        revSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })),
+      );
     } finally {
       setLoading(false);
     }
@@ -162,11 +195,19 @@ export default function RevenuePage() {
             className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
             style={{ background: "#fee2e2" }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#991b1b"
+              strokeWidth="2"
+            >
               <rect x="3" y="11" width="18" height="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           </div>
+
           <p className="text-sm font-semibold" style={{ color: "#1a1a2e" }}>
             Admin Access Only
           </p>
@@ -174,25 +215,31 @@ export default function RevenuePage() {
       </div>
     );
   }
-
   // Calculations
   const paidInvoices = invoices.filter((i) => i.status === "paid");
-  const invoiceRevenue = paidInvoices.reduce((s, i) => s + (Number(i.total) || 0), 0);
+
+  const invoiceRevenue = paidInvoices.reduce(
+    (s, i) => s + (Number(i.total) || 0),
+    0,
+  );
+
   const manualRevenueTotal = manualRev
-    .filter(r => r.status === "received")
-    .reduce((s, r) => s + convertToAED(Number(r.amount) || 0, r.currency || "AED"), 0);
-  
+    .filter((r) => r.status === "received")
+    .reduce(
+      (s, r) => s + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+      0,
+    );
+
   const totalRevenue = invoiceRevenue + manualRevenueTotal;
 
   const totalPending = invoices
     .filter((i) => i.status !== "paid")
     .reduce((s, i) => s + (Number(i.total) || 0), 0);
-  
   const totalExpenses = expenses.reduce(
     (s, e) => s + convertToAED(Number(e.amount) || 0, e.currency || "AED"),
     0,
   );
-  
+
   const netProfit = totalRevenue - totalExpenses;
   const profitMargin =
     totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
@@ -200,21 +247,29 @@ export default function RevenuePage() {
   const year = new Date().getFullYear();
   const monthlyData = MONTHS.map((month, idx) => {
     const invRev = paidInvoices
+
       .filter((i) => {
         const d = new Date(i.createdAt);
         return d.getMonth() === idx && d.getFullYear() === year;
       })
       .reduce((s, i) => s + (Number(i.total) || 0), 0);
-      
+
     const manRev = manualRev
       .filter((r) => {
         const d = new Date(r.date || r.createdAt);
-        return d.getMonth() === idx && d.getFullYear() === year && r.status === "received";
+        return (
+          d.getMonth() === idx &&
+          d.getFullYear() === year &&
+          r.status === "received"
+        );
       })
-      .reduce((s, r) => s + convertToAED(Number(r.amount) || 0, r.currency || "AED"), 0);
+      .reduce(
+        (s, r) => s + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+        0,
+      );
 
     const rev = invRev + manRev;
-    
+
     const exp = expenses
       .filter((e) => {
         const d = new Date(e.date || e.createdAt);
@@ -238,25 +293,27 @@ export default function RevenuePage() {
       (clientMap[i.clientName] || 0) + (Number(i.total) || 0);
   });
   manualRev
-    .filter(r => r.status === "received" && r.clientName)
+    .filter((r) => r.status === "received" && r.clientName)
     .forEach((r) => {
       clientMap[r.clientName] =
-        (clientMap[r.clientName] || 0) + convertToAED(Number(r.amount) || 0, r.currency || "AED");
+        (clientMap[r.clientName] || 0) +
+        convertToAED(Number(r.amount) || 0, r.currency || "AED");
     });
 
   const clients = Array.from(
-    new Set([
-      ...invoices.map((i) => i.clientName),
-      ...expenses.map((e) => e.clientName),
-      ...manualRev.map((r) => r.clientName)
-    ].filter(Boolean))
+    new Set(
+      [
+        ...invoices.map((i) => i.clientName),
+        ...expenses.map((e) => e.clientName),
+        ...manualRev.map((r) => r.clientName),
+      ].filter(Boolean),
+    ),
   );
 
   const clientData = Object.entries(clientMap)
     .map(([name, value]) => ({ name, value: Math.round(value) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
-
   const svcLabels: Record<string, string> = {
     "digital-marketing": "Digital Mktg",
     "ui-ux": "UI/UX",
@@ -271,26 +328,31 @@ export default function RevenuePage() {
     const l = svcLabels[i.service] || i.service || "Other";
     svcMap[l] = (svcMap[l] || 0) + (Number(i.total) || 0);
   });
-
+  // Client Financial Calculation
   const selectedClientInvoices = selectedClient
     ? invoices.filter((inv) => inv.clientName === selectedClient)
     : [];
-  
+
   const clientBudget = selectedClientInvoices.reduce(
     (sum, inv) => sum + (Number(inv.total) || 0),
     0,
   );
-  const clientPaid = selectedClientInvoices
-    .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0) + 
+
+  const clientPaid =
+    selectedClientInvoices
+      .filter((inv) => inv.status === "paid")
+      .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0) +
     manualRev
       .filter((r) => r.clientName === selectedClient && r.status === "received")
-      .reduce((sum, r) => sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"), 0);
+      .reduce(
+        (sum, r) =>
+          sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+        0,
+      );
 
   const clientPending = selectedClientInvoices
     .filter((inv) => inv.status !== "paid")
     .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
-
   const clientExpenses = selectedClient
     ? expenses.filter((e) => e.clientName === selectedClient)
     : [];
@@ -299,7 +361,7 @@ export default function RevenuePage() {
     (sum, e) => sum + convertToAED(Number(e.amount) || 0, e.currency || "AED"),
     0,
   );
-  
+
   const serviceData = Object.entries(svcMap).map(([name, value]) => ({
     name,
     value: Math.round(value),
@@ -377,42 +439,593 @@ export default function RevenuePage() {
     await deleteDoc(doc(db, "expenses", id));
     fetchData();
   }
+  const downloadExcelReport = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const summaryData = [
+      {
+        TotalRevenue: totalRevenue,
+        PendingRevenue: totalPending,
+        TotalExpenses: totalExpenses,
+        NetProfit: netProfit,
+        ProfitMargin: `${profitMargin}%`,
+      },
+    ];
+
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    const invoiceSheet = XLSX.utils.json_to_sheet(invoices);
+    const expenseSheet = XLSX.utils.json_to_sheet(expenses);
+    const monthlySheet = XLSX.utils.json_to_sheet(monthlyData);
+
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+    XLSX.utils.book_append_sheet(workbook, invoiceSheet, "Invoices");
+    XLSX.utils.book_append_sheet(workbook, expenseSheet, "Expenses");
+    XLSX.utils.book_append_sheet(workbook, monthlySheet, "Monthly");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(
+      blob,
+      `Revenue_Report_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
+  };
+  const downloadPDFReport = async () => {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    // Load Logo
+
+    const response = await fetch("/logo.jpg");
+    const blob = await response.blob();
+
+    const reader = new FileReader();
+
+    const logoData = await new Promise<string>((resolve) => {
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+
+    // Header Background
+    doc.setFillColor(13, 27, 62);
+    doc.rect(0, 0, 210, 35, "F");
+
+    // Gold Line
+    doc.setFillColor(201, 168, 76);
+    doc.rect(0, 35, 210, 2, "F");
+
+    // Company Logo
+    doc.addImage(logoData, "JPEG", 15, 8, 45, 18);
+
+    // Report Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+
+    doc.text("REVENUE REPORT", 105, 18, {
+      align: "center",
+    });
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+
+    doc.text("Financial Performance Dashboard", 105, 25, {
+      align: "center",
+    });
+
+    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 31, {
+      align: "center",
+    });
+
+    // Executive Summary Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Executive Summary", 15, 48);
+
+    // Card 1 - Revenue
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(15, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(201, 168, 76);
+    doc.roundedRect(15, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Revenue", 20, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(201, 168, 76);
+
+    doc.text(`AED ${totalRevenue.toLocaleString()}`, 20, 75);
+    // Card 2 - Expenses
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(62, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(220, 53, 69);
+    doc.roundedRect(62, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Expenses", 67, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(220, 53, 69);
+
+    doc.text(`AED ${totalExpenses.toLocaleString()}`, 67, 75);
+    // Card 3 - Profit
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(109, 55, 42, 28, 3, 3, "F");
+
+    doc.setDrawColor(34, 197, 94);
+    doc.roundedRect(109, 55, 42, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Net Profit", 114, 64);
+
+    doc.setFontSize(14);
+    doc.setTextColor(34, 197, 94);
+
+    doc.text(`AED ${netProfit.toLocaleString()}`, 114, 75);
+
+    // Card 4 - Margin
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(156, 55, 39, 28, 3, 3, "F");
+
+    doc.setDrawColor(13, 27, 62);
+    doc.roundedRect(156, 55, 39, 28, 3, 3);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text("Margin", 161, 64);
+
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text(`${profitMargin}%`, 161, 75);
+
+    // Client Financial Summary Title
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Client Financial Summary", 15, 98);
+
+    // =====================================
+    // Build Client Table Data
+    // =====================================
+
+    const clientRows = clients.map((client) => {
+      const invoiceRevenue = paidInvoices
+        .filter((i) => i.clientName === client)
+        .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+
+      const manualRevenue = manualRev
+        .filter((r) => r.clientName === client && r.status === "received")
+        .reduce(
+          (sum, r) =>
+            sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+          0,
+        );
+
+      const totalRevenue = invoiceRevenue + manualRevenue;
+
+      const expense = expenses
+        .filter((e) => e.clientName === client)
+        .reduce(
+          (sum, e) =>
+            sum + convertToAED(Number(e.amount) || 0, e.currency || "AED"),
+          0,
+        );
+
+      const profit = totalRevenue - expense;
+
+      const margin =
+        totalRevenue > 0
+          ? `${Math.round((profit / totalRevenue) * 100)}%`
+          : "0%";
+
+      return [
+        client,
+        `AED ${totalRevenue.toLocaleString()}`,
+        `AED ${expense.toLocaleString()}`,
+        `AED ${profit.toLocaleString()}`,
+        margin,
+      ];
+    });
+
+    // =====================================
+    // Client Financial Table
+    // =====================================
+
+    autoTable(doc, {
+      startY: 103,
+
+      head: [["Client", "Revenue", "Expense", "Profit", "Margin"]],
+
+      body: clientRows,
+
+      theme: "grid",
+
+      headStyles: {
+        fillColor: [13, 27, 62],
+        textColor: 255,
+        fontStyle: "bold",
+        halign: "center",
+        valign: "middle",
+        fontSize: 10,
+      },
+
+      bodyStyles: {
+        fontSize: 9,
+        textColor: 60,
+        halign: "center",
+        valign: "middle",
+      },
+
+      alternateRowStyles: {
+        fillColor: [247, 247, 247],
+      },
+
+      styles: {
+        cellPadding: 4,
+        lineColor: [230, 230, 230],
+        lineWidth: 0.2,
+      },
+
+      columnStyles: {
+        0: {
+          halign: "left",
+          cellWidth: 50,
+        },
+
+        1: {
+          cellWidth: 35,
+        },
+
+        2: {
+          cellWidth: 35,
+        },
+
+        3: {
+          cellWidth: 35,
+        },
+
+        4: {
+          cellWidth: 25,
+        },
+      },
+    });
+    const clientTableEnd = (doc as any).lastAutoTable.finalY + 12;
+
+    // =====================================
+    // Revenue Breakdown
+    // =====================================
+
+    const invoiceRevenueAED = paidInvoices.reduce(
+      (sum, invoice) => sum + (Number(invoice.total) || 0),
+      0,
+    );
+
+    const manualRevenueAED = manualRev
+      .filter((r) => r.status === "received")
+      .reduce(
+        (sum, r) =>
+          sum + convertToAED(Number(r.amount) || 0, r.currency || "AED"),
+        0,
+      );
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Revenue Breakdown", 15, clientTableEnd + 2);
+
+    autoTable(doc, {
+      startY: clientTableEnd + 8,
+      head: [["Revenue Source", "Amount"]],
+      body: [
+        ["Invoice Revenue", `AED ${invoiceRevenueAED.toLocaleString()}`],
+        ["Manual Revenue", `AED ${manualRevenueAED.toLocaleString()}`],
+        ["Total Revenue", `AED ${totalRevenue.toLocaleString()}`],
+      ],
+      theme: "grid",
+      headStyles: {
+        fillColor: [13, 27, 62],
+        textColor: 255,
+      },
+    });
+
+    const revenueTableEnd = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = revenueTableEnd;
+    // =====================================
+    // Financial Highlights
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Financial Highlights", 15, finalY);
+
+    // Background Box
+    doc.setFillColor(248, 248, 248);
+    doc.roundedRect(15, finalY + 5, 180, 40, 3, 3, "F");
+
+    // Left Column
+    doc.text("Paid Invoices", 22, finalY + 15);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(paidInvoices.length.toString(), 22, finalY + 24);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Pending Revenue", 22, finalY + 32);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(245, 158, 11);
+
+    doc.text(`AED ${totalPending.toLocaleString()}`, 22, finalY + 40);
+
+    // ============================
+    // Middle Column
+    // ============================
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Active Clients", 82, finalY + 15);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(59, 130, 246);
+
+    doc.text(clients.length.toString(), 82, finalY + 24);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Expense Records", 82, finalY + 32);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(239, 68, 68);
+
+    doc.text(expenses.length.toString(), 82, finalY + 40);
+
+    // ============================
+    // Right Column
+    // ============================
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Profit Margin", 145, finalY + 15);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+
+    if (profitMargin >= 50) {
+      doc.setTextColor(34, 197, 94);
+    } else if (profitMargin >= 20) {
+      doc.setTextColor(245, 158, 11);
+    } else {
+      doc.setTextColor(239, 68, 68);
+    }
+
+    doc.text(`${profitMargin}%`, 145, finalY + 25);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+
+    doc.text("Overall Business Performance", 145, finalY + 34);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+
+    if (profitMargin >= 50) {
+      doc.setTextColor(34, 197, 94);
+      doc.text("Excellent", 145, finalY + 40);
+    } else if (profitMargin >= 20) {
+      doc.setTextColor(245, 158, 11);
+      doc.text("Good", 145, finalY + 40);
+    } else {
+      doc.setTextColor(239, 68, 68);
+      doc.text("Needs Attention", 145, finalY + 40);
+    }
+    // =====================================
+    // Executive Notes
+    // =====================================
+
+    const notesY = finalY + 50;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("Executive Notes", 15, notesY);
+
+    doc.setFillColor(255, 252, 243);
+    doc.roundedRect(15, notesY + 5, 180, 38, 3, 3, "F");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+
+    doc.text(
+      "• This report summarizes revenue, expenses and profitability based on paid invoices.",
+      20,
+      notesY + 16,
+    );
+
+    doc.text(
+      "• Revenue values are normalized into AED for consistent financial reporting.",
+      20,
+      notesY + 24,
+    );
+
+    doc.text(
+      "• Generated automatically from the A&M International CRM.",
+      20,
+      notesY + 32,
+    );
+
+    doc.text(
+      "• Intended for Management, Finance Team and Founders.",
+      20,
+      notesY + 40,
+    );
+
+    // Position for Footer
+    const footerY = notesY + 55;
+    // =====================================
+    // Footer Line
+    // =====================================
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(15, footerY, 195, footerY);
+
+    // =====================================
+    // Footer Left
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(13, 27, 62);
+
+    doc.text("A&M International", 15, footerY + 8);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+
+    doc.text("Revenue & Financial Report", 15, footerY + 13);
+
+    // =====================================
+    // Footer Center
+    // =====================================
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+
+    doc.text("Generated automatically by CRM", 105, footerY + 11, {
+      align: "center",
+    });
+
+    // =====================================
+    // Footer Right
+    // =====================================
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(239, 68, 68);
+
+    doc.text("CONFIDENTIAL", 195, footerY + 8, {
+      align: "right",
+    });
+
+    // =====================================
+    // Page Number
+    // =====================================
+
+    const totalPages = doc.getNumberOfPages();
+
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+
+      doc.setFontSize(8);
+
+      doc.setTextColor(150);
+
+      doc.text(`Page ${i} of ${totalPages}`, 195, 290, {
+        align: "right",
+      });
+    }
+
+    // =====================================
+    // Save PDF
+    // =====================================
+
+    doc.save(`Revenue_Report_${new Date().toISOString().split("T")[0]}.pdf`);
+  };
 
   // Revenue helpers
   function openAddRevenue() {
     setEditingRev(null);
     setRevForm({ ...EMPTY_REV });
+    setRevErrors({});
     setShowRev(true);
   }
 
   function openEditRevenue(r: any) {
     setEditingRev(r);
-    setRevForm({ 
-      description: r.description, 
-      amount: String(r.amount), 
-      category: r.category ?? "Manual Entry", 
+    setRevForm({
+      description: r.description,
+      amount: String(r.amount),
+      category: r.category ?? "Manual Entry",
       date: r.date ?? "",
       clientName: r.clientName ?? "",
       paymentMethod: r.paymentMethod ?? "Bank Transfer",
       status: r.status ?? "received",
       notes: r.notes ?? "",
-      currency: r.currency || "AED"
+      currency: r.currency || "AED",
     });
+    setRevErrors({});
     setShowRev(true);
   }
 
   async function saveRevenue() {
-    if (!revForm.description || !revForm.amount) return;
+    const errors: { clientName?: string; description?: string; amount?: string } = {};
+    if (!revForm.clientName || !revForm.clientName.trim()) {
+      errors.clientName = "Please fill this field";
+    }
+    if (!revForm.description || !revForm.description.trim()) {
+      errors.description = "Please fill this field";
+    }
+    if (!revForm.amount || String(revForm.amount).trim() === "") {
+      errors.amount = "Please fill this field";
+    }
+    if (Object.keys(errors).length > 0) {
+      setRevErrors(errors);
+      return;
+    }
+    setRevErrors({});
     setSaving(true);
     try {
-      const payload = { 
-        ...revForm, 
-        amount: Number(revForm.amount)
+      const payload = {
+        ...revForm,
+        amount: Number(revForm.amount),
       };
       if (editingRev) {
         await updateDoc(doc(db, "manual_revenue", editingRev.id), payload);
       } else {
-        await addDoc(collection(db, "manual_revenue"), { ...payload, createdAt: new Date().toISOString() });
+        await addDoc(collection(db, "manual_revenue"), {
+          ...payload,
+          createdAt: new Date().toISOString(),
+        });
       }
       setShowRev(false);
       setRevForm({ ...EMPTY_REV });
@@ -430,7 +1043,7 @@ export default function RevenuePage() {
   }
 
   const getRevStatusBadge = (statusKey: string) => {
-    return REV_STATUSES.find(s => s.key === statusKey) || REV_STATUSES[0];
+    return REV_STATUSES.find((s) => s.key === statusKey) || REV_STATUSES[0];
   };
 
   return (
@@ -443,10 +1056,53 @@ export default function RevenuePage() {
             Financial overview — Admin only · {year}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={openAddRevenue} className="btn-secondary" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openAddRevenue}
+            className="btn-secondary"
+            style={{ borderColor: "#22c55e", color: "#22c55e" }}
+          >
             <span className="text-base">+</span> Add Revenue/Profit
           </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              className="px-4 py-2 rounded-xl text-white font-semibold"
+              style={{ background: "#22c55e" }}
+            >
+              📥 Download Report
+            </button>
+
+            {showDownloadMenu && (
+              <div
+                className="absolute right-0 mt-2 bg-white border rounded-xl shadow-lg z-50"
+                style={{ minWidth: "180px" }}
+              >
+                <button
+                  onClick={() => {
+                    downloadExcelReport();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                >
+                  📊 Excel Report
+                </button>
+
+                <button
+                  onClick={() => {
+                    downloadPDFReport();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-gray-100"
+                >
+                  📄 PDF Report
+                </button>
+              </div>
+            )}
+          </div>
+
           <button onClick={openAddExpense} className="btn-primary">
             <span className="text-base">+</span> Add Expense
           </button>
@@ -460,7 +1116,7 @@ export default function RevenuePage() {
             label: "Total Revenue",
             value: `AED ${totalRevenue.toLocaleString()}`,
             color: "#C9A84C",
-            sub: `${paidInvoices.length} paid invoices + manual`,
+            sub: `${paidInvoices.length} paid invoices + ${manualRev.filter((r) => r.status === "received").length} manual`,
           },
           {
             label: "Pending",
@@ -524,13 +1180,16 @@ export default function RevenuePage() {
       ) : (
         <>
           <div className="crm-card mb-6">
-            <label className="form-label font-semibold">Select Client Overview</label>
+            <label className="form-label font-semibold">
+              Select Client Overview
+            </label>
             <select
               className="form-input"
               value={selectedClient}
               onChange={(e) => setSelectedClient(e.target.value)}
             >
               <option value="">Select Client</option>
+
               {clients.map((client) => (
                 <option key={client} value={client}>
                   {client}
@@ -543,6 +1202,7 @@ export default function RevenuePage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="stat-card">
                 <p className="text-xs">Invoice Budget</p>
+
                 <p className="text-lg font-bold">
                   AED {clientBudget.toLocaleString()}
                 </p>
@@ -563,21 +1223,30 @@ export default function RevenuePage() {
               </div>
 
               <div className="stat-card">
-                <p className="text-xs">Client Expenses</p>
-                <p className="text-lg font-bold" style={{ color: "#ef4444" }}>
-                  AED {totalClientExpenses.toLocaleString()}
-                </p>
+                <div>
+                  <p className="text-xs">Total Invoices</p>
+                  <p className="text-lg font-bold">
+                    {selectedClientInvoices.length}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs">Client Expenses</p>
+                  <p className="text-lg font-bold" style={{ color: "#ef4444" }}>
+                    AED {totalClientExpenses.toLocaleString()}
+                  </p>
+                </div>
               </div>
             </div>
           )}
-
           {/* Monthly chart */}
           <div className="crm-card mb-6">
             <h2 className="text-sm font-bold mb-1" style={{ color: "#0D1B3E" }}>
               Monthly Revenue vs Expenses ({year})
             </h2>
             <p className="text-xs mb-5" style={{ color: "#9ca3af" }}>
-              Gold = Revenue (Invoices + Manual) · Red = Expenses · Navy = Profit
+              Gold = Revenue (Invoices + Manual) · Red = Expenses · Navy =
+              Profit
             </p>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart
@@ -645,6 +1314,50 @@ export default function RevenuePage() {
                   <p className="text-sm" style={{ color: "#9ca3af" }}>
                     No paid revenue yet
                   </p>
+                  <p className="text-xs mt-1" style={{ color: "#c4c7d0" }}>
+                    Mark invoices as &quot;Paid&quot; or add received manual
+                    revenue
+                  </p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie data={clientData} dataKey="value">
+                      {clientData.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: number) => [
+                        `AED ${v.toLocaleString()}`,
+                        "Revenue",
+                      ]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* By Service */}
+            <div className="crm-card">
+              <h2
+                className="text-sm font-bold mb-1"
+                style={{ color: "#0D1B3E" }}
+              >
+                Revenue by Service
+              </h2>
+              <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
+                From paid invoices only
+              </p>
+              {serviceData.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-sm" style={{ color: "#9ca3af" }}>
+                    No paid invoices yet
+                  </p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
@@ -661,8 +1374,8 @@ export default function RevenuePage() {
                     >
                       {clientData.map((_, i) => (
                         <Cell
-                           key={i}
-                           fill={PIE_COLORS[i % PIE_COLORS.length]}
+                          key={i}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
                         />
                       ))}
                     </Pie>
@@ -809,7 +1522,9 @@ export default function RevenuePage() {
                       </td>
                       <td className="text-xs" style={{ color: "#9ca3af" }}>
                         {
-                          paidInvoices.filter((inv) => inv.clientName === c.name).length
+                          paidInvoices.filter(
+                            (inv) => inv.clientName === c.name,
+                          ).length
                         }{" "}
                         paid
                       </td>
@@ -821,7 +1536,10 @@ export default function RevenuePage() {
           )}
 
           {/* Tabs Section for Breakdown Tables */}
-          <div className="flex border-b mb-4" style={{ borderColor: "#f0f0f5" }}>
+          <div
+            className="flex border-b mb-4"
+            style={{ borderColor: "#f0f0f5" }}
+          >
             <button
               onClick={() => setActiveTab("expenses")}
               className={`pb-2.5 px-6 text-sm font-bold border-b-2 transition-all ${
@@ -832,6 +1550,7 @@ export default function RevenuePage() {
             >
               Expenses Breakdown (AED {totalExpenses.toLocaleString()})
             </button>
+
             <button
               onClick={() => setActiveTab("manual_revenue")}
               className={`pb-2.5 px-6 text-sm font-bold border-b-2 transition-all ${
@@ -840,33 +1559,52 @@ export default function RevenuePage() {
                   : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              Manual Revenue / Profit (AED {manualRevenueTotal.toLocaleString()})
+              Manual Revenue / Profit (AED {manualRevenueTotal.toLocaleString()}
+              )
             </button>
           </div>
 
           {activeTab === "expenses" ? (
-            /* Expenses breakdown table */
             <div className="crm-card p-0 overflow-hidden mb-6">
               <div
                 className="px-5 py-4 border-b flex items-center justify-between"
                 style={{ borderColor: "#f0f0f5" }}
               >
                 <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>
-                  Expenses list
+                  Expenses Breakdown
                 </h2>
-                <button
-                  onClick={openAddExpense}
-                  className="btn-primary"
-                  style={{ padding: "5px 12px", fontSize: 11 }}
-                >
-                  + Add Expense
-                </button>
+
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-sm font-bold"
+                    style={{ color: "#ef4444" }}
+                  >
+                    AED {totalExpenses.toLocaleString()}
+                  </span>
+
+                  <button
+                    onClick={openAddExpense}
+                    className="btn-primary"
+                    style={{ padding: "5px 12px", fontSize: 11 }}
+                  >
+                    + Add Expense
+                  </button>
+                </div>
               </div>
+
               {expenses.length === 0 ? (
                 <div className="text-center py-10">
                   <p className="text-sm" style={{ color: "#9ca3af" }}>
                     No expenses recorded
                   </p>
+
+                  <button
+                    onClick={openAddExpense}
+                    className="btn-primary mt-3 mx-auto"
+                    style={{ fontSize: 12 }}
+                  >
+                    + Add Expense
+                  </button>
                 </div>
               ) : (
                 <table className="crm-table">
@@ -880,18 +1618,22 @@ export default function RevenuePage() {
                       <th>Actions</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {expenses.map((e) => (
                       <tr key={e.id}>
                         <td className="font-medium">{e.description}</td>
+
                         <td>
                           <span className="badge badge-draft">
                             {e.category || "—"}
                           </span>
                         </td>
+
                         <td className="text-sm" style={{ color: "#6b7280" }}>
                           {e.clientName || "—"}
                         </td>
+
                         <td className="text-xs" style={{ color: "#9ca3af" }}>
                           {e.date
                             ? new Date(e.date).toLocaleDateString("en-GB", {
@@ -901,13 +1643,21 @@ export default function RevenuePage() {
                               })
                             : "—"}
                         </td>
+
                         <td>
-                          <div className="font-bold" style={{ color: "#ef4444" }}>
+                          <div
+                            className="font-bold"
+                            style={{ color: "#ef4444" }}
+                          >
                             {e.currency || "AED"}{" "}
                             {Number(e.amount).toLocaleString()}
                           </div>
+
                           {(e.currency || "AED") !== "AED" && (
-                            <div className="text-xs" style={{ color: "#6b7280" }}>
+                            <div
+                              className="text-xs"
+                              style={{ color: "#6b7280" }}
+                            >
                               AED{" "}
                               {convertToAED(
                                 Number(e.amount),
@@ -916,6 +1666,7 @@ export default function RevenuePage() {
                             </div>
                           )}
                         </td>
+
                         <td>
                           <div className="flex items-center gap-2">
                             <button
@@ -929,6 +1680,7 @@ export default function RevenuePage() {
                             >
                               ✏️ Edit
                             </button>
+
                             <button
                               onClick={() => delExpense(e.id)}
                               className="btn-danger"
@@ -956,7 +1708,11 @@ export default function RevenuePage() {
                 <button
                   onClick={openAddRevenue}
                   className="btn-primary"
-                  style={{ padding: "5px 12px", fontSize: 11, background: "#22c55e" }}
+                  style={{
+                    padding: "5px 12px",
+                    fontSize: 11,
+                    background: "#22c55e",
+                  }}
                 >
                   + Add Revenue
                 </button>
@@ -1016,12 +1772,18 @@ export default function RevenuePage() {
                               : "—"}
                           </td>
                           <td>
-                            <div className="font-bold" style={{ color: "#22c55e" }}>
+                            <div
+                              className="font-bold"
+                              style={{ color: "#22c55e" }}
+                            >
                               {r.currency || "AED"}{" "}
                               {Number(r.amount).toLocaleString()}
                             </div>
                             {(r.currency || "AED") !== "AED" && (
-                              <div className="text-xs" style={{ color: "#6b7280" }}>
+                              <div
+                                className="text-xs"
+                                style={{ color: "#6b7280" }}
+                              >
                                 AED{" "}
                                 {convertToAED(
                                   Number(r.amount),
@@ -1080,6 +1842,7 @@ export default function RevenuePage() {
             <div className="space-y-4">
               <div>
                 <label className="form-label">Client</label>
+
                 <select
                   className="form-input"
                   value={expForm.clientName || ""}
@@ -1091,6 +1854,7 @@ export default function RevenuePage() {
                   }
                 >
                   <option value="">Select Client</option>
+
                   {clients.map((client) => (
                     <option key={client} value={client}>
                       {client}
@@ -1112,6 +1876,7 @@ export default function RevenuePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Currency</label>
+
                   <select
                     className="form-input"
                     value={expForm.currency || "AED"}
@@ -1217,7 +1982,10 @@ export default function RevenuePage() {
                 {editingRev ? "Edit Revenue Entry" : "Add Revenue Entry"}
               </h2>
               <button
-                onClick={() => setShowRev(false)}
+                onClick={() => {
+                  setShowRev(false);
+                  setRevErrors({});
+                }}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
               >
                 ✕
@@ -1225,16 +1993,24 @@ export default function RevenuePage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="form-label">Client Name</label>
+                <label className="form-label">Client Name *</label>
                 <select
                   className="form-input"
+                  style={
+                    revErrors.clientName
+                      ? { borderColor: "#ef4444" }
+                      : undefined
+                  }
                   value={revForm.clientName || ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setRevForm({
                       ...revForm,
                       clientName: e.target.value,
-                    })
-                  }
+                    });
+                    if (revErrors.clientName) {
+                      setRevErrors({ ...revErrors, clientName: undefined });
+                    }
+                  }}
                 >
                   <option value="">Select Client</option>
                   {clients.map((client) => (
@@ -1243,17 +2019,38 @@ export default function RevenuePage() {
                     </option>
                   ))}
                 </select>
+                {revErrors.clientName && (
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: "#ef4444" }}
+                  >
+                    {revErrors.clientName}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="form-label">Description *</label>
                 <input
                   className="form-input"
-                  value={revForm.description}
-                  onChange={(e) =>
-                    setRevForm({ ...revForm, description: e.target.value })
+                  style={
+                    revErrors.description
+                      ? { borderColor: "#ef4444" }
+                      : undefined
                   }
+                  value={revForm.description}
+                  onChange={(e) => {
+                    setRevForm({ ...revForm, description: e.target.value });
+                    if (revErrors.description) {
+                      setRevErrors({ ...revErrors, description: undefined });
+                    }
+                  }}
                   placeholder="Consulting Fee, Retainer..."
                 />
+                {revErrors.description && (
+                  <p className="text-xs mt-1" style={{ color: "#ef4444" }}>
+                    {revErrors.description}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1281,12 +2078,23 @@ export default function RevenuePage() {
                   <input
                     className="form-input"
                     type="number"
-                    value={revForm.amount}
-                    onChange={(e) =>
-                      setRevForm({ ...revForm, amount: e.target.value })
+                    style={
+                      revErrors.amount ? { borderColor: "#ef4444" } : undefined
                     }
+                    value={revForm.amount}
+                    onChange={(e) => {
+                      setRevForm({ ...revForm, amount: e.target.value });
+                      if (revErrors.amount) {
+                        setRevErrors({ ...revErrors, amount: undefined });
+                      }
+                    }}
                     placeholder="0"
                   />
+                  {revErrors.amount && (
+                    <p className="text-xs mt-1" style={{ color: "#ef4444" }}>
+                      {revErrors.amount}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1349,7 +2157,10 @@ export default function RevenuePage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowRev(false)}
+                onClick={() => {
+                  setShowRev(false);
+                  setRevErrors({});
+                }}
                 className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
                 style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
               >
@@ -1360,6 +2171,7 @@ export default function RevenuePage() {
                   onClick={() => {
                     delRevenue(editingRev.id);
                     setShowRev(false);
+                    setRevErrors({});
                   }}
                   className="btn-danger px-4"
                 >

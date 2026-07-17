@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
+  addDoc,
+  deleteDoc,
   updateDoc,
   doc,
 } from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
+
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 
@@ -28,6 +32,38 @@ const ROLES: {
     canSeeFinance: true,
   },
   {
+    key: "manager",
+    label: "Manager",
+    color: "#3b82f6",
+    bg: "#eff6ff",
+    desc: "Manage leads, clients & team",
+    canSeeFinance: false,
+  },
+  {
+    key: "executive",
+    label: "Executive",
+    color: "#a78bfa",
+    bg: "#f5f3ff",
+    desc: "All modules except Finance",
+    canSeeFinance: false,
+  },
+  {
+    key: "sales",
+    label: "Sales",
+    color: "#22c55e",
+    bg: "#f0fdf4",
+    desc: "Leads, proposals & tasks",
+    canSeeFinance: false,
+  },
+  {
+    key: "designer",
+    label: "Designer",
+    color: "#f472b6",
+    bg: "#fdf2f8",
+    desc: "Projects & assigned tasks only",
+    canSeeFinance: false,
+  },
+  {
     key: "lead",
     label: "Lead",
     color: "#60a5fa",
@@ -41,6 +77,7 @@ const ROLES: {
     color: "#a78bfa",
     bg: "#f5f3ff",
     desc: "Assigned tasks only",
+
     canSeeFinance: false,
   },
 ];
@@ -70,7 +107,8 @@ const EMPTY_FORM = {
   name: "",
   email: "",
   password: "",
-  role: "employee" as UserRole,
+
+  role: "executive" as UserRole,
 };
 
 export default function TeamPage() {
@@ -82,17 +120,20 @@ export default function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingMember, setEditingMember] = useState<CRMUser | null>(null);
-  const [editRole, setEditRole] = useState<UserRole>("employee");
+
+  const [editRole, setEditRole] = useState<UserRole>("executive");
 
   const isAdmin = crmUser?.role === "admin";
 
   async function fetchMembers() {
     try {
       const snap = await getDocs(collection(db, "users"));
-      setMembers(snap.docs.map((d) => {
-        const data = d.data();
-        return { ...data, uid: data.uid || d.id } as CRMUser;
-      }));
+      setMembers(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return { ...data, uid: data.uid || d.id } as CRMUser;
+        }),
+      );
     } catch (err) {
       console.error("Error fetching members:", err);
     } finally {
@@ -117,7 +158,8 @@ export default function TeamPage() {
       });
 
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to create/update user.");
+      if (!res.ok)
+        throw new Error(result.error || "Failed to create/update user.");
 
       // Send welcome email
       try {
@@ -163,9 +205,16 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
+    //newlydid edit access
+
     if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
-    if (!confirm("Remove this team member? This will also delete their login access.")) return;
-    
+    if (
+      !confirm(
+        "Remove this team member? This will also delete their login access.",
+      )
+    )
+      return;
+
     try {
       const res = await fetch("/api/team", {
         method: "DELETE",
@@ -189,6 +238,7 @@ export default function TeamPage() {
 
     try {
       const snap = await getDocs(collection(db, "users"));
+
       const firestoreDoc = snap.docs.find(
         (d) => d.data().uid === editingMember.uid,
       );
@@ -419,6 +469,7 @@ export default function TeamPage() {
           <div className="modal-box" style={{ maxWidth: 480 }}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="modal-title mb-0">Edit Access</h2>
+
               <button
                 onClick={() => setEditingMember(null)}
                 className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
@@ -441,6 +492,7 @@ export default function TeamPage() {
 
               <div>
                 <label className="form-label">Role</label>
+
                 <div className="grid grid-cols-1 gap-2 mt-1">
                   {ROLES.map((r) => (
                     <button

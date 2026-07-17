@@ -16,7 +16,9 @@ function getAdminApp(): App {
   }
 
   try {
-    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    const projectId =
+      process.env.FIREBASE_PROJECT_ID ||
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
@@ -31,17 +33,20 @@ function getAdminApp(): App {
 
     if (!projectId || !clientEmail || !privateKeyRaw) {
       const missing = [];
-      if (!projectId) missing.push("FIREBASE_PROJECT_ID (or NEXT_PUBLIC_FIREBASE_PROJECT_ID)");
+      if (!projectId)
+        missing.push(
+          "FIREBASE_PROJECT_ID (or NEXT_PUBLIC_FIREBASE_PROJECT_ID)",
+        );
       if (!clientEmail) missing.push("FIREBASE_CLIENT_EMAIL");
       if (!privateKeyRaw) missing.push("FIREBASE_PRIVATE_KEY");
-      
+
       throw new Error(
         `Missing Firebase Admin credentials: ${missing.join(", ")}. ` +
-        "Please add these to your .env.local file. You can get these from your Firebase Console > Project Settings > Service Accounts."
+          "Please add these to your .env.local file. You can get these from your Firebase Console > Project Settings > Service Accounts.",
       );
     }
 
-    let privateKey = privateKeyRaw.replace(/\\n/g, '\n');
+    let privateKey = privateKeyRaw.replace(/\\n/g, "\n");
     if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
       privateKey = privateKey.slice(1, -1);
     }
@@ -53,12 +58,18 @@ function getAdminApp(): App {
       private_key: privateKey,
     };
 
-    adminApp = initializeApp({
-      credential: cert(serviceAccount as any),
-      projectId: projectId, // Also set projectId at the app level
-    }, "admin");
-    
-    console.log("Firebase Admin Initialized successfully for project:", projectId);
+    adminApp = initializeApp(
+      {
+        credential: cert(serviceAccount as any),
+        projectId: projectId, // Also set projectId at the app level
+      },
+      "admin",
+    );
+
+    console.log(
+      "Firebase Admin Initialized successfully for project:",
+      projectId,
+    );
     return adminApp;
   } catch (error) {
     console.error("Firebase Admin Initialization Error:", error);
@@ -81,7 +92,9 @@ let adminAuthInstance: Auth | null = null;
 try {
   adminAuthInstance = getAdminAuth();
 } catch (err) {
-  console.warn("Firebase Admin SDK is not initialized (missing environment keys). Admin endpoints will fail if called.");
+  console.warn(
+    "Firebase Admin SDK is not initialized (missing environment keys). Admin endpoints will fail if called.",
+  );
 }
 
 export const adminAuth = adminAuthInstance as Auth;
