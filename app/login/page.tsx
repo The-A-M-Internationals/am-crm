@@ -171,9 +171,17 @@ export default function LoginPage() {
                     return;
                   }
                   try {
-                    const { sendPasswordResetEmail } = await import("firebase/auth");
-                    const { auth } = await import("@/lib/firebase");
-                    await sendPasswordResetEmail(auth, email);
+                    const res = await fetch("/api/forgot-password", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email }),
+                    });
+                    
+                    if (!res.ok) {
+                      const data = await res.json();
+                      throw new Error(data.error || "Failed to send reset email.");
+                    }
+                    
                     setError("");
                     alert("Password reset email sent! Check your inbox.");
                   } catch (err: any) {
