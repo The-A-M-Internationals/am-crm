@@ -49,6 +49,20 @@ export async function POST(req: Request) {
     }
     const currency = proposal.currency || "AED";
 
+    const formatVal = (val: any) => {
+      if (typeof val === "number") return val.toLocaleString();
+      return val || "0";
+    };
+
+    const getTotal = (pkg: any) => {
+      if (pkg.totalMonthly !== undefined && pkg.totalMonthly !== "") {
+        return formatVal(pkg.totalMonthly);
+      }
+      const s = parseFloat(String(pkg.recommendedSpend || "0").replace(/[^\d.]/g, "")) || 0;
+      const m = parseFloat(String(pkg.managementFee || "0").replace(/[^\d.]/g, "")) || 0;
+      return (s + m).toLocaleString();
+    };
+
     let htmlBody = "";
     
     if (proposal.isRichDocument) {
@@ -115,20 +129,20 @@ export async function POST(req: Request) {
                     <tr>
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">A&M Management Fee</td>
                       ${proposal.packages.map((pkg: any) => `
-                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${pkg.managementFee.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${formatVal(pkg.managementFee)}</td>
                       `).join('')}
                     </tr>
                     <tr style="background: #f8fafc;">
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">Recommended Ad Spend</td>
                       ${proposal.packages.map((pkg: any) => `
-                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${pkg.recommendedSpend.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${formatVal(pkg.recommendedSpend)}</td>
                       `).join('')}
                     </tr>
                     <tr style="background: #0D1B3E; color: white;">
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.2);">TOTAL MONTHLY</td>
                       ${proposal.packages.map((pkg: any) => `
                         <td style="padding: 12px; text-align: center; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.2); ${pkg.recommended ? 'background: #C9A84C;' : ''}">
-                          ${currency} ${(pkg.managementFee + pkg.recommendedSpend).toLocaleString()}
+                          ${currency} ${getTotal(pkg)}
                         </td>
                       `).join('')}
                     </tr>

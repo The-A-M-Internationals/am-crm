@@ -176,6 +176,8 @@ export interface ProposalPackage {
   estimatedLeads: string;
   estimatedCostPerLead: string;
   recommended?: boolean;
+  offered?: boolean; // legacy
+  status?: 'option' | 'final' | 'hidden';
   totalMonthly?: number | string;
   customValues?: Record<string, string>;
 }
@@ -231,6 +233,12 @@ export interface Proposal {
   exclusions?: string[];
   terms?: ProposalTerm[];
   customSections?: ProposalCustomSection[];
+
+  // Dynamic Pricing & Tax Fields
+  taxPercentage?: number;
+  selectedPackageName?: string;
+  selectedPackagePrice?: number;
+  agreedRate?: number;
 
   // Editor-specific Fields
   aboutTitle?: string;
@@ -345,6 +353,8 @@ export interface Invoice {
   dueDate?: string;
   notes?: string;
   items: { description: string; qty: number; rate: number; amount: number }[];
+  currency?: string;
+  taxPercentage?: number;
   projectId?: string;
   createdBy: string;
   createdAt: string;

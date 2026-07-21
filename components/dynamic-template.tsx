@@ -36,6 +36,27 @@ export default function DynamicTemplate({
   isEditing: boolean; 
   onChange: (p: Proposal) => void; 
 }) {
+  const hasFinalPackage = (proposal.packages || []).some(p => p.status === 'final');
+
+  const visiblePackages = isEditing 
+    ? (proposal.packages || []) 
+    : hasFinalPackage 
+      ? (proposal.packages || []).filter(p => p.status === 'final')
+      : (proposal.packages || []).filter(p => p.status !== 'hidden' && p.offered !== false);
+
+  React.useEffect(() => {
+    if (!isEditing && visiblePackages.length === 1) {
+      const pkg = visiblePackages[0];
+      if (proposal.selectedPackageName !== pkg.name) {
+        const defaultVal = getPackageTotal(pkg, proposal.currency || "AED");
+        const currentVal = pkg.totalMonthly !== undefined && pkg.totalMonthly !== "" ? pkg.totalMonthly : defaultVal;
+        const priceNum = parseFloat(String(currentVal).replace(/[^\d.]/g, "")) || 0;
+        onChange({ ...proposal, selectedPackageName: pkg.name, selectedPackagePrice: priceNum });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, visiblePackages.length, proposal.selectedPackageName, proposal.currency]);
+
   if (!proposal.isRichDocument) return null; // Safety fallback
 
   const deletePackage = (index: number) => {
@@ -451,7 +472,7 @@ export default function DynamicTemplate({
                   <th className="p-4 border-r border-slate-200/30 font-bold w-1/4 text-center">
                     <span className="font-playfair text-xs uppercase tracking-wider text-slate-300">Features</span>
                   </th>
-                  {proposal.packages.map((pkg, i) => (
+                  {visiblePackages.map((pkg, i) => (
                     <th key={i} className={`p-4 border-r border-slate-200/30 font-bold text-center relative ${pkg.recommended ? "bg-[#C9A84C] text-[#0D1B3E]" : "text-[#C9A84C]"}`}>
                       <div className="flex flex-col gap-1 items-center">
                         <div
@@ -468,30 +489,50 @@ export default function DynamicTemplate({
                           {pkg.name}
                         </div>
                         {isEditing && (
-                          <div className="flex items-center gap-2 mt-2 select-none text-[10px]">
-                            <label className="flex items-center gap-1 cursor-pointer select-none">
-                              <input 
-                                type="checkbox"
-                                checked={!!pkg.recommended}
-                                onChange={(e) => {
-                                  const newPackages = (proposal.packages || []).map((p, idx) => ({
-                                    ...p,
-                                    recommended: idx === i ? e.target.checked : false
-                                  }));
-                                  onChange({ ...proposal, packages: newPackages });
-                                }}
-                                className="w-3 h-3 rounded text-[#0D1B3E] focus:ring-0 border-current bg-transparent"
-                              />
-                              <span>Recommend</span>
-                            </label>
-                            <button 
-                              type="button"
-                              onClick={() => deletePackage(i)}
-                              className="bg-red-600 text-white px-1.5 py-0.5 rounded hover:bg-red-700 transition-all font-bold"
-                              title="Delete column"
+                          <div className="flex flex-col items-stretch gap-2 mt-2 select-none w-full px-2">
+                            <select
+                              value={pkg.status || (pkg.offered === false ? 'hidden' : 'option')}
+                              onChange={(e) => {
+                                const newPackages = [...(proposal.packages || [])];
+                                const val = e.target.value as 'option' | 'final' | 'hidden';
+                                if (val === 'final') {
+                                  newPackages.forEach(p => { if (p.status === 'final') p.status = 'option'; });
+                                }
+                                newPackages[i] = { ...newPackages[i], status: val };
+                                onChange({ ...proposal, packages: newPackages });
+                              }}
+                              className={`text-[10px] p-1.5 rounded font-bold outline-none cursor-pointer border ${pkg.status === 'final' ? 'bg-green-100 border-green-300 text-green-800' : pkg.status === 'hidden' || pkg.offered === false ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-700'}`}
                             >
-                              Delete
-                            </button>
+                              <option value="option">Show as Option</option>
+                              <option value="final">Final Agreed Package</option>
+                              <option value="hidden">Hide from Client</option>
+                            </select>
+                            
+                            <div className="flex items-center justify-between gap-2 mt-1">
+                              <label className="flex items-center gap-1 cursor-pointer select-none text-[10px]">
+                                <input 
+                                  type="checkbox"
+                                  checked={!!pkg.recommended}
+                                  onChange={(e) => {
+                                    const newPackages = (proposal.packages || []).map((p, idx) => ({
+                                      ...p,
+                                      recommended: idx === i ? e.target.checked : false
+                                    }));
+                                    onChange({ ...proposal, packages: newPackages });
+                                  }}
+                                  className="w-3 h-3 rounded text-[#0D1B3E] focus:ring-0 border-current bg-transparent"
+                                />
+                                <span>Recommend</span>
+                              </label>
+                              <button 
+                                type="button"
+                                onClick={() => deletePackage(i)}
+                                className="bg-red-600/80 hover:bg-red-600 text-white px-2 py-0.5 rounded transition-all font-bold text-[10px]"
+                                title="Delete column"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         )}
                         {!isEditing && pkg.recommended && <span className="text-[10px] font-bold select-none uppercase tracking-widest mt-1">★ Recommended</span>}
@@ -530,7 +571,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-medium">
                         <div
                           contentEditable={isEditing}
@@ -579,7 +620,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -628,7 +669,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -677,7 +718,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -726,7 +767,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -775,7 +816,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-semibold">
                         <div
                           contentEditable={isEditing}
@@ -824,7 +865,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-semibold">
                         <div
                           contentEditable={isEditing}
@@ -873,7 +914,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -922,7 +963,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -971,7 +1012,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200">
                         <div
                           contentEditable={isEditing}
@@ -1020,7 +1061,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-medium">
                         <div
                           contentEditable={isEditing}
@@ -1073,7 +1114,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {(proposal.packages || []).map((pkg, i) => (
+                    {visiblePackages.map((pkg, i) => (
                       <td key={i} className="p-4 text-center text-[#222222] border-r border-slate-200 font-medium">
                         <div
                           contentEditable={isEditing}
@@ -1126,7 +1167,7 @@ export default function DynamicTemplate({
                         )}
                       </div>
                     </td>
-                    {proposal.packages.map((pkg, i) => {
+                    {visiblePackages.map((pkg, i) => {
                       const defaultVal = getPackageTotal(pkg, proposal.currency || "AED");
                       const currentVal = pkg.totalMonthly !== undefined && pkg.totalMonthly !== "" ? pkg.totalMonthly : defaultVal;
                       return (
@@ -1144,6 +1185,31 @@ export default function DynamicTemplate({
                           >
                             {currentVal}
                           </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
+
+                {/* 13. SELECTION BUTTONS (Client View Only) */}
+                {!isEditing && visiblePackages.length > 1 && (
+                  <tr>
+                    <td className="p-4 border-r border-slate-200/20"></td>
+                    {visiblePackages.map((pkg, i) => {
+                      const defaultVal = getPackageTotal(pkg, proposal.currency || "AED");
+                      const currentVal = pkg.totalMonthly !== undefined && pkg.totalMonthly !== "" ? pkg.totalMonthly : defaultVal;
+                      const priceNum = parseFloat(String(currentVal).replace(/[^\d.]/g, "")) || 0;
+                      const isSelected = proposal.selectedPackageName === pkg.name;
+
+                      return (
+                        <td key={i} className="p-4 text-center border-r border-slate-200/20 bg-slate-50/50">
+                          <button
+                            type="button"
+                            onClick={() => onChange({ ...proposal, selectedPackageName: pkg.name, selectedPackagePrice: priceNum })}
+                            className={`w-full py-3 rounded-xl font-bold text-sm transition-all shadow-sm ${isSelected ? "bg-green-500 text-white shadow-green-500/30 scale-105" : "bg-[#0D1B3E] text-white hover:bg-[#1a3070]"}`}
+                          >
+                            {isSelected ? "Selected ✓" : "Select Package"}
+                          </button>
                         </td>
                       );
                     })}
@@ -1192,7 +1258,7 @@ export default function DynamicTemplate({
               )}
             </div>
           )}
-          {!isEditing && proposal.packages.some(p => p.recommended) && (
+          {!isEditing && visiblePackages.some(p => p.recommended) && (
             <p className="text-xs text-[#555555] italic mt-4 select-none">★ Recommended package for {proposal.clientName} given current objectives. It offers the best scale-to-cost ratio.</p>
           )}
         </section>
@@ -2252,3 +2318,7 @@ export default function DynamicTemplate({
     </div>
   );
 }
+
+
+
+

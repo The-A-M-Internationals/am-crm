@@ -45,6 +45,7 @@ const EMPTY_FORM = {
   status: "draft" as ProposalStatus, notes: "", validUntil: "",
   items: [{ ...EMPTY_ITEM }],
   currency: "AED",
+  taxPercentage: 5,
 };
 
 function ProposalsContent() {
@@ -128,7 +129,8 @@ function ProposalsContent() {
   function removeItem(i: number) { setForm({ ...form, items: form.items.filter((_: any, idx: number) => idx !== i) }); }
 
   const subtotal = form.items.reduce((sum: number, it: any) => sum + it.amount, 0);
-  const tax      = subtotal * 0.05;
+  const taxPct   = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+  const tax      = subtotal * (taxPct / 100);
   const total    = subtotal + tax;
 
   function startAdding() {
@@ -151,6 +153,7 @@ function ProposalsContent() {
       validUntil: p.validUntil || "",
       items: p.items || [{ ...EMPTY_ITEM }],
       currency: p.currency || "AED",
+      taxPercentage: p.taxPercentage ?? 5,
     });
   }
 
@@ -169,7 +172,21 @@ function ProposalsContent() {
     setSaving(true);
     try {
       const now  = new Date().toISOString();
-      const data = { ...form, subtotal, tax, total, updatedAt: now };
+      const taxPct = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+      const data = { ...form, subtotal, taxPercentage: taxPct, tax, total, updatedAt: now };
+
+      if (data.isRichDocument && subtotal > 0) {
+        let packages = data.packages || [];
+        const sourcePkg = packages.find((p: any) => p.status === 'final') || packages[0] || {};
+        data.packages = [{
+          ...sourcePkg,
+          name: "Final Agreed Package",
+          totalMonthly: subtotal,
+          managementFee: subtotal,
+          recommendedSpend: 0,
+          status: 'final'
+        }];
+      }
       
       if (editingId) {
         // Update existing proposal
@@ -335,8 +352,16 @@ function ProposalsContent() {
                       {p.clientName?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold truncate text-[#0D1B3E] group-hover:text-blue-700 transition-colors">{p.clientName}</h3>
-                      <p className="text-sm text-slate-500 font-medium truncate mt-0.5">{p.clientEmail} {p.phone && <span className="text-slate-300 mx-1">|</span>} {p.phone}</p>
+                      <h3 className="text-lg font-bold break-words break-all text-[#0D1B3E] group-hover:text-blue-700 transition-colors">{p.clientName}</h3>
+                      <div className="text-sm text-slate-500 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className="break-all">{p.clientEmail}</span>
+                        {p.phone && (
+                          <>
+                            <span className="text-slate-300">|</span>
+                            <span className="whitespace-nowrap">{p.phone}</span>
+                          </>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-[11px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider" style={{ background: svc?.bg || "#f3f4f6", color: svc?.text || "#374151" }}>{svc?.label || "Unknown Service"}</span>
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -532,7 +557,14 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
       </div>
       <div className="grid grid-cols-3 gap-3 mt-3">
         <div><label className="form-label">Status</label><select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as ProposalStatus })}>{STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
-        <div><label className="form-label">Currency</label><select className="form-input" value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}</select></div>
+        <div><label className="form-label">Currency</label><select className="form-input" value={form.currency} onChange={e => {
+          const c = e.target.value;
+          let newTax = form.taxPercentage;
+          if (c === "AED") newTax = 5;
+          if (c === "INR") newTax = 18;
+          if (c === "USD") newTax = 0;
+          setForm({ ...form, currency: c, taxPercentage: newTax });
+        }}>{CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}</select></div>
         <div><label className="form-label">Valid Until</label><input className="form-input" type="date" value={form.validUntil} onChange={e => setForm({ ...form, validUntil: e.target.value })} /></div>
       </div>
       <div>
@@ -563,10 +595,13 @@ function ProposalForm({ form, setForm, subtotal, tax, total, updateItem, addItem
             </div>
           ))}
         </div>
-        <div className="mt-3 flex flex-col items-end space-y-1 text-xs font-medium">
-          <div className="flex gap-4"><span>Subtotal:</span><span>{form.currency} {subtotal.toLocaleString()}</span></div>
-          <div className="flex gap-4"><span>VAT (5%):</span><span>{form.currency} {tax.toFixed(2)}</span></div>
-          <div className="flex gap-4 text-sm font-bold pt-1 border-t" style={{ color: "#C9A84C", borderColor: "#e5e7eb" }}><span>Total:</span><span>{form.currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+        <div className="mt-3 flex flex-col items-end space-y-2 text-xs font-medium">
+          <div className="flex gap-4 items-center"><span>Subtotal:</span><span className="w-24 text-right">{form.currency} {subtotal.toLocaleString()}</span></div>
+          <div className="flex gap-4 items-center">
+            <span className="flex items-center gap-1">{form.taxPercentage === 18 ? "GST" : form.taxPercentage === 5 ? "VAT" : "Tax"} <input type="number" className="form-input py-0.5 px-1.5 w-12 text-center text-[10px] h-6" value={form.taxPercentage !== undefined ? form.taxPercentage : 5} onChange={e => setForm({...form, taxPercentage: parseFloat(e.target.value) || 0})} /> %:</span>
+            <span className="w-24 text-right">{form.currency} {tax.toFixed(2)}</span>
+          </div>
+          <div className="flex gap-4 items-center text-sm font-bold pt-1 border-t" style={{ color: "#C9A84C", borderColor: "#e5e7eb" }}><span>Total:</span><span className="w-24 text-right">{form.currency} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
         </div>
       </div>
       <div className="flex gap-3 pt-2">
