@@ -518,6 +518,25 @@ export default function ProposalDetailPage() {
     }
   }
 
+  const handleSignClick = () => {
+    const hasFinalPackage = (proposal?.packages || []).some((p: any) => p.status === 'final');
+    const visiblePackages = hasFinalPackage 
+      ? (proposal?.packages || []).filter((p: any) => p.status === 'final')
+      : (proposal?.packages || []).filter((p: any) => p.status !== 'hidden' && p.offered !== false);
+      
+    if (visiblePackages.length > 1 && (!proposal?.selectedPackageName || proposal.selectedPackageName.trim() === '')) {
+      alert("Please select a package first before signing.");
+      const packagesSection = document.getElementById("packages-section");
+      if (packagesSection) {
+        packagesSection.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: document.body.scrollHeight / 2, behavior: "smooth" });
+      }
+      return;
+    }
+    setShowSignModal(true);
+  };
+
   if (loading) {
     return (
       <div className="p-8 animate-pulse text-sm text-gray-500 flex flex-col items-center justify-center min-h-[400px]">
@@ -826,7 +845,7 @@ export default function ProposalDetailPage() {
             {proposal.status !== "accepted" && proposal.status !== "won" && proposal.status !== "rejected" ? (
               <>
                 <button 
-                  onClick={() => setShowSignModal(true)}
+                  onClick={handleSignClick}
                   className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20"
                 >
                   Sign & Accept Proposal
@@ -1010,7 +1029,8 @@ export default function ProposalDetailPage() {
           <DynamicTemplate 
             proposal={proposal} 
             isEditing={isEditing} 
-            onChange={(updated) => updateProposalState(updated)} 
+            onChange={(updated) => updateProposalState(updated)}
+            showAsClient={showAsClient}
           />
         </div>
       </div>

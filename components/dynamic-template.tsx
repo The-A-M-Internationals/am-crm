@@ -30,11 +30,13 @@ const getPackageTotal = (pkg: ProposalPackage, currency: string) => {
 export default function DynamicTemplate({ 
   proposal, 
   isEditing, 
-  onChange 
+  onChange,
+  showAsClient
 }: { 
   proposal: Proposal; 
   isEditing: boolean; 
   onChange: (p: Proposal) => void; 
+  showAsClient?: boolean;
 }) {
   const hasFinalPackage = (proposal.packages || []).some(p => p.status === 'final');
 
@@ -424,7 +426,7 @@ export default function DynamicTemplate({
 
       {/* 5. Packages Table */}
       {proposal.packages !== undefined && (
-        <section className="relative group p-6 rounded-2xl hover:bg-slate-50/50 transition-all border border-transparent hover:border-slate-100/80">
+        <section id="packages-section" className="relative group p-6 rounded-2xl hover:bg-slate-50/50 transition-all border border-transparent hover:border-slate-100/80">
           {isEditing && (
             <button
               type="button"
@@ -1192,7 +1194,7 @@ export default function DynamicTemplate({
                 )}
 
                 {/* 13. SELECTION BUTTONS (Client View Only) */}
-                {!isEditing && visiblePackages.length > 1 && (
+                {!isEditing && showAsClient && visiblePackages.length > 1 && (
                   <tr>
                     <td className="p-4 border-r border-slate-200/20"></td>
                     {visiblePackages.map((pkg, i) => {
