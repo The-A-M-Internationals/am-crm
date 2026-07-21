@@ -1032,7 +1032,7 @@ export default function ProposalDetailPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSignProposal} className="p-6 space-y-6">
+            <form onSubmit={handleSignProposal} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Your Full Name</label>
                 <input 
