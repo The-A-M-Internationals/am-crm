@@ -2,23 +2,15 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Building2, Calendar, AlertTriangle, Clock, Rocket } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-
-const SERVICE_COLORS: Record<string, string> = {
-  "digital-marketing": "#3b82f6",
-  "ui-ux": "#f59e0b",
-  "web-development": "#22c55e",
-  "seo": "#8b5cf6",
-  "social-media": "#ec4899",
-  "branding": "#f97316",
-  "other": "#6b7280",
-};
 
 const SERVICE_LABELS: Record<string, string> = {
   "digital-marketing": "Digital",
@@ -34,16 +26,15 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const PIE_COLORS = ["#0D1B3E","#C9A84C","#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6"];
 
 const STAGE_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  lead:     { color: "#7e22ce", bg: "#faf5ff", label: "Lead" },
   meeting:  { color: "#c2410c", bg: "#fff7ed", label: "Meeting" },
   proposal: { color: "#1d4ed8", bg: "#eff6ff", label: "Proposal" },
   won:      { color: "#15803d", bg: "#f0fdf4", label: "Won" },
   lost:     { color: "#b91c1c", bg: "#fef2f2", label: "Lost" },
 };
 
-function StatCard({ label, value, sub, color, icon }: { label: string; value: string | number; sub?: string; color: string; icon: string }) {
+function StatCard({ label, value, sub, color, icon, href }: { label: string; value: string | number; sub?: string; color: string; icon: React.ReactNode; href: string }) {
   return (
-    <div className="stat-card group">
+    <Link href={href} className="stat-card group block relative transition-shadow hover:shadow-md cursor-pointer">
       <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: color }} />
       <div className="flex items-start justify-between mt-1">
         <div>
@@ -53,7 +44,7 @@ function StatCard({ label, value, sub, color, icon }: { label: string; value: st
         </div>
         <div className="text-2xl opacity-20 group-hover:opacity-40 transition-opacity">{icon}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -66,6 +57,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks]     = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [manualRev, setManualRev] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,14 +75,37 @@ export default function DashboardPage() {
         setTasks(tSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         if (isAdmin) {
-          const iSnap = await getDocs(collection(db, "invoices"));
+          const [iSnap, mSnap] = await Promise.all([
+            getDocs(collection(db, "invoices")),
+            getDocs(collection(db, "manual_revenue")),
+          ]);
           setInvoices(iSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setManualRev(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     }
     fetchAll();
   }, [isAdmin]);
+
+  const [triggering, setTriggering] = useState(false);
+
+  async function triggerReminders() {
+    setTriggering(true);
+    try {
+      const res = await fetch("/api/cron/reminders");
+      const data = await res.json();
+      if (data.success) {
+        alert(`Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
+      } else {
+        alert(`Error: ${data.error || "Failed to trigger"}`);
+      }
+    } catch (err) {
+      alert("Network error triggering reminders");
+    } finally {
+      setTriggering(false);
+    }
+  }
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -113,9 +128,31 @@ export default function DashboardPage() {
   leads.forEach(l => { svcMap[l.service] = (svcMap[l.service] || 0) + 1; });
   const serviceData = Object.entries(svcMap).map(([name, value]) => ({ name: SERVICE_LABELS[name] || name, value }));
 
-  // Admin revenue
-  const totalRevenue = invoices.filter(i => i.status === "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
-  const pendingRevenue = invoices.filter(i => i.status !== "paid").reduce((s, i) => s + (Number(i.total) || 0), 0);
+  // Admin revenue calculations mirroring Revenue Page
+  const invoiceRevenue = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + paid;
+  }, 0);
+  
+  const completedProjectsValue = projects
+    .filter(p => p.status === "completed")
+    .reduce((s, p) => {
+      const paidForProject = invoices
+        .filter(inv => inv.projectId === p.id)
+        .reduce((sum, inv) => {
+          const paid = inv.paidAmount !== undefined ? Number(inv.paidAmount) : (inv.status === "paid" ? Number(inv.total) : 0);
+          return sum + paid;
+        }, 0);
+      return s + Math.max(0, (Number(p.budget) || 0) - paidForProject);
+    }, 0);
+
+  const manualRevenueTotal = manualRev.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const totalRevenue = invoiceRevenue + completedProjectsValue + manualRevenueTotal;
+  const pendingRevenue = invoices.reduce((s, i) => {
+    const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.status === "paid" ? Number(i.total) : 0);
+    return s + Math.max(0, (Number(i.total) || 0) - paid);
+  }, 0);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -133,12 +170,25 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <p className="text-sm font-semibold" style={{ color: "#C9A84C" }}>{greeting},</p>
-          <h1 className="text-3xl font-bold mt-0.5" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>
+          <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             {firstName} 👋
           </h1>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-            Here's what's happening with your team today.
+            Here&apos;s what&apos;s happening with your team today.
           </p>
+          <div className="flex items-center gap-3 mt-4">
+            {isAdmin && (
+              <>
+                <Link href="/revenue" className="btn-secondary px-4 py-2 text-xs" style={{ borderColor: "#22c55e", color: "#22c55e" }}>
+                  <span className="text-sm">+</span> Add Revenue
+                </Link>
+                <Link href="/revenue" className="btn-primary px-4 py-2 text-xs">
+                  <span className="text-sm">+</span> Add Expense
+                </Link>
+              </>
+            )}
+          </div>
         </div>
         <div className="text-right">
           <p className="text-xs font-medium" style={{ color: "#9ca3af" }}>
@@ -153,22 +203,82 @@ export default function DashboardPage() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="#C9A84C" icon="📊" />
-        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="#3b82f6" icon="👥" />
-        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed").length} sub="In progress" color="#8b5cf6" icon="🚀" />
-        <StatCard label="Pending Tasks"   value={tasks.length}    sub="Across all team"                      color="#f59e0b" icon="✅" />
+        <StatCard label="Total Leads"     value={leads.length}    sub={`${wonLeads} won · ${lostLeads} lost`} color="var(--navy)" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>} href="/leads" />
+        <StatCard label="Active Clients"  value={clients.length}  sub="Ongoing relationships"                color="var(--gold)" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} href="/clients" />
+        <StatCard label="Open Projects"   value={projects.filter(p => p.status !== "completed" && (!p.clientId || clients.some(c => c.id === p.clientId))).length} sub="In progress" color="#475569" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>} href="/projects" />
+        <StatCard label="Pending Tasks"   value={tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length}    sub="Across all team"                      color="#1F2937" icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>} href="/tasks" />
+      </div>
+
+      {/* COMMAND CENTER (ACTIONABLE ALERTS) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* Overdue & Priority Tasks */}
+        <div className="crm-card border-l-4 border-l-red-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500" /> Attention Required
+          </h2>
+          <div className="space-y-3">
+            {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length > 0 ? (
+              tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).slice(0, 3).map(t => (
+                <div key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 rounded-lg">
+                  <span className="font-semibold text-red-900 truncate pr-2">{t.title}</span>
+                  <span className="text-red-700 whitespace-nowrap">Overdue</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No overdue tasks.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Leads Needing Follow Up */}
+        <div className="crm-card border-l-4 border-l-amber-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" /> Lead Follow-ups
+          </h2>
+          <div className="space-y-3">
+            {leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).length > 0 ? (
+              leads.filter(l => l.active !== false && l.followUpDate && new Date(l.followUpDate) <= new Date(Date.now() + 86400000)).slice(0, 3).map(l => (
+                <div key={l.id} className="flex justify-between items-center text-xs p-2 bg-amber-50 rounded-lg">
+                  <span className="font-semibold text-amber-900 truncate pr-2">{l.name}</span>
+                  <span className="text-amber-700 whitespace-nowrap">{new Date(l.followUpDate).toLocaleDateString()}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No immediate follow-ups.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Projects at Risk */}
+        <div className="crm-card border-l-4 border-l-blue-500">
+          <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <Rocket className="w-4 h-4 text-blue-500" /> Upcoming Deadlines
+          </h2>
+          <div className="space-y-3">
+            {projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).length > 0 ? (
+              projects.filter(p => p.status !== "completed" && p.deadline && new Date(p.deadline) <= new Date(Date.now() + 7 * 86400000)).slice(0, 3).map(p => (
+                <div key={p.id} className="flex justify-between items-center text-xs p-2 bg-blue-50 rounded-lg">
+                  <span className="font-semibold text-blue-900 truncate pr-2">{p.title}</span>
+                  <span className="text-blue-700 whitespace-nowrap">Due soon</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 italic">No projects at risk.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Admin Finance Row */}
       {isAdmin && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="stat-card" style={{ background: "linear-gradient(135deg, #0D1B3E, #1a3070)" }}>
+          <div className="stat-card" style={{ background: "var(--navy)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#C9A84C" }} />
-            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Total Revenue (Paid)</p>
+            <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(201,168,76,0.7)" }}>Realized Revenue</p>
             <p className="text-3xl font-bold" style={{ color: "#C9A84C" }}>AED {totalRevenue.toLocaleString()}</p>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>from {invoices.filter(i => i.status === "paid").length} paid invoices</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>paid invoices + completed projects + manual</p>
           </div>
-          <div className="stat-card" style={{ background: "linear-gradient(135deg, #1a1a2e, #2a2a4e)" }}>
+          <div className="stat-card" style={{ background: "var(--navy)" }}>
             <div className="absolute top-0 left-0 w-full h-1 rounded-t-xl" style={{ background: "#f59e0b" }} />
             <p className="text-xs font-semibold mt-1 mb-1" style={{ color: "rgba(245,158,11,0.8)" }}>Pending Revenue</p>
             <p className="text-3xl font-bold" style={{ color: "#f59e0b" }}>AED {pendingRevenue.toLocaleString()}</p>
@@ -297,19 +407,21 @@ export default function DashboardPage() {
               <a href="/leads" className="btn-primary mt-2 mx-auto" style={{ fontSize: 11, padding: "4px 12px" }}>+ Add Lead</a>
             </div>
           ) : (
-            <div className="space-y-2">
-              {leads.slice(0, 5).map((lead: any) => {
-                const st = STAGE_CONFIG[lead.stage] ?? STAGE_CONFIG.lead;
+            <div className="space-y-3 mt-2">
+              {leads.filter(l => l.active !== false).slice(0, 5).map((lead: any) => {
+                const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage || "Lead" };
                 return (
-                  <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: st.bg, color: st.color }}>
+                  <div key={lead.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white" style={{ background: "var(--navy)" }}>
                       {lead.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{lead.name}</p>
-                      <p className="text-xs truncate" style={{ color: "#9ca3af" }}>{lead.company}</p>
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{lead.name}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--slate)" }}>{lead.company}</p>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                    <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold" style={{ background: st.bg, color: st.color }}>
+                      {st.label}
+                    </span>
                   </div>
                 );
               })}
@@ -318,33 +430,43 @@ export default function DashboardPage() {
         </div>
 
         {/* Pending Tasks */}
-        <div className="crm-card">
+        <div className="crm-card flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold" style={{ color: "#0D1B3E" }}>Pending Tasks</h2>
             <a href="/tasks" className="text-xs font-semibold" style={{ color: "#C9A84C" }}>View all →</a>
           </div>
           {loading ? (
             <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: "#f0f2f8" }} />)}</div>
-          ) : tasks.length === 0 ? (
+          ) : tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).length === 0 ? (
             <div className="text-center py-6">
               <p className="text-xs" style={{ color: "#9ca3af" }}>All tasks done! 🎉</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {tasks.slice(0, 5).map((task: any) => {
+            <div className="space-y-3 mt-2">
+              {tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).slice(0, 5).map((task: any) => {
                 const pColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
                 return (
-                  <div key={task.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
+                  <div key={task.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
+                    <div className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: "#1a1a2e" }}>{task.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {task.clientName && <p className="text-xs truncate" style={{ color: "#9ca3af" }}>🏢 {task.clientName}</p>}
-                        {task.dueDate && <p className="text-xs" style={{ color: isOverdue ? "#ef4444" : "#9ca3af" }}>📅 {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>}
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{task.title}</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5">
+                        {task.clientName && (
+                          <p className="text-xs flex items-center gap-1 truncate" style={{ color: "var(--slate)" }}>
+                            <Building2 className="w-3.5 h-3.5" /> 
+                            <span className="truncate">{task.clientName}</span>
+                          </p>
+                        )}
+                        {task.dueDate && (
+                          <p className="text-xs flex items-center gap-1 whitespace-nowrap" style={{ color: isOverdue ? "#ef4444" : "var(--slate)" }}>
+                            <Calendar className="w-3.5 h-3.5" /> 
+                            {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full capitalize font-semibold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
+                    <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
                       {task.priority}
                     </span>
                   </div>
