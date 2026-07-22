@@ -1,5 +1,5 @@
 "use client";
-import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User } from "lucide-react";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake } from "lucide-react";
 
 
 import React, { useEffect, useState } from "react";
@@ -60,6 +60,12 @@ export default function LeadsPage() {
   const [isCustomAction, setIsCustomAction] = useState(false);
   const [search, setSearch]     = useState("");
   
+  // Quick Task (Schedule Meeting) state
+  const [showQuickTask, setShowQuickTask] = useState(false);
+  const [quickTaskForm, setQuickTaskForm] = useState({ title: "", description: "", dueDate: "", time: "" });
+  const [submittingTask, setSubmittingTask] = useState(false);
+  const [selectedLeadForTask, setSelectedLeadForTask] = useState<Lead | null>(null);
+
   // Drag and drop state
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -120,6 +126,53 @@ export default function LeadsPage() {
       console.error("Error saving lead:", error);
       toast("Failed to save lead.", "error");
     } finally { setSaving(false); }
+  }
+
+  async function handleQuickTask() {
+    if (!selectedLeadForTask) return;
+    if (!quickTaskForm.title || !quickTaskForm.dueDate) {
+      alert("Title and Date are required!");
+      return;
+    }
+    setSubmittingTask(true);
+    try {
+      await addDoc(collection(db, "tasks"), {
+        title: quickTaskForm.title,
+        description: quickTaskForm.description,
+        assignedTo: crmUser?.uid || "",
+        assignedToName: crmUser?.name || "System",
+        assignedBy: crmUser?.uid || "System",
+        clientId: selectedLeadForTask.id,
+        clientName: selectedLeadForTask.company || selectedLeadForTask.name || "",
+        relatedTo: "",
+        relatedType: "",
+        priority: "high",
+        status: "not-started",
+        done: false,
+        taskType: "meeting",
+        createdAt: new Date().toISOString(),
+        dueDate: quickTaskForm.dueDate || new Date().toISOString()
+      });
+      
+      let timeParams = "";
+      if (quickTaskForm.dueDate && quickTaskForm.time) {
+         const startDate = new Date(`${quickTaskForm.dueDate}T${quickTaskForm.time}`);
+         if (!isNaN(startDate.getTime())) {
+           const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour later
+           timeParams = `&startTime=${startDate.toISOString()}&endTime=${endDate.toISOString()}`;
+         }
+      }
+      const url = `https://teams.microsoft.com/l/meeting/new?subject=${encodeURIComponent(quickTaskForm.title || "New Meeting")}&content=${encodeURIComponent(quickTaskForm.description || "Meeting notes")}${selectedLeadForTask.email ? `&attendees=${selectedLeadForTask.email}` : ""}${timeParams}`;
+      window.open(url, "_blank");
+
+      setShowQuickTask(false);
+      setQuickTaskForm({ title: "", description: "", dueDate: "", time: "" });
+      setSelectedLeadForTask(null);
+    } catch (e: any) {
+      alert("Failed:" + e.message);
+    } finally {
+      setSubmittingTask(false);
+    }
   }
 
   async function deleteLead(id: string) {
@@ -354,16 +407,16 @@ export default function LeadsPage() {
 
                           {/* Quick Actions Footer */}
                           <div className="flex gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto pb-1 no-scrollbar opacity-0 group-hover:opacity-100 transition-opacity">
-                            {STAGES.filter(s => s.key !== lead.stage).map(s => (
-                              <button 
-                                key={s.key} 
-                                onClick={(e) => { e.stopPropagation(); moveStage(lead, s.key); }} 
-                                className="flex-shrink-0 text-[10px] px-2 py-1 rounded font-bold hover:brightness-95 transition-all" 
-                                style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
-                              >
-                                {s.label}
-                              </button>
-                            ))}
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedLeadForTask(lead);
+                                setShowQuickTask(true);
+                              }} 
+                              className="w-full py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <Handshake className="w-3.5 h-3.5" /> Schedule Meeting
+                            </button>
                           </div>
                         </div>
                       );
@@ -479,6 +532,80 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* Quick Task Modal */}
+      {showQuickTask && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowQuickTask(false)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-lg font-black text-slate-900 capitalize">Schedule a Meeting</h3>
+              <button onClick={() => setShowQuickTask(false)} className="text-slate-400 hover:text-slate-700"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></button>
+            </div>
+            
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-4">
+                <p className="text-xs text-blue-800 font-medium leading-relaxed">
+                  Fill in the details below to schedule a meeting with <strong>{selectedLeadForTask?.name} ({selectedLeadForTask?.company})</strong>. This will save a task in the CRM and open a new MS Teams Meeting window.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Meeting Title *</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors text-sm font-medium placeholder-slate-400"
+                  placeholder="e.g. Intro Call"
+                  value={quickTaskForm.title}
+                  onChange={e => setQuickTaskForm({...quickTaskForm, title: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Meeting Agenda</label>
+                <textarea 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors text-sm font-medium min-h-[80px] resize-none placeholder-slate-400"
+                  placeholder="Points to discuss..."
+                  value={quickTaskForm.description}
+                  onChange={e => setQuickTaskForm({...quickTaskForm, description: e.target.value})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date *</label>
+                  <input 
+                    type="date" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors text-sm font-medium text-slate-700"
+                    value={quickTaskForm.dueDate}
+                    onChange={e => setQuickTaskForm({...quickTaskForm, dueDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Time</label>
+                  <input 
+                    type="time" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors text-sm font-medium text-slate-700"
+                    value={quickTaskForm.time}
+                    onChange={e => setQuickTaskForm({...quickTaskForm, time: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50/50">
+              <button onClick={() => setShowQuickTask(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600">Cancel</button>
+              <button 
+                disabled={submittingTask}
+                onClick={handleQuickTask}
+                className="flex-[2] py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 disabled:opacity-50 transition-transform active:scale-[0.98]"
+              >
+                {submittingTask ? "Saving..." : "Save & Schedule in Teams"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -62,6 +62,7 @@ const EMPTY_FORM = {
   dueDate: "",
   notes: "",
   currency: "AED",
+  taxPercentage: 5,
   items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
 };
 
@@ -183,7 +184,8 @@ export default function InvoicePage() {
   }
 
   const subtotal = form.items.reduce((s: number, it: any) => s + it.amount, 0);
-  const tax = subtotal * 0.05;
+  const taxPct = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+  const tax = subtotal * (taxPct / 100);
   const total = subtotal + tax;
 
   function openAdd() {
@@ -405,7 +407,7 @@ export default function InvoicePage() {
 
                     ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;font-weight:600;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
                     <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">${curr} ${inv.subtotal?.toLocaleString()}</td></tr>
-                    <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;">${inv.taxPercentage === 18 ? "GST (18%)" : inv.taxPercentage === 5 ? "VAT (5%)" : `Tax (${inv.taxPercentage !== undefined ? inv.taxPercentage : 5}%)`}</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
                     <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">${curr} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
 
                   </table>
@@ -853,9 +855,14 @@ export default function InvoicePage() {
                   <select
                     className="form-input"
                     value={form.currency}
-                    onChange={(e) =>
-                      setForm({ ...form, currency: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const c = e.target.value;
+                      let newTax = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+                      if (c === "AED") newTax = 5;
+                      else if (c === "INR") newTax = 18;
+                      else if (c === "USD") newTax = 0;
+                      setForm({ ...form, currency: c, taxPercentage: newTax });
+                    }}
                   >
                     <option value="AED">AED</option>
                     <option value="USD">USD</option>
@@ -865,6 +872,16 @@ export default function InvoicePage() {
                     <option value="QAR">QAR</option>
                     <option value="KWD">KWD</option>
                   </select>
+                </div>
+                <div>
+                  <label className="form-label">Tax (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={form.taxPercentage !== undefined ? form.taxPercentage : 5}
+                    onChange={(e) => setForm({ ...form, taxPercentage: Number(e.target.value) })}
+                  />
                 </div>
                 <div>
                   <label className="form-label">Due Date</label>
@@ -1007,7 +1024,7 @@ export default function InvoicePage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span style={{ color: "#6b7280" }}>VAT (5%)</span>
+                    <span style={{ color: "#6b7280" }}>{form.taxPercentage === 18 ? "GST (18%)" : form.taxPercentage === 5 ? "VAT (5%)" : `Tax (${form.taxPercentage !== undefined ? form.taxPercentage : 5}%)`}</span>
                     <span style={{ color: "#1a1a2e" }}>
                       {form.currency || "AED"} {tax.toFixed(2)}
                     </span>
@@ -1427,7 +1444,7 @@ export default function InvoicePage() {
                     }}
                   >
                     <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                      VAT (5%)
+                      {preview.taxPercentage === 18 ? "GST (18%)" : preview.taxPercentage === 5 ? "VAT (5%)" : `Tax (${preview.taxPercentage !== undefined ? preview.taxPercentage : 5}%)`}
                     </span>
                     <span
                       style={{

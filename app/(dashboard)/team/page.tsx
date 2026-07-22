@@ -724,6 +724,76 @@ export default function TeamPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Access Modal */}
+      {editingMember && (
+        <div className="modal-overlay">
+          <div className="modal-box" style={{ maxWidth: 450 }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="modal-title mb-0">Edit Access</h2>
+              <button
+                onClick={() => setEditingMember(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+              >
+                <X className="inline-block w-4 h-4 shrink-0 mr-1" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl mb-4">
+                <p className="text-sm font-bold text-[#0D1B3E]">{editingMember.name}</p>
+                <p className="text-xs text-slate-500">{editingMember.email}</p>
+              </div>
+
+              <div>
+                <label className="form-label">Role Level</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                  {ROLES.map((r) => (
+                    <label
+                      key={r.key}
+                      className={`relative flex flex-col p-3 rounded-xl cursor-pointer border-2 transition-all ${
+                        editRole === r.key
+                          ? "border-[#0D1B3E] bg-[#f8f9fc]"
+                          : "border-slate-100 hover:border-slate-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="editRole"
+                        value={r.key}
+                        checked={editRole === r.key}
+                        onChange={(e) => setEditRole(e.target.value as UserRole)}
+                        className="sr-only"
+                      />
+                      <span className="text-sm font-bold" style={{ color: r.color }}>{r.label}</span>
+                      <span className="text-[10px] text-slate-500 leading-tight mt-1">{r.desc}</span>
+                      {editRole === r.key && (
+                        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#0D1B3E]" />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setEditingMember(null)}
+                  className="flex-1 py-2.5 rounded-xl border text-sm font-semibold border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={updateMemberRole}
+                  className="btn-primary flex-1 justify-center"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reset Password Modal */}
       {resettingMember && (
         <div className="modal-overlay">

@@ -411,6 +411,12 @@ export default function ProposalDetailPage() {
     e.preventDefault();
     if (!id || !signingName || !signingTitle || !isAgreed || !proposal) return;
 
+    if (proposal.packages && proposal.packages.length > 0 && !proposal.selectedPackageName) {
+      alert("Please select a package before signing the proposal.");
+      setShowSignModal(false);
+      return;
+    }
+
     setSubmittingSign(true);
     try {
       const signatureData = (sigPad.current && !sigPad.current.isEmpty()) 
@@ -424,6 +430,8 @@ export default function ProposalDetailPage() {
           signingName,
           signingTitle,
           signatureData,
+          selectedPackageName: proposal.selectedPackageName,
+          selectedPackagePrice: proposal.selectedPackagePrice,
         }),
       });
 
@@ -438,12 +446,7 @@ export default function ProposalDetailPage() {
       // Update local state so changes render immediately
       const acceptedState: Proposal = {
         ...proposal,
-        status: "accepted" as ProposalStatus,
-        clientSignatureName: signingName,
-        clientSignatureTitle: signingTitle,
-        clientSignatureImage: signatureData,
-        signedAt: now,
-        updatedAt: now,
+        ...updated,
       };
       
       setProposal(acceptedState);
@@ -514,6 +517,25 @@ export default function ProposalDetailPage() {
       alert("Failed to update status.");
     }
   }
+
+  const handleSignClick = () => {
+    const hasFinalPackage = (proposal?.packages || []).some((p: any) => p.status === 'final');
+    const visiblePackages = hasFinalPackage 
+      ? (proposal?.packages || []).filter((p: any) => p.status === 'final')
+      : (proposal?.packages || []).filter((p: any) => p.status !== 'hidden' && p.offered !== false);
+      
+    if (visiblePackages.length > 1 && (!proposal?.selectedPackageName || proposal.selectedPackageName.trim() === '')) {
+      alert("Please select a package first before signing.");
+      const packagesSection = document.getElementById("packages-section");
+      if (packagesSection) {
+        packagesSection.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: document.body.scrollHeight / 2, behavior: "smooth" });
+      }
+      return;
+    }
+    setShowSignModal(true);
+  };
 
   if (loading) {
     return (
@@ -823,7 +845,7 @@ export default function ProposalDetailPage() {
             {proposal.status !== "accepted" && proposal.status !== "won" && proposal.status !== "rejected" ? (
               <>
                 <button 
-                  onClick={() => setShowSignModal(true)}
+                  onClick={handleSignClick}
                   className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20"
                 >
                   Sign & Accept Proposal
@@ -889,13 +911,13 @@ export default function ProposalDetailPage() {
             </div>
 
             {/* Cover Title / Subject */}
-            <div className="pt-20">
+            <div className="pt-20 min-w-0">
               <div 
                 contentEditable={isEditing}
                 suppressContentEditableWarning
                 onKeyDown={handleSingleLineKeyDown}
                 onBlur={(e) => updateProposalState({ ...proposal, subject: e.target.innerText })}
-                className={`text-4xl lg:text-6xl font-black font-playfair text-white tracking-tight leading-tight min-h-[1.5em] ${editableTextClass}`}
+                className={`text-4xl lg:text-6xl font-black font-playfair text-white tracking-tight leading-tight min-h-[1.5em] break-all whitespace-pre-wrap ${editableTextClass}`}
               >
                 {proposal.subject || getServiceDefaultSubject(proposal.service)}
               </div>
@@ -904,76 +926,76 @@ export default function ProposalDetailPage() {
 
           {/* Metainfo block */}
           <div className="relative z-10 grid grid-cols-2 gap-8 pt-12 border-t border-white/10 text-sm select-none">
-            <div className="space-y-4">
-              <div className="flex flex-col">
+            <div className="space-y-4 min-w-0">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prepared For</span>
                 <div 
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   onKeyDown={handleSingleLineKeyDown}
                   onBlur={(e) => updateProposalState({ ...proposal, clientName: e.target.innerText })}
-                  className={`font-semibold text-white ${editableTextClass}`}
+                  className={`font-semibold text-white break-all whitespace-pre-wrap ${editableTextClass}`}
                 >
                   {proposal.clientName}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prepared By</span>
                 <div 
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   onKeyDown={handleSingleLineKeyDown}
                   onBlur={(e) => updateProposalState({ ...proposal, preparedByLabel: e.target.innerText })}
-                  className={`font-semibold text-white ${editableTextClass}`}
+                  className={`font-semibold text-white break-all whitespace-pre-wrap ${editableTextClass}`}
                 >
                   {proposal.preparedByLabel || "The A&M Internationals (FZC) — The.am.forge"}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Document Reference</span>
-                <div className="font-semibold text-[#C9A84C]">#{proposal.id.slice(-8).toUpperCase()}</div>
+                <div className="font-semibold text-[#C9A84C] break-all">#{proposal.id.slice(-8).toUpperCase()}</div>
               </div>
             </div>
             
-            <div className="space-y-4">
-              <div className="flex flex-col">
+            <div className="space-y-4 min-w-0">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date of Issue</span>
                 <div className="font-semibold text-white">
                   {new Date(proposal.createdAt).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' })}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Validity</span>
                 <div 
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   onKeyDown={handleSingleLineKeyDown}
                   onBlur={(e) => updateProposalState({ ...proposal, validityLabel: e.target.innerText })}
-                  className={`font-semibold text-white ${editableTextClass}`}
+                  className={`font-semibold text-white break-all whitespace-pre-wrap ${editableTextClass}`}
                 >
                   {proposal.validityLabel || "30 days from date of issue"}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Engagement Model</span>
                 <div 
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   onKeyDown={handleSingleLineKeyDown}
                   onBlur={(e) => updateProposalState({ ...proposal, engagementModelLabel: e.target.innerText })}
-                  className={`font-semibold text-white ${editableTextClass}`}
+                  className={`font-semibold text-white break-all whitespace-pre-wrap ${editableTextClass}`}
                 >
                   {proposal.engagementModelLabel || getServiceEngagementModel(proposal.service)}
                 </div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Proposal Currency</span>
                 <div 
                   contentEditable={isEditing}
                   suppressContentEditableWarning
                   onKeyDown={handleSingleLineKeyDown}
                   onBlur={(e) => updateProposalState({ ...proposal, currency: e.target.innerText })}
-                  className={`font-semibold text-white ${editableTextClass}`}
+                  className={`font-semibold text-white break-all whitespace-pre-wrap ${editableTextClass}`}
                 >
                   {proposal.currency || "AED"}
                 </div>
@@ -982,7 +1004,7 @@ export default function ProposalDetailPage() {
           </div>
 
           {/* Tagline Footer */}
-          <div className="relative z-10 text-center pt-8 select-none">
+          <div className="relative z-10 text-center pt-8 select-none min-w-0">
             <div 
               contentEditable={isEditing}
               suppressContentEditableWarning
@@ -1007,7 +1029,8 @@ export default function ProposalDetailPage() {
           <DynamicTemplate 
             proposal={proposal} 
             isEditing={isEditing} 
-            onChange={(updated) => updateProposalState(updated)} 
+            onChange={(updated) => updateProposalState(updated)}
+            showAsClient={showAsClient}
           />
         </div>
       </div>
@@ -1029,7 +1052,7 @@ export default function ProposalDetailPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSignProposal} className="p-6 space-y-6">
+            <form onSubmit={handleSignProposal} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Your Full Name</label>
                 <input 
@@ -1053,6 +1076,24 @@ export default function ProposalDetailPage() {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0D1B3E]/20 focus:border-[#0D1B3E] font-medium text-slate-800 transition-all text-sm"
                 />
               </div>
+
+              {proposal.selectedPackageName && proposal.selectedPackagePrice !== undefined && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 select-none">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 border-b border-slate-200 pb-2">Financial Summary</h4>
+                  <div className="flex justify-between text-sm font-medium text-slate-600">
+                    <span>Package: {proposal.selectedPackageName}</span>
+                    <span>{proposal.currency || "AED"} {proposal.selectedPackagePrice.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-medium text-slate-600">
+                    <span>{proposal.taxPercentage === 18 ? "GST (18%)" : proposal.taxPercentage === 5 ? "VAT (5%)" : `Tax (${proposal.taxPercentage !== undefined ? proposal.taxPercentage : 5}%)`}</span>
+                    <span>{proposal.currency || "AED"} {((proposal.selectedPackagePrice * (proposal.taxPercentage !== undefined ? proposal.taxPercentage : 5)) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between text-base font-black text-[#0D1B3E]">
+                    <span>Total Commitment</span>
+                    <span className="text-[#C9A84C]">{proposal.currency || "AED"} {(proposal.selectedPackagePrice + ((proposal.selectedPackagePrice * (proposal.taxPercentage !== undefined ? proposal.taxPercentage : 5)) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Signature Canvas */}
               <div className="space-y-2">

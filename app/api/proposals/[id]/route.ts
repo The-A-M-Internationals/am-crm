@@ -59,6 +59,18 @@ export async function POST(
         clientSignatureImage: data.signatureData || null,
         signedAt: now,
       };
+
+      if (data.selectedPackageName) {
+        const subtotal = Number(data.selectedPackagePrice) || 0;
+        const taxPct = docSnap.data()?.taxPercentage !== undefined ? docSnap.data()?.taxPercentage : 5;
+        const tax = subtotal * (taxPct / 100);
+        const total = subtotal + tax;
+        updateData.selectedPackageName = data.selectedPackageName;
+        updateData.selectedPackagePrice = subtotal;
+        updateData.subtotal = subtotal;
+        updateData.tax = tax;
+        updateData.total = total;
+      }
     } else if (action === "reject") {
       updateData = {
         ...updateData,
@@ -102,36 +114,53 @@ export async function POST(
           await adminDb.runTransaction(async (t) => {
             const existingClients = await t.get(clientsRef.where("email", "==", normEmail));
             
-            if (existingClients.empty) {
-              const newClientRef = clientsRef.doc();
-              t.set(newClientRef, {
-                name: proposalData.clientName || "Unknown",
-                company: proposalData.company || proposalData.clientName || "Unknown",
-                email: normEmail,
-                phone: proposalData.phone || "",
-                services: proposalData.service ? [proposalData.service] : [],
-                status: "active",
-                active: true,
-                currency: proposalData.currency || "AED",
-                fromLeadId: proposalData.fromLeadId || "",
-                createdAt: now,
-                updatedAt: now
-              });
-              clientId = newClientRef.id;
-            } else {
-              const existingClient = existingClients.docs[0];
-              const cData = existingClient.data();
-              const services = new Set(cData.services || []);
-              if (proposalData.service) services.add(proposalData.service);
+              const finalTotal = updateData.total || proposalData.total || 0;
               
-              t.update(existingClient.ref, {
-                active: true,
-                status: "active",
-                services: Array.from(services),
-                updatedAt: now
-              });
-              clientId = existingClient.id;
-            }
+              if (existingClients.empty) {
+                const newClientRef = clientsRef.doc();
+                t.set(newClientRef, {
+                  name: proposalData.clientName || "Unknown",
+                  company: proposalData.company || proposalData.clientName || "Unknown",
+                  email: normEmail,
+                  phone: proposalData.phone || "",
+                  services: proposalData.service ? [proposalData.service] : [],
+                  status: "active",
+                  active: true,
+                  currency: proposalData.currency || "AED",
+                  budget: finalTotal,
+                  due: finalTotal,
+                  paid: 0,
+                  remaining: finalTotal,
+                  balance: finalTotal,
+                  fromLeadId: proposalData.fromLeadId || "",
+                  createdAt: now,
+                  updatedAt: now
+                });
+                clientId = newClientRef.id;
+              } else {
+                const existingClient = existingClients.docs[0];
+                const cData = existingClient.data();
+                const services = new Set(cData.services || []);
+                if (proposalData.service) services.add(proposalData.service);
+                
+                // Add the new proposal amount to the existing client's ledger
+                const newBudget = (Number(cData.budget) || 0) + finalTotal;
+                const newDue = (Number(cData.due) || 0) + finalTotal;
+                const newRemaining = (Number(cData.remaining) || 0) + finalTotal;
+                const newBalance = (Number(cData.balance) || 0) + finalTotal;
+
+                t.update(existingClient.ref, {
+                  active: true,
+                  status: "active",
+                  services: Array.from(services),
+                  budget: newBudget,
+                  due: newDue,
+                  remaining: newRemaining,
+                  balance: newBalance,
+                  updatedAt: now
+                });
+                clientId = existingClient.id;
+              }
             
             // Attach the clientId to the proposal so the handoff works
             t.update(proposalRef, { clientId });
