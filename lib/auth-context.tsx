@@ -33,6 +33,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [crmUser, setCrmUser] = useState<CRMUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 1. Instantly Hydrate from Persistent Cache
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUser = localStorage.getItem("crm-user-cache");
+        if (cachedUser) {
+          setCrmUser(JSON.parse(cachedUser));
+          setLoading(false); // Eliminate the white screen loading phase instantly
+        }
+      } catch (err) {
+        console.error("Failed to parse local user cache", err);
+      }
+    }
+  }, []);
+
+  // 2. Silent Background Sync with Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -42,7 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const q         = query(usersRef, where("uid", "==", firebaseUser.uid));
           const querySnap = await getDocs(q);
           if (!querySnap.empty) {
-            setCrmUser(querySnap.docs[0].data() as CRMUser);
+            const fetchedUser = querySnap.docs[0].data() as CRMUser;
+            setCrmUser(fetchedUser);
+            // Overwrite cache silently in the background
+            localStorage.setItem("crm-user-cache", JSON.stringify(fetchedUser));
           }
           // Keep session cookie fresh
           setCookie("am-crm-session", "true", { maxAge: 60 * 60 * 24 * 7 });
@@ -51,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setCrmUser(null);
+        localStorage.removeItem("crm-user-cache");
         // Clear cookie when logged out
         deleteCookie("am-crm-session");
       }
@@ -67,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(auth);
     setCrmUser(null);
     deleteCookie("am-crm-session");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("crm-user-cache");
+    }
     // Hard redirect to login — clears any stale state
     window.location.href = "/login";
   };
