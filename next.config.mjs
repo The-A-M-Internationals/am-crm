@@ -3,7 +3,7 @@ const nextConfig = {
   images: {
     domains: ["firebasestorage.googleapis.com"],
   },
-  serverExternalPackages: ["firebase-admin"],
+  serverComponentsExternalPackages: ["firebase-admin"],
 };
 
 export default nextConfig;
