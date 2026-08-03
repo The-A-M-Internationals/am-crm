@@ -372,11 +372,8 @@ export default function ProjectsPage() {
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
   }
 
-  // Filter out projects linked to inactive/archived clients OR missing clients
-  const filteredProjects = projects.filter(p => {
-    if (loadingClients) return true; // Prevent flash on initial load
-    return p.clientId && clients.some(c => c.id === p.clientId);
-  });
+  // Do not hide projects just because a client is inactive
+  const filteredProjects = projects;
 
   const activeProjects = filteredProjects.filter(p => p.status !== "completed");
   const completedProjects = filteredProjects.filter(p => p.status === "completed");
