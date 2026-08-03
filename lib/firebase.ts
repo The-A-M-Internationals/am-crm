@@ -11,16 +11,25 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let auth: any;
+let db: any;
+let secondaryAuth: any;
+let app: any;
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  auth = getAuth(app);
+  db = getFirestore(app);
 
-/* Secondary Firebase App */
-const secondaryApp =
-  getApps().find((app) => app.name === "Secondary") ||
-  initializeApp(firebaseConfig, "Secondary");
+  /* Secondary Firebase App */
+  const secondaryApp =
+    getApps().find((app) => app.name === "Secondary") ||
+    initializeApp(firebaseConfig, "Secondary");
 
-export const secondaryAuth = getAuth(secondaryApp);
+  secondaryAuth = getAuth(secondaryApp);
+} catch (error) {
+  console.warn("Firebase initialization skipped during build:", error);
+}
+
+export { auth, db, secondaryAuth };
 export default app;
