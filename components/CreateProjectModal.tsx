@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, addDoc, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
@@ -79,7 +79,7 @@ export default function CreateProjectModal({
     
     let unsubClients = () => {};
     if (!initialClient) {
-      unsubClients = onSnapshot(collection(db, "clients"), snap => {
+      unsubClients = onSnapshot(query(collection(db, "clients"), where("active", "!=", false)), snap => {
         setClients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       });
     }
