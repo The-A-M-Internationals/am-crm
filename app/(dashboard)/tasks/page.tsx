@@ -1,5 +1,5 @@
 "use client";
-import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock } from "lucide-react";
+import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock, Trash2 } from "lucide-react";
 
 
 import { useEffect, useState } from "react";
@@ -532,7 +532,7 @@ export default function TasksPage() {
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
               <div className="flex gap-4 items-center">
                 {editing && crmUser?.role !== "employee" ? (
-                  <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">Delete Task</button>
+                  <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold flex items-center text-red-500 hover:text-red-700 hover:underline"><Trash2 className="inline-block w-3.5 h-3.5 shrink-0 mr-1" /> Delete Task</button>
                 ) : <div/>}
                 {form.taskType === "meeting" && (() => {
                   let timeParams = "";
