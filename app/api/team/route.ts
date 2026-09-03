@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       name,
       email,
       role,
+      requiresPasswordChange: true, // Force password change on next login
       updatedAt: new Date().toISOString(),
     };
 

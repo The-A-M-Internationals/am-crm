@@ -59,10 +59,30 @@ export async function POST(
         clientSignatureImage: data.signatureData || null,
         signedAt: now,
       };
+
+      if (data.selectedPackageName) {
+        const subtotal = Number(data.selectedPackagePrice) || 0;
+        const taxPct = docSnap.data()?.taxPercentage !== undefined ? docSnap.data()?.taxPercentage : 5;
+        const tax = subtotal * (taxPct / 100);
+        const total = subtotal + tax;
+        updateData.selectedPackageName = data.selectedPackageName;
+        updateData.selectedPackagePrice = subtotal;
+        updateData.subtotal = subtotal;
+        updateData.tax = tax;
+        updateData.total = total;
+      }
     } else if (action === "reject") {
       updateData = {
         ...updateData,
         status: "rejected",
+      };
+    } else if (action === "view") {
+      if (docSnap.data()?.viewedAt) {
+        return NextResponse.json({ success: true, alreadyViewed: true });
+      }
+      updateData = {
+        ...updateData,
+        viewedAt: now,
       };
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
@@ -74,7 +94,7 @@ export async function POST(
     if (proposalData) {
       console.log(`[API] Processing proposal: ${id}. action: ${action}`);
       
-      if (proposalData.fromLeadId) {
+      if (action !== "view" && proposalData.fromLeadId) {
         console.log(`[API] Upgrading lead ${proposalData.fromLeadId} to ${action === "accept" ? "won" : "lost"}`);
         const leadRef = adminDb.collection("leads").doc(proposalData.fromLeadId);
         await leadRef.update({
@@ -89,54 +109,66 @@ export async function POST(
       if (action === "accept") {
         if (normEmail) {
           const clientsRef = adminDb.collection("clients");
-          const existingClients = await clientsRef.where("email", "==", normEmail).get();
-          
           let clientId = "";
           
-          if (existingClients.empty) {
-            const newClientRef = await clientsRef.add({
-              name: proposalData.clientName || "Unknown",
-              company: proposalData.company || proposalData.clientName || "Unknown",
-              email: normEmail,
-              phone: proposalData.phone || "",
-              services: proposalData.service ? [proposalData.service] : [],
-              status: "active",
-              active: true,
-              currency: proposalData.currency || "AED",
-              fromLeadId: proposalData.fromLeadId || "",
-              createdAt: now,
-              updatedAt: now
-            });
-            clientId = newClientRef.id;
-          } else {
-            const existingClient = existingClients.docs[0];
-            const cData = existingClient.data();
-            const services = new Set(cData.services || []);
-            if (proposalData.service) services.add(proposalData.service);
+          await adminDb.runTransaction(async (t) => {
+            const existingClients = await t.get(clientsRef.where("email", "==", normEmail));
             
-            await existingClient.ref.update({
-              active: true,
-              status: "active",
-              services: Array.from(services),
-              updatedAt: now
-            });
-            clientId = existingClient.id;
-          }
-          
-          // Attach the clientId to the proposal so the handoff works
-          await proposalRef.update({ clientId });
+              const finalTotal = updateData.total || proposalData.total || 0;
+              
+              if (existingClients.empty) {
+                const newClientRef = clientsRef.doc();
+                t.set(newClientRef, {
+                  name: proposalData.clientName || "Unknown",
+                  company: proposalData.company || proposalData.clientName || "Unknown",
+                  email: normEmail,
+                  phone: proposalData.phone || "",
+                  services: proposalData.service ? [proposalData.service] : [],
+                  status: "active",
+                  active: true,
+                  currency: proposalData.currency || "AED",
+                  budget: finalTotal,
+                  due: finalTotal,
+                  paid: 0,
+                  remaining: finalTotal,
+                  balance: finalTotal,
+                  fromLeadId: proposalData.fromLeadId || "",
+                  createdAt: now,
+                  updatedAt: now
+                });
+                clientId = newClientRef.id;
+              } else {
+                const existingClient = existingClients.docs[0];
+                const cData = existingClient.data();
+                const services = new Set(cData.services || []);
+                if (proposalData.service) services.add(proposalData.service);
+                
+                // Add the new proposal amount to the existing client's ledger
+                const newBudget = (Number(cData.budget) || 0) + finalTotal;
+                const newDue = (Number(cData.due) || 0) + finalTotal;
+                const newRemaining = (Number(cData.remaining) || 0) + finalTotal;
+                const newBalance = (Number(cData.balance) || 0) + finalTotal;
+
+                t.update(existingClient.ref, {
+                  active: true,
+                  status: "active",
+                  services: Array.from(services),
+                  budget: newBudget,
+                  due: newDue,
+                  remaining: newRemaining,
+                  balance: newBalance,
+                  updatedAt: now
+                });
+                clientId = existingClient.id;
+              }
+            
+            // Attach the clientId to the proposal so the handoff works
+            t.update(proposalRef, { clientId });
+          });
         }
       } else if (action === "reject") {
-        if (normEmail) {
-          const clientsRef = adminDb.collection("clients");
-          const existingClients = await clientsRef.where("email", "==", normEmail).get();
-          if (!existingClients.empty) {
-            const updatePromises = existingClients.docs.map(docSnap => 
-              docSnap.ref.update({ status: "inactive", active: false, updatedAt: now })
-            );
-            await Promise.all(updatePromises);
-          }
-        }
+        // Do not cascade-deactivate clients on proposal rejection.
+        // A client might have other active proposals or be a direct client.
       }
     }
 

@@ -49,12 +49,26 @@ export async function POST(req: Request) {
     }
     const currency = proposal.currency || "AED";
 
+    const formatVal = (val: any) => {
+      if (typeof val === "number") return val.toLocaleString();
+      return val || "0";
+    };
+
+    const getTotal = (pkg: any) => {
+      if (pkg.totalMonthly !== undefined && pkg.totalMonthly !== "") {
+        return formatVal(pkg.totalMonthly);
+      }
+      const s = parseFloat(String(pkg.recommendedSpend || "0").replace(/[^\d.]/g, "")) || 0;
+      const m = parseFloat(String(pkg.managementFee || "0").replace(/[^\d.]/g, "")) || 0;
+      return (s + m).toLocaleString();
+    };
+
     let htmlBody = "";
     
     if (proposal.isRichDocument) {
       htmlBody = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #1a1a2e; line-height: 1.6;">
-          <div style="background: linear-gradient(135deg, #0D1B3E, #1a3070); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
+          <div style="background: var(--navy); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
             <h1 style="color: #C9A84C; margin: 0; font-size: 28px; font-family: Georgia, serif; letter-spacing: 1px;">A&M CRM</h1>
             <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 11px; letter-spacing: 3px; font-weight: bold; text-transform: uppercase;">The A&M Internationals FZC</p>
           </div>
@@ -115,20 +129,20 @@ export async function POST(req: Request) {
                     <tr>
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">A&M Management Fee</td>
                       ${proposal.packages.map((pkg: any) => `
-                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${pkg.managementFee.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${formatVal(pkg.managementFee)}</td>
                       `).join('')}
                     </tr>
                     <tr style="background: #f8fafc;">
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">Recommended Ad Spend</td>
                       ${proposal.packages.map((pkg: any) => `
-                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${pkg.recommendedSpend.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: center; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">${currency} ${formatVal(pkg.recommendedSpend)}</td>
                       `).join('')}
                     </tr>
                     <tr style="background: #0D1B3E; color: white;">
                       <td style="padding: 12px; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.2);">TOTAL MONTHLY</td>
                       ${proposal.packages.map((pkg: any) => `
                         <td style="padding: 12px; text-align: center; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.2); ${pkg.recommended ? 'background: #C9A84C;' : ''}">
-                          ${currency} ${(pkg.managementFee + pkg.recommendedSpend).toLocaleString()}
+                          ${currency} ${getTotal(pkg)}
                         </td>
                       `).join('')}
                     </tr>
@@ -154,7 +168,7 @@ export async function POST(req: Request) {
     } else {
       htmlBody = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a2e; line-height: 1.6;">
-          <div style="background: linear-gradient(135deg, #0D1B3E, #1a3070); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
+          <div style="background: var(--navy); padding: 40px; border-radius: 20px 20px 0 0; text-align: center;">
             <h1 style="color: #C9A84C; margin: 0; font-size: 28px; font-family: Georgia, serif; letter-spacing: 1px;">A&M CRM</h1>
             <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 11px; letter-spacing: 3px; font-weight: bold; text-transform: uppercase;">The A&M Internationals FZC</p>
           </div>

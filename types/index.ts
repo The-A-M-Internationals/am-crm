@@ -43,6 +43,7 @@ export interface CRMUser {
   email: string;
   role: UserRole;
   avatar?: string;
+  requiresPasswordChange?: boolean;
   createdAt: string;
 }
 
@@ -127,14 +128,15 @@ export interface Project {
     completed: boolean;
   }[];
   payments?: PaymentLog[];
-  createdAt: string;
-  updatedAt: string;
+  techStack?: string[];
   figmaUrl?: string;
   repoUrl?: string;
   stagingUrl?: string;
   productionUrl?: string;
-  techStack?: string[];
   coreFocus?: string;
+  createdAt: string;
+  updatedAt: string;
+
 
   sharedFiles?: {
     name: string;
@@ -174,6 +176,8 @@ export interface ProposalPackage {
   estimatedLeads: string;
   estimatedCostPerLead: string;
   recommended?: boolean;
+  offered?: boolean; // legacy
+  status?: 'option' | 'final' | 'hidden';
   totalMonthly?: number | string;
   customValues?: Record<string, string>;
 }
@@ -229,6 +233,12 @@ export interface Proposal {
   exclusions?: string[];
   terms?: ProposalTerm[];
   customSections?: ProposalCustomSection[];
+
+  // Dynamic Pricing & Tax Fields
+  taxPercentage?: number;
+  selectedPackageName?: string;
+  selectedPackagePrice?: number;
+  agreedRate?: number;
 
   // Editor-specific Fields
   aboutTitle?: string;
@@ -291,6 +301,7 @@ export interface Proposal {
   validUntil?: string;
   createdBy: string;
   sentAt?: string;
+  viewedAt?: string;
   clientSignatureName?: string;
   clientSignatureTitle?: string;
   clientSignatureImage?: string;
@@ -342,6 +353,8 @@ export interface Invoice {
   dueDate?: string;
   notes?: string;
   items: { description: string; qty: number; rate: number; amount: number }[];
+  currency?: string;
+  taxPercentage?: number;
   projectId?: string;
   createdBy: string;
   createdAt: string;

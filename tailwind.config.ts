@@ -11,19 +11,22 @@ const config: Config = {
     extend: {
       colors: {
         navy: {
-          DEFAULT: "#0D1B3E",
-          light: "#1a3070",
-          dark: "#08112a",
+          DEFAULT: "#0A1128",
+          light: "#162244",
+          dark: "#050814",
         },
         gold: {
-          DEFAULT: "#C9A84C",
-          light: "#e2c070",
-          dark: "#9a7a2e",
+          DEFAULT: "#C5A85A",
+          light: "#D4BE7E",
+          dark: "#A38842",
         },
+        charcoal: "#1F2937",
+        slate: "#475569",
+        ivory: "#FCFBF9",
       },
       fontFamily: {
-        poppins: ["var(--font-poppins)", "sans-serif"],
-        playfair: ["var(--font-playfair)", "serif"],
+        inter: ["var(--font-inter)", "sans-serif"],
+        outfit: ["var(--font-outfit)", "sans-serif"],
       },
       animation: {
         "spin-slow": "spin 3s linear infinite",

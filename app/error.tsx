@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import { AlertTriangle } from "lucide-react";
 
 import { useEffect } from 'react';
 
@@ -20,7 +21,7 @@ export default function GlobalError({
         <div className="min-h-screen bg-[#0a0a0f] text-slate-200 flex flex-col items-center justify-center p-4">
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-2xl text-center">
             <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-red-500 text-3xl">⚠</span>
+              <span className="text-red-500 text-3xl"><AlertTriangle className="inline-block w-4 h-4 shrink-0 mr-1" /></span>
             </div>
             <h2 className="text-xl font-bold text-white mb-2 tracking-wide">Application Error Detected</h2>
             <p className="text-sm text-slate-400 mb-8 leading-relaxed">

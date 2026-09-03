@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Smart Client Creation / Update
-    const clientEmail = proposal.email || leadContext?.email || "";
+    const clientEmail = proposal.clientEmail || proposal.email || leadContext?.email || "";
     if (clientEmail) {
       const clientQuery = query(collection(db, "clients"), where("email", "==", clientEmail));
       const clientSnap = await getDocs(clientQuery);

@@ -10,6 +10,7 @@ import {
   doc,
   query,
   orderBy,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
@@ -61,6 +62,7 @@ const EMPTY_FORM = {
   dueDate: "",
   notes: "",
   currency: "AED",
+  taxPercentage: 5,
   items: [{ description: "", qty: 1, rate: 0, amount: 0 }],
 };
 
@@ -90,10 +92,8 @@ export default function InvoicePage() {
   async function fetchInvoices() {
     try {
       const [invSnap, cliSnap] = await Promise.all([
-        getDocs(
-          query(collection(db, "invoices"), orderBy("createdAt", "desc")),
-        ),
-        getDocs(collection(db, "clients")),
+        getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"))),
+        getDocs(query(collection(db, "clients"), where("status", "==", "active")))
       ]);
 
       const data = invSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -184,7 +184,8 @@ export default function InvoicePage() {
   }
 
   const subtotal = form.items.reduce((s: number, it: any) => s + it.amount, 0);
-  const tax = subtotal * 0.05;
+  const taxPct = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+  const tax = subtotal * (taxPct / 100);
   const total = subtotal + tax;
 
   function openAdd() {
@@ -374,7 +375,7 @@ export default function InvoicePage() {
   async function sendEmail(inv: any) {
     if (!inv.clientEmail) {
       alert(
-        "❌ No client email on this invoice! Please edit the invoice and add a client email first.",
+        "No client email on this invoice! Please edit the invoice and add a client email first.",
       );
       return;
     }
@@ -389,8 +390,11 @@ export default function InvoicePage() {
           subject: `Invoice ${inv.invoiceNumber} from The A&M Internationals`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-              <div style="background:linear-gradient(135deg,#0D1B3E,#1a3070);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
-                <h1 style="color:#C9A84C;margin:0;font-size:24px;font-family:Georgia,serif;">A&M</h1>
+              <div style="background:var(--navy);padding:28px;border-radius:10px 10px 0 0;text-align:center;">
+                <h1 className="page-title flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            A&M
+          </h1>
                 <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:12px;letter-spacing:2px;">THE A&M INTERNATIONALS FZC</p>
               </div>
               <div style="background:white;padding:28px;border:1px solid #e8e8f0;border-top:none;border-radius:0 0 10px 10px;">
@@ -403,7 +407,7 @@ export default function InvoicePage() {
 
                     ${inv.dueDate ? `<tr><td style="color:#9ca3af;padding:4px 0;">Due Date</td><td style="text-align:right;font-weight:600;color:#ef4444;">${new Date(inv.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</td></tr>` : ""}
                     <tr><td style="color:#9ca3af;padding:4px 0;padding-top:12px;border-top:1px solid #e5e7eb;">Subtotal</td><td style="text-align:right;padding-top:12px;border-top:1px solid #e5e7eb;color:#1a1a2e;">${curr} ${inv.subtotal?.toLocaleString()}</td></tr>
-                    <tr><td style="color:#9ca3af;padding:4px 0;">VAT (5%)</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
+                    <tr><td style="color:#9ca3af;padding:4px 0;">${inv.taxPercentage === 18 ? "GST (18%)" : inv.taxPercentage === 5 ? "VAT (5%)" : `Tax (${inv.taxPercentage !== undefined ? inv.taxPercentage : 5}%)`}</td><td style="text-align:right;color:#1a1a2e;">${curr} ${inv.tax?.toFixed(2)}</td></tr>
                     <tr><td style="font-weight:700;color:#0D1B3E;padding:8px 0 4px;font-size:15px;">Total</td><td style="text-align:right;font-weight:700;color:#C9A84C;font-size:15px;">${curr} ${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>
 
                   </table>
@@ -420,17 +424,17 @@ export default function InvoicePage() {
 
       if (result.error) {
         alert(
-          `❌ Failed to send email!\n\nError: ${JSON.stringify(result.error)}`,
+          `Failed to send email!\n\nError: ${JSON.stringify(result.error)}`,
         );
       } else if (result.skipped) {
         alert(
           "⚠️ Email skipped — RESEND_API_KEY not configured in environment variables.",
         );
       } else {
-        alert(`✅ Invoice email sent to ${inv.clientEmail} successfully!`);
+        alert(`Invoice email sent to ${inv.clientEmail} successfully!`);
       }
     } catch (err: any) {
-      alert(`❌ Network error: ${err.message}`);
+      alert(`Network error: ${err.message}`);
     } finally {
       setSending(false);
     }
@@ -439,7 +443,7 @@ export default function InvoicePage() {
   function sendWhatsApp(inv: any) {
     const phone = inv.clientPhone?.replace(/\D/g, "");
     if (!phone) {
-      alert("❌ No client phone number on this invoice!");
+      alert("No client phone number on this invoice!");
       return;
     }
 
@@ -474,14 +478,14 @@ export default function InvoicePage() {
         {[
           {
             label: "Total Invoiced",
-            value: `AED ${invoices.reduce((s, i) => s + (i.total || 0), 0).toLocaleString()}`,
+            value: `AED ${invoices.reduce((s, i) => s + (Number(i.total) || 0), 0).toLocaleString()}`,
             color: "#0D1B3E",
           },
           {
             label: "Paid",
             value: `AED ${invoices
               .filter((i) => i.status === "paid")
-              .reduce((s, i) => s + (i.total || 0), 0)
+              .reduce((s, i) => s + (Number(i.total) || 0), 0)
               .toLocaleString()}`,
             color: "#065f46",
           },
@@ -489,7 +493,7 @@ export default function InvoicePage() {
             label: "Outstanding",
             value: `AED ${invoices
               .filter((i) => i.status !== "paid")
-              .reduce((s, i) => s + (i.total || 0), 0)
+              .reduce((s, i) => s + (Number(i.total) || 0), 0)
               .toLocaleString()}`,
             color: "#ef4444",
           },
@@ -537,7 +541,7 @@ export default function InvoicePage() {
             const curr = inv.currency || "AED";
 
             return (
-              <div key={inv.id} className="crm-card">
+              <div key={inv.id} className={`crm-card ${openMenu === inv.id ? 'relative z-10' : ''}`}>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div
@@ -750,47 +754,32 @@ export default function InvoicePage() {
               </button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="form-label font-semibold">
-                  Select Client (Auto-fills details)
-                </label>
-                <select
-                  className="form-input mb-3"
-                  onChange={(e) => {
-                    const selected = clients.find(
-                      (c) => c.id === e.target.value,
-                    );
-                    if (selected) {
-                      setForm({
-                        ...form,
-                        clientName: selected.name || "",
-                        clientEmail: selected.email || "",
-                        clientPhone: selected.phone || "",
-                        clientAddress: selected.address || "",
-                      });
-                    }
-                  }}
-                >
-                  <option value="">-- Choose an existing client --</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Client Name *</label>
-                  <input
+                  <label className="form-label">Client *</label>
+                  <select
                     className="form-input"
-                    value={form.clientName}
-                    onChange={(e) =>
-                      setForm({ ...form, clientName: e.target.value })
-                    }
-                    placeholder="Client or company name"
-                  />
+                    value={form.clientId || ""}
+                    onChange={(e) => {
+                      const selected = clients.find(c => c.id === e.target.value);
+                      if (selected) {
+                        setForm({
+                          ...form,
+                          clientId: e.target.value,
+                          clientName: selected.company || selected.name || "",
+                          clientEmail: selected.email || "",
+                          clientPhone: selected.phone || "",
+                          clientAddress: selected.address || ""
+                        });
+                      } else {
+                        setForm({ ...form, clientId: "", clientName: "", clientEmail: "", clientPhone: "", clientAddress: "" });
+                      }
+                    }}
+                  >
+                    <option value="">-- Select a client --</option>
+                    {clients.filter(c => c.active !== false).map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="form-label">Client Email</label>
@@ -866,19 +855,33 @@ export default function InvoicePage() {
                   <select
                     className="form-input"
                     value={form.currency}
-                    onChange={(e) =>
-                      setForm({ ...form, currency: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const c = e.target.value;
+                      let newTax = form.taxPercentage !== undefined ? form.taxPercentage : 5;
+                      if (c === "AED") newTax = 5;
+                      else if (c === "INR") newTax = 18;
+                      else if (c === "USD") newTax = 0;
+                      setForm({ ...form, currency: c, taxPercentage: newTax });
+                    }}
                   >
                     <option value="AED">AED</option>
                     <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
+
                     <option value="INR">INR</option>
                     <option value="SAR">SAR</option>
                     <option value="QAR">QAR</option>
                     <option value="KWD">KWD</option>
                   </select>
+                </div>
+                <div>
+                  <label className="form-label">Tax (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={form.taxPercentage !== undefined ? form.taxPercentage : 5}
+                    onChange={(e) => setForm({ ...form, taxPercentage: Number(e.target.value) })}
+                  />
                 </div>
                 <div>
                   <label className="form-label">Due Date</label>
@@ -1021,7 +1024,7 @@ export default function InvoicePage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span style={{ color: "#6b7280" }}>VAT (5%)</span>
+                    <span style={{ color: "#6b7280" }}>{form.taxPercentage === 18 ? "GST (18%)" : form.taxPercentage === 5 ? "VAT (5%)" : `Tax (${form.taxPercentage !== undefined ? form.taxPercentage : 5}%)`}</span>
                     <span style={{ color: "#1a1a2e" }}>
                       {form.currency || "AED"} {tax.toFixed(2)}
                     </span>
@@ -1120,7 +1123,7 @@ export default function InvoicePage() {
                       style={{
                         width: 44,
                         height: 44,
-                        background: "linear-gradient(135deg,#0D1B3E,#1a3070)",
+                        background: "var(--navy)",
                         borderRadius: 10,
                         display: "flex",
                         alignItems: "center",
@@ -1441,7 +1444,7 @@ export default function InvoicePage() {
                     }}
                   >
                     <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                      VAT (5%)
+                      {preview.taxPercentage === 18 ? "GST (18%)" : preview.taxPercentage === 5 ? "VAT (5%)" : `Tax (${preview.taxPercentage !== undefined ? preview.taxPercentage : 5}%)`}
                     </span>
                     <span
                       style={{
