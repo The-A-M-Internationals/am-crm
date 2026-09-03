@@ -626,15 +626,6 @@ export default function ProposalDetailPage() {
             A&M CRM Quotation System
           </div>
         )}
-
-        {user && (
-          <Link
-            href="/proposals"
-            className="text-xs bg-[#0D1B3E] text-white px-4 py-2 rounded-xl font-bold uppercase tracking-wider hover:bg-[#1a3070] transition-all shadow-sm select-none"
-          >
-            ← Back to Proposals
-          </Link>
-        )}
       </div>
 
       {/* Sales Command Center Header (Internal Users Only) */}

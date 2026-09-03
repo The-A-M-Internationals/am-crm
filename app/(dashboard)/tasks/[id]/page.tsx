@@ -181,7 +181,7 @@ export default function TaskOperationalSheet({
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-6">
           <div className="flex items-center gap-4 mb-4 md:mb-0">
             <button
-              onClick={() => router.push("/tasks")}
+              onClick={() => router.back()}
               className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors font-black border border-slate-200"
             >
               ←

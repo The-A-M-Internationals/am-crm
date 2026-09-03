@@ -326,6 +326,212 @@ export default function TasksPage() {
           done: false,
           createdAt: now,
         });
+
+        // Send task assignment email to employee only
+        if (member?.email) {
+          try {
+            const projectName = form.relatedTo
+              ? projects.find((p) => p.id === form.relatedTo)?.title || ""
+              : "";
+
+            const html = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>New Task Assigned</title>
+              </head>
+
+              <body style="
+                margin: 0;
+                padding: 0;
+                background-color: #f5f6fa;
+                font-family: Arial, Helvetica, sans-serif;
+              ">
+
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="
+                    background-color: #f5f6fa;
+                    padding: 52px 20px;
+                  "
+                >
+                  <tr>
+                    <td align="center">
+
+                      <!-- Main Card -->
+                      <table
+                        width="750"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        style="
+                          width: 750px;
+                          max-width: 100%;
+                          background-color: #ffffff;
+                          border-radius: 16px;
+                          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+                        "
+                      >
+
+                        <!-- Header -->
+                        <tr>
+                          <td
+                            align="center"
+                            style="
+                              padding-top: 38px;
+                              padding-bottom: 128px;
+                            "
+                          >
+                            <div style="
+                              font-size: 30px;
+                              line-height: 36px;
+                              font-weight: 700;
+                              color: #C9A84C;
+                            ">
+                              A&amp;M CRM
+                            </div>
+                          </td>
+                        </tr>
+
+                        <!-- Greeting -->
+                        <tr>
+                          <td style="
+                            padding: 0 40px;
+                          ">
+
+                            <div style="
+                              font-size: 20px;
+                              line-height: 30px;
+                              color: #20243A;
+                              margin-bottom: 10px;
+                            ">
+                              Hi <strong>${member.name || "there"}</strong>,
+                            </div>
+
+                            <div style="
+                              font-size: 18px;
+                              line-height: 28px;
+                              color: #70788A;
+                              margin-bottom: 29px;
+                            ">
+                              A new task has been assigned to you in the CRM.
+                            </div>
+
+                          </td>
+                        </tr>
+
+                        <!-- Task Box -->
+                        <tr>
+                          <td style="
+                            padding: 0 40px;
+                          ">
+
+                            <table
+                              width="100%"
+                              cellpadding="0"
+                              cellspacing="0"
+                              border="0"
+                              style="
+                                background-color: #F7F8FB;
+                                border-left: 5px solid #C9A84C;
+                                border-radius: 0 12px 12px 0;
+                              "
+                            >
+                              <tr>
+                                <td style="
+                                  padding: 27px 30px 30px 30px;
+                                ">
+
+                                  <!-- Task Title -->
+                                  <div style="
+                                    font-size: 25px;
+                                    line-height: 32px;
+                                    font-weight: 700;
+                                    color: #17213F;
+                                    margin-bottom: 5px;
+                                  ">
+                                    ${form.title}
+                                  </div>
+
+                                  <!-- Project -->
+                                  ${
+                                    projectName
+                                      ? `
+                                        <div style="
+                                          font-size: 17px;
+                                          line-height: 26px;
+                                          color: #4F5668;
+                                        ">
+                                          <strong>Project:</strong> ${projectName}
+                                        </div>
+                                      `
+                                      : ""
+                                  }
+
+                                </td>
+                              </tr>
+                            </table>
+
+                          </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                          <td
+                            align="center"
+                            style="
+                              padding: 48px 40px 52px 40px;
+                            "
+                          >
+                            <div style="
+                              font-size: 14px;
+                              line-height: 20px;
+                              color: #9AA2B3;
+                            ">
+                              The A&amp;M Internationals FZC
+                              &nbsp;·&nbsp;
+                              Elevating the World, Elegantly
+                            </div>
+                          </td>
+                        </tr>
+
+                      </table>
+
+                    </td>
+                  </tr>
+                </table>
+
+              </body>
+              </html>
+            `;
+
+            const emailResponse = await fetch("/api/send-email", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                to: [member.email],
+                subject: `CRM Task Assigned: ${form.title}`,
+                html,
+              }),
+            });
+
+            if (!emailResponse.ok) {
+              const errorData = await emailResponse.text();
+              console.error("Task assignment email failed:", errorData);
+            } else {
+              console.log(`Task assignment email sent to ${member.email}`);
+            }
+          } catch (emailError) {
+            console.error("Task assignment email error:", emailError);
+          }
+        }
       }
 
       // Check if due date is tomorrow — send reminder
