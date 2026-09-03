@@ -387,8 +387,19 @@ export default function TasksPage() {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         if (due.toDateString() === tomorrow.toDateString()) {
-          await sendReminderEmail({ ...form }, member.email, member.name);
-
+          try {
+            await fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: [member.email],
+                subject: `Task Due Tomorrow: ${form.title}`,
+                html: `<div style="padding:20px;font-family:sans-serif;"><h3>Hi ${member.name},</h3><p>Reminder that your task <strong>"${form.title}"</strong> is due tomorrow (${form.dueDate}).</p></div>`,
+              }),
+            });
+          } catch (e) {
+            console.error("Reminder email error:", e);
+          }
         }
       }
       setShowModal(false);

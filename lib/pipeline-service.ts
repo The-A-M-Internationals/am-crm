@@ -1030,7 +1030,6 @@ export const PipelineService = {
       console.error("Invoice Drafting Error:", err);
     }
   },
-<
 
   /**
    * Hard deletes a Client and cascades to delete all their Projects, Tasks, Proposals, Leads, Invoices, etc.
