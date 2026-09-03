@@ -3,7 +3,9 @@ import { Mail, Building2, DollarSign, Bell, Check, Palette } from "lucide-react"
 
 
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { PhoneInput } from "@/components/phone-input";
 
 function Toggle({ defaultChecked = true }: { defaultChecked?: boolean }) {
@@ -45,10 +47,33 @@ function SettingRow({
 
 export default function SettingsPage() {
   const { crmUser } = useAuth();
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const settingsRef = doc(db, "settings", "company");
+        const settingsSnap = await getDoc(settingsRef);
+
+        if (settingsSnap.exists()) {
+          const data = settingsSnap.data();
+
+          if (data.currency) {
+            setCurrency(data.currency);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    }
+
+    loadSettings();
+  }, []);
   const [saved, setSaved] = useState(false);
   const [resendKey, setResendKey] = useState("");
   const [whatsapp, setWhatsapp] = useState("+91 90255 62311");
   const [currency, setCurrency] = useState("AED");
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const taxConfig = {
     AED: { label: "VAT (%)", value: 5 },
     INR: { label: "GST (%)", value: 18 },
@@ -89,11 +114,29 @@ export default function SettingsPage() {
     );
   }
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
+  async function handleSave() {
+    try {
+      const settingsRef = doc(db, "settings", "company");
 
+      await setDoc(
+        settingsRef,
+        {
+          currency: currency,
+          updatedAt: new Date(),
+        },
+        { merge: true },
+      );
+
+      setSaved(true);
+
+      setTimeout(() => {
+        setSaved(false);
+      }, 2500);
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      alert("Failed to save settings");
+    }
+  }
   return (
     <div className="p-8 max-w-3xl">
       <div className="page-header">

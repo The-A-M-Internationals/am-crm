@@ -165,48 +165,230 @@ export default function TasksPage() {
       if (editing) {
         await updateDoc(doc(db, "tasks", editing.id), payload);
       } else {
-        await addDoc(collection(db, "tasks"), { ...payload, done: false, createdAt: now });
-        
-        // SEND EMAIL NOTIFICATION TO ASSIGNEE
+
+        await addDoc(collection(db, "tasks"), {
+          ...payload,
+          progress: 0,
+          done: false,
+          createdAt: now,
+        });
+
+        // Send task assignment email to employee only
         if (member?.email) {
           try {
-            const dueDateTime = `${form.dueDate} ${form.time || ""}`.trim();
-            const html = `
-              <div style="background:#f8f9fc;padding:40px 20px;font-family:Arial,sans-serif;">
-                <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                  <div style="background:var(--navy);padding:32px;text-align:center;">
-                    <h1 style="color:#C9A84C;margin:0;font-size:24px;letter-spacing:1px;">A&M CRM</h1>
-                    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">Task Assigned</p>
-                  </div>
-                  <div style="padding:32px;">
-                    <p style="color:#1a1a2e;font-size:16px;margin-bottom:12px;">Hi <strong>${member.name}</strong>,</p>
-                    <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">A new task has been assigned to you in the CRM.</p>
+            const projectName = form.relatedTo
+              ? projects.find((p) => p.id === form.relatedTo)?.title || ""
+              : "";
 
-                    <div style="background:#f8f9fc;border-left:4px solid #C9A84C;padding:24px;border-radius:0 8px 8px 0;">
-                      <h3 style="color:#0D1B3E;margin:0 0 8px;font-size:18px;">${form.title}</h3>
-                      ${form.clientName ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Client:</strong> ${form.clientName}</p>` : ""}
-                      ${dueDateTime ? `<p style="color:#4b5563;font-size:13px;margin:4px 0;"><strong>Due:</strong> ${dueDateTime}</p>` : ""}
-                      ${form.description ? `<p style="color:#4b5563;font-size:13px;margin:12px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;"><strong>Description:</strong> ${form.description}</p>` : ""}
-                    </div>
-                    
-                    <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:40px;">The A&M Internationals FZC · Elevating the World, Elegantly</p>
-                  </div>
-                </div>
-              </div>
+            const html = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>New Task Assigned</title>
+              </head>
+
+              <body style="
+                margin: 0;
+                padding: 0;
+                background-color: #f5f6fa;
+                font-family: Arial, Helvetica, sans-serif;
+              ">
+
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="
+                    background-color: #f5f6fa;
+                    padding: 52px 20px;
+                  "
+                >
+                  <tr>
+                    <td align="center">
+
+                      <!-- Main Card -->
+                      <table
+                        width="750"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        style="
+                          width: 750px;
+                          max-width: 100%;
+                          background-color: #ffffff;
+                          border-radius: 16px;
+                          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+                        "
+                      >
+
+                        <!-- Header -->
+                        <tr>
+                          <td
+                            align="center"
+                            style="
+                              padding-top: 38px;
+                              padding-bottom: 128px;
+                            "
+                          >
+                            <div style="
+                              font-size: 30px;
+                              line-height: 36px;
+                              font-weight: 700;
+                              color: #C9A84C;
+                            ">
+                              A&amp;M CRM
+                            </div>
+                          </td>
+                        </tr>
+
+                        <!-- Greeting -->
+                        <tr>
+                          <td style="
+                            padding: 0 40px;
+                          ">
+
+                            <div style="
+                              font-size: 20px;
+                              line-height: 30px;
+                              color: #20243A;
+                              margin-bottom: 10px;
+                            ">
+                              Hi <strong>${member.name || "there"}</strong>,
+                            </div>
+
+                            <div style="
+                              font-size: 18px;
+                              line-height: 28px;
+                              color: #70788A;
+                              margin-bottom: 29px;
+                            ">
+                              A new task has been assigned to you in the CRM.
+                            </div>
+
+                          </td>
+                        </tr>
+
+                        <!-- Task Box -->
+                        <tr>
+                          <td style="
+                            padding: 0 40px;
+                          ">
+
+                            <table
+                              width="100%"
+                              cellpadding="0"
+                              cellspacing="0"
+                              border="0"
+                              style="
+                                background-color: #F7F8FB;
+                                border-left: 5px solid #C9A84C;
+                                border-radius: 0 12px 12px 0;
+                              "
+                            >
+                              <tr>
+                                <td style="
+                                  padding: 27px 30px 30px 30px;
+                                ">
+
+                                  <!-- Task Title -->
+                                  <div style="
+                                    font-size: 25px;
+                                    line-height: 32px;
+                                    font-weight: 700;
+                                    color: #17213F;
+                                    margin-bottom: 5px;
+                                  ">
+                                    ${form.title}
+                                  </div>
+
+                                  <!-- Project -->
+                                  ${
+                                    projectName
+                                      ? `
+                                        <div style="
+                                          font-size: 17px;
+                                          line-height: 26px;
+                                          color: #4F5668;
+                                        ">
+                                          <strong>Project:</strong> ${projectName}
+                                        </div>
+                                      `
+                                      : ""
+                                  }
+
+                                </td>
+                              </tr>
+                            </table>
+
+                          </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                          <td
+                            align="center"
+                            style="
+                              padding: 48px 40px 52px 40px;
+                            "
+                          >
+                            <div style="
+                              font-size: 14px;
+                              line-height: 20px;
+                              color: #9AA2B3;
+                            ">
+                              The A&amp;M Internationals FZC
+                              &nbsp;·&nbsp;
+                              Elevating the World, Elegantly
+                            </div>
+                          </td>
+                        </tr>
+
+                      </table>
+
+                    </td>
+                  </tr>
+                </table>
+
+              </body>
+              </html>
             `;
 
-            await fetch("/api/send-email", {
+            const emailResponse = await fetch("/api/send-email", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+              },
               body: JSON.stringify({
-                to: [member.email, "am@theaminternational.com"],
+                to: [member.email],
                 subject: `CRM Task Assigned: ${form.title}`,
-                html
-              })
+                html,
+              }),
             });
-          } catch (e) {
-            console.error("Failed to send assignment email", e);
+
+            if (!emailResponse.ok) {
+              const errorData = await emailResponse.text();
+              console.error("Task assignment email failed:", errorData);
+            } else {
+              console.log(`Task assignment email sent to ${member.email}`);
+            }
+          } catch (emailError) {
+            console.error("Task assignment email error:", emailError);
           }
+        }
+      }
+
+      // Check if due date is tomorrow — send reminder
+      if (form.dueDate && member?.email) {
+        const due = new Date(form.dueDate);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        if (due.toDateString() === tomorrow.toDateString()) {
+          await sendReminderEmail({ ...form }, member.email, member.name);
+
         }
       }
       setShowModal(false);
