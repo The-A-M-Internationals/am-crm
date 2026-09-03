@@ -1469,7 +1469,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Delete Asset"
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -2190,7 +2190,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       }} 
                       className="px-4 py-2 border rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border-red-200 transition-all"
                     >
-                      <X className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Task
+                      <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Task
                     </button>
                   </div>
                 )}
