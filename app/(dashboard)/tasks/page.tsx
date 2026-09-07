@@ -357,8 +357,6 @@ export default function TasksPage() {
             `;
 
             const emailResponse = await fetch("/api/send-email", {
-<<<<<<< HEAD
-=======
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -404,18 +402,6 @@ export default function TasksPage() {
           } catch (e) {
             console.error("Reminder email error:", e);
           }
-        }
-      }
-
-      // Check if due date is tomorrow — send reminder
-      if (form.dueDate && member?.email) {
-        const due = new Date(form.dueDate);
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        if (due.toDateString() === tomorrow.toDateString()) {
-          await sendReminderEmail({ ...form }, member.email, member.name);
-
         }
       }
       setShowModal(false);
