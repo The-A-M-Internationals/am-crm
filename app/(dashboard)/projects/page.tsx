@@ -461,23 +461,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Status filter (for active column) */}
-      <div className="flex gap-2 mb-8 flex-wrap">
-        {[{ key: "all", label: "All Active", color: "#6b7280", bg: "#f3f4f6" }, ...STATUSES.filter(s => s.key !== "completed")].map((s) => (
-          <button
-            key={s.key}
-            onClick={() => setStatusFilter(s.key as any)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-            style={{
-              background: statusFilter === s.key ? s.bg : "#f9fafb",
-              color: statusFilter === s.key ? s.color : "#9ca3af",
-              border: `1px solid ${statusFilter === s.key ? s.color + "44" : "#e5e7eb"}`,
-            }}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      {/* Status filter handled by side panel */}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
