@@ -80,17 +80,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    setCookie("am-crm-session", "true", { maxAge: 60 * 60 * 24 * 7 });
+    setUser(cred.user);
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("uid", "==", cred.user.uid));
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const fetchedUser = querySnap.docs[0].data() as CRMUser;
+        setCrmUser(fetchedUser);
+        localStorage.setItem("crm-user-cache", JSON.stringify(fetchedUser));
+      }
+    } catch (err) {
+      console.error("Error fetching crmUser on login:", err);
+    }
   };
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
     setCrmUser(null);
+    setUser(null);
     deleteCookie("am-crm-session");
     if (typeof window !== "undefined") {
       localStorage.removeItem("crm-user-cache");
     }
-    // Hard redirect to login — clears any stale state
+    try {
+      await firebaseSignOut(auth);
+    } catch (err) {
+      console.error("Signout error:", err);
+    }
     window.location.href = "/login";
   };
 

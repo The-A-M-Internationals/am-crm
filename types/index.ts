@@ -15,6 +15,8 @@ export type ServiceTag =
   | "seo"
   | "social-media"
   | "branding"
+  | "technology-services"
+  | "oracle-epm"
   | "other";
 
 export type LeadStage = "lead" | "meeting" | "proposal" | "won" | "lost";

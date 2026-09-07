@@ -27,6 +27,8 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
   { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
   { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "technology-services", label: "Technology Services", bg: "#e0f2fe", text: "#0369a1" },
+  { key: "oracle-epm",        label: "Oracle EPM",        bg: "#fef08a", text: "#854d0e" },
   { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
@@ -80,7 +82,21 @@ export default function ProjectsPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM, assignedTo: [] as string[] });
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [openProjectPanel, setOpenProjectPanel] = useState(false);
   const [activeDropdownProjectId, setActiveDropdownProjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    function openFromSidebar() {
+      setOpenProjectPanel(true);
+    }
+    window.addEventListener("projects:open-panel", openFromSidebar);
+    return () => window.removeEventListener("projects:open-panel", openFromSidebar);
+  }, []);
+
+  function selectProjectFilter(filter: ProjectStatus | "all") {
+    setStatusFilter(filter);
+    setOpenProjectPanel(false);
+  }
 
   // Task Delegation State for Projects Page
   const [delegateProject, setDelegateProject] = useState<Project | null>(null);
@@ -386,18 +402,64 @@ export default function ProjectsPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="page-title flex items-center gap-3">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-            Projects
-          </h1>
+          <button onClick={() => setOpenProjectPanel(true)} className="flex items-center gap-2 group text-left">
+            <h1 className="page-title flex items-center gap-3 mb-0">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Projects
+            </h1>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2.5" className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>{activeProjects.filter((p) => p.status === "in-progress").length} active projects</p>
         </div>
-        {canEdit && (
-          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm" style={{ background: "#0D1B3E" }}>
-            <span className="text-lg leading-none">+</span> New Project
-          </button>
-        )}
+        <div className="flex gap-3">
+          {crmUser?.role === "admin" && (
+            <button onClick={() => setShowCreateModal(true)} className="btn-primary"><span className="text-base">+</span> New Project</button>
+          )}
+        </div>
       </div>
+
+      {/* Project filter panel */}
+      {openProjectPanel && (
+        <div className="fixed inset-0 z-50" onClick={() => setOpenProjectPanel(false)}>
+          <div className="absolute inset-0" style={{ background: "rgba(13, 27, 62, 0.35)", backdropFilter: "blur(2px)" }} />
+          <div className="project-panel absolute left-0 top-0 h-full w-[280px] shadow-2xl flex flex-col" style={{ background: "linear-gradient(180deg, #0D1B3E 0%, #142450 100%)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-6 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+              <div>
+                <h2 className="text-base font-bold text-white leading-tight">Filter Projects</h2>
+                <p className="text-[11px] mt-0.5" style={{ color: "#8b93ab" }}>Choose a category</p>
+              </div>
+              <button onClick={() => setOpenProjectPanel(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-[#8b93ab] hover:text-white hover:bg-white/10">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
+              {[
+                { key: "all" as const, label: "All Active", dot: "#C9A84C", count: activeProjects.length },
+                { key: "not-started" as const, label: "Not Started", dot: "#9ca3af", count: activeProjects.filter((p) => p.status === "not-started").length },
+                { key: "in-progress" as const, label: "In Progress", dot: "#3b82f6", count: activeProjects.filter((p) => p.status === "in-progress").length },
+                { key: "review" as const, label: "In Review", dot: "#f59e0b", count: activeProjects.filter((p) => p.status === "review").length },
+                { key: "on-hold" as const, label: "On Hold", dot: "#ef4444", count: activeProjects.filter((p) => p.status === "on-hold").length },
+              ].map((item) => {
+                const selected = statusFilter === item.key;
+                return (
+                  <button key={item.key} onClick={() => selectProjectFilter(item.key)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all" style={{ background: selected ? "rgba(201, 168, 76, 0.12)" : "transparent", borderLeft: selected ? "3px solid #C9A84C" : "3px solid transparent", color: selected ? "#C9A84C" : "#c4cadb" }}>
+                    <span className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.dot }} />
+                      {item.label}
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center" style={{ background: selected ? "rgba(201, 168, 76, 0.2)" : "rgba(255,255,255,0.08)", color: selected ? "#C9A84C" : "#8b93ab" }}>
+                      {item.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status filter (for active column) */}
       <div className="flex gap-2 mb-8 flex-wrap">
@@ -991,6 +1053,19 @@ export default function ProjectsPage() {
         .form-label { display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px; }
         .form-input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 13px; color: #1a1a2e; outline: none; transition: border-color 0.15s; background: white; font-family: var(--font-poppins); }
         .form-input:focus { border-color: #C9A84C; }
+        .project-panel {
+          animation: slideInPanel 0.2s ease-out;
+        }
+        @keyframes slideInPanel {
+          from {
+            transform: translateX(-100%);
+            opacity: 0.6;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
     </div>
