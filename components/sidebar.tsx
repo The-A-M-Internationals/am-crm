@@ -74,6 +74,7 @@ export default function Sidebar() {
     return (
       <Link 
         href={item.href} 
+        prefetch={true}
         onClick={() => {
           if (hasPanel && typeof window !== "undefined") {
             window.dispatchEvent(new Event(`${item.href.slice(1)}:open-panel`));
