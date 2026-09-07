@@ -1,5 +1,5 @@
 "use client";
-import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake } from "lucide-react";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2 } from "lucide-react";
 
 
 import React, { useEffect, useState } from "react";
@@ -35,6 +35,8 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
   { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
   { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "technology-services", label: "Technology Services", bg: "#e0f2fe", text: "#0369a1" },
+  { key: "oracle-epm",        label: "Oracle EPM",        bg: "#fef08a", text: "#854d0e" },
   { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
@@ -518,8 +520,8 @@ export default function LeadsPage() {
 
             <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-100">
               {editing ? (
-                <button onClick={() => deleteLead(editing.id)} className="text-red-500 text-sm font-bold hover:text-red-700 transition-colors">
-                  Delete Lead
+                <button onClick={() => deleteLead(editing.id)} className="text-red-500 text-sm font-bold hover:text-red-700 transition-colors flex items-center">
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Lead
                 </button>
               ) : <div/>}
               <div className="flex gap-3">

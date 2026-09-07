@@ -1,4 +1,5 @@
 "use client";
+import { Trash2 } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -23,6 +24,8 @@ const SERVICES = [
   { key: "seo", label: "SEO" },
   { key: "social-media", label: "Social Media" },
   { key: "branding", label: "Branding" },
+  { key: "technology-services", label: "Technology Services" },
+  { key: "oracle-epm", label: "Oracle EPM" },
   { key: "other", label: "Other" },
 ];
 
@@ -726,7 +729,7 @@ export default function InvoicePage() {
                             setOpenMenu(null);
                           }}
                         >
-                          🗑 Delete Invoice
+                          <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Invoice
                         </button>
                       </div>
                     )}

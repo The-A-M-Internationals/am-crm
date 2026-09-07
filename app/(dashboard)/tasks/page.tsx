@@ -1,5 +1,5 @@
 "use client";
-import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock } from "lucide-react";
+import { X, Handshake, Calendar, Pencil, Settings, Zap, Hammer, AlarmClock, Trash2 } from "lucide-react";
 
 
 import { useEffect, useState } from "react";
@@ -357,6 +357,8 @@ export default function TasksPage() {
             `;
 
             const emailResponse = await fetch("/api/send-email", {
+<<<<<<< HEAD
+=======
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -376,6 +378,31 @@ export default function TasksPage() {
             }
           } catch (emailError) {
             console.error("Task assignment email error:", emailError);
+          }
+        }
+      }
+
+      // Check if due date is tomorrow — send reminder
+      if (form.dueDate && member?.email) {
+        const due = new Date(form.dueDate);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        if (due.toDateString() === tomorrow.toDateString()) {
+          try {
+            await fetch("/api/send-email", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                to: [member.email],
+                subject: `Task Due Tomorrow: ${form.title}`,
+                html: `<div style="padding:20px;font-family:sans-serif;"><h3>Hi ${member.name},</h3><p>Reminder that your task <strong>"${form.title}"</strong> is due tomorrow (${form.dueDate}).</p></div>`,
+              }),
+            });
+          } catch (e) {
+            console.error("Reminder email error:", e);
           }
         }
       }
@@ -714,7 +741,7 @@ export default function TasksPage() {
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
               <div className="flex gap-4 items-center">
                 {editing && crmUser?.role !== "employee" ? (
-                  <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline">Delete Task</button>
+                  <button onClick={() => { deleteTask(editing.id); setShowModal(false); }} className="text-xs font-bold flex items-center text-red-500 hover:text-red-700 hover:underline"><Trash2 className="inline-block w-3.5 h-3.5 shrink-0 mr-1" /> Delete Task</button>
                 ) : <div/>}
                 {form.taskType === "meeting" && (() => {
                   let timeParams = "";
