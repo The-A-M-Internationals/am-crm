@@ -24,6 +24,8 @@ const SERVICES = [
   { key: "seo", label: "SEO" },
   { key: "social-media", label: "Social Media" },
   { key: "branding", label: "Branding" },
+  { key: "technology-services", label: "Technology Services" },
+  { key: "oracle-epm", label: "Oracle EPM" },
   { key: "other", label: "Other" },
 ];
 

@@ -66,10 +66,22 @@ export default function Sidebar() {
   const financeItems = visible.filter((i) => i.section === "finance");
   const manageItems  = visible.filter((i) => i.section === "manage");
 
+  const PANEL_ROUTES = ["/clients", "/projects"];
+
   function NavLink({ item }: { item: NavItem }) {
     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+    const hasPanel = PANEL_ROUTES.includes(item.href);
     return (
-      <Link href={item.href} className={`sidebar-link${isActive ? " active" : ""}`}>
+      <Link 
+        href={item.href} 
+        prefetch={true}
+        onClick={() => {
+          if (hasPanel && typeof window !== "undefined") {
+            window.dispatchEvent(new Event(`${item.href.slice(1)}:open-panel`));
+          }
+        }}
+        className={`sidebar-link${isActive ? " active" : ""}`}
+      >
         {item.icon}
         <span>{item.label}</span>
       </Link>

@@ -19,6 +19,8 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
   { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
   { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "technology-services", label: "Technology Services", bg: "#e0f2fe", text: "#0369a1" },
+  { key: "oracle-epm",        label: "Oracle EPM",        bg: "#fef08a", text: "#854d0e" },
   { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
@@ -64,11 +66,30 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [openClientPanel, setOpenClientPanel] = useState(false);
   const [showHiddenClients, setShowHiddenClients] = useState(false);
 
   const canEdit = crmUser?.role === "admin";
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    function openFromSidebar() {
+      setOpenClientPanel(true);
+    }
+    window.addEventListener("clients:open-panel", openFromSidebar);
+    return () => window.removeEventListener("clients:open-panel", openFromSidebar);
+  }, []);
+
+  function selectClientFilter(filter: "all" | "active" | "inactive") {
+    setStatusFilter(filter);
+    if (filter === "inactive") {
+      setShowHiddenClients(true);
+    } else if (filter === "active") {
+      setShowHiddenClients(false);
+    }
+    setOpenClientPanel(false);
+  }
 
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, "clients"), orderBy("createdAt", "desc")), (snap) => {
@@ -223,12 +244,21 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="page-title flex items-center gap-3">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            Clients
-          </h1>
+          <button onClick={() => setOpenClientPanel(true)} className="flex items-center gap-2 group text-left">
+            <h1 className="page-title flex items-center gap-3 mb-0">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Clients
+            </h1>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2.5" className="mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
-            {showHiddenClients ? `${clients.filter(c => c.active === false).length} archived` : `${clients.filter(c => c.active !== false).length} active`} clients
+            {statusFilter === "all"
+              ? `${clients.length} total clients`
+              : statusFilter === "active"
+                ? `${clients.filter((c) => c.active !== false).length} active clients`
+                : `${clients.filter((c) => c.active === false).length} inactive clients`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -258,6 +288,45 @@ export default function ClientsPage() {
           )}
         </div>
       </div>
+
+      {/* Client filter panel */}
+      {openClientPanel && (
+        <div className="fixed inset-0 z-50" onClick={() => setOpenClientPanel(false)}>
+          <div className="absolute inset-0" style={{ background: "rgba(13, 27, 62, 0.35)", backdropFilter: "blur(2px)" }} />
+          <div className="client-panel absolute left-0 top-0 h-full w-[280px] shadow-2xl flex flex-col" style={{ background: "linear-gradient(180deg, #0D1B3E 0%, #142450 100%)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-6 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+              <div>
+                <h2 className="text-base font-bold text-white leading-tight">Clients Filter</h2>
+                <p className="text-[11px] mt-0.5" style={{ color: "#8b93ab" }}>Choose a category</p>
+              </div>
+              <button onClick={() => setOpenClientPanel(false)} className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-[#8b93ab] hover:text-white hover:bg-white/10">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
+              {[
+                { key: "all", label: "All Clients", dot: "#C9A84C", count: clients.length },
+                { key: "active", label: "Active Clients", dot: "#22c55e", count: clients.filter((c) => c.active !== false).length },
+                { key: "inactive", label: "Inactive Clients", dot: "#94a3b8", count: clients.filter((c) => c.active === false).length },
+              ].map((item) => {
+                const selected = statusFilter === item.key;
+                return (
+                  <button key={item.key} onClick={() => selectClientFilter(item.key as any)} className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all" style={{ background: selected ? "rgba(201, 168, 76, 0.12)" : "transparent", borderLeft: selected ? "3px solid #C9A84C" : "3px solid transparent", color: selected ? "#C9A84C" : "#c4cadb" }}>
+                    <span className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.dot }} />
+                      {item.label}
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[24px] text-center" style={{ background: selected ? "rgba(201, 168, 76, 0.2)" : "rgba(255,255,255,0.08)", color: selected ? "#C9A84C" : "#8b93ab" }}>
+                      {item.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5">
@@ -513,6 +582,19 @@ export default function ClientsPage() {
         .form-label { display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px; }
         .form-input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 13px; color: #1a1a2e; outline: none; transition: border-color 0.15s; background: white; font-family: var(--font-poppins); }
         .form-input:focus { border-color: #C9A84C; }
+        .client-panel {
+          animation: slideInPanel 0.2s ease-out;
+        }
+        @keyframes slideInPanel {
+          from {
+            transform: translateX(-100%);
+            opacity: 0.6;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
       `}</style>
 
       <CreateProjectModal 

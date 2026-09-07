@@ -18,6 +18,8 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "seo",               label: "SEO",               bg: "#ede9fe", text: "#5b21b6" },
   { key: "social-media",      label: "Social Media",      bg: "#fce7f3", text: "#9d174d" },
   { key: "branding",          label: "Branding",          bg: "#ffedd5", text: "#9a3412" },
+  { key: "technology-services", label: "Technology Services", bg: "#e0f2fe", text: "#0369a1" },
+  { key: "oracle-epm",        label: "Oracle EPM",        bg: "#fef08a", text: "#854d0e" },
   { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
