@@ -1,4 +1,5 @@
 "use client";
+import { Trash2 } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -726,7 +727,7 @@ export default function InvoicePage() {
                             setOpenMenu(null);
                           }}
                         >
-                          🗑 Delete Invoice
+                          <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Invoice
                         </button>
                       </div>
                     )}

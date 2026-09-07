@@ -1,5 +1,5 @@
 "use client";
-import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake } from "lucide-react";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2 } from "lucide-react";
 
 
 import React, { useEffect, useState } from "react";
@@ -518,8 +518,8 @@ export default function LeadsPage() {
 
             <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-100">
               {editing ? (
-                <button onClick={() => deleteLead(editing.id)} className="text-red-500 text-sm font-bold hover:text-red-700 transition-colors">
-                  Delete Lead
+                <button onClick={() => deleteLead(editing.id)} className="text-red-500 text-sm font-bold hover:text-red-700 transition-colors flex items-center">
+                  <Trash2 className="inline-block w-4 h-4 shrink-0 mr-1" /> Delete Lead
                 </button>
               ) : <div/>}
               <div className="flex gap-3">

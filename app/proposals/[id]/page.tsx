@@ -574,6 +574,7 @@ export default function ProposalDetailPage() {
             A&M CRM Quotation System
           </div>
         )}
+
         
         {user && (
           <Link 
@@ -583,6 +584,7 @@ export default function ProposalDetailPage() {
             ← Back to Proposals
           </Link>
         )}
+
       </div>
 
       {/* Sales Command Center Header (Internal Users Only) */}
