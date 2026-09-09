@@ -450,6 +450,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
       const docRef = await addDoc(collection(db, "tasks"), payload);
       
+      await addDoc(collection(db, "notifications"), {
+        userId: delegateForm.employeeId,
+        title: "Task Assigned",
+        message: `You were assigned a new task: ${delegateForm.title}`,
+        link: `/tasks/${docRef.id}?tab=blueprints`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        type: "task-assigned"
+      });
+      
       // SEND EMAIL NOTIFICATION TO ASSIGNEE
       if (employee?.email) {
         try {

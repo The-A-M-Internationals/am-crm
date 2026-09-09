@@ -179,7 +179,7 @@ export default function TasksPage() {
             userId: form.assignedTo,
             title: "New Task Assigned",
             message: `You have been assigned a new task: ${form.title}`,
-            link: `/tasks/${newTaskRef.id}`,
+            link: `/tasks/${newTaskRef.id}?tab=blueprints`,
             read: false,
             createdAt: now,
             type: "task-assigned"

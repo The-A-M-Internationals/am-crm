@@ -6,18 +6,20 @@ import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function TaskOperationalSheet({ params }: { params: { id: string } }) {
   const { id } = params;
   const { crmUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<"blueprints" | "chat">("blueprints");
+  const initialTab = searchParams.get("tab") === "chat" ? "chat" : "blueprints";
+  const [activeTab, setActiveTab] = useState<"blueprints" | "chat">(initialTab);
   const [localProgress, setLocalProgress] = useState(0);
   const [localDesc, setLocalDesc] = useState("");
   
@@ -123,7 +125,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
           userId: recipientUid,
           title: "New Message",
           message: `${crmUser?.name} sent a message on task: ${task.title}`,
-          link: `/tasks/${task.id}`,
+          link: `/tasks/${task.id}?tab=chat`,
           read: false,
           createdAt: new Date().toISOString(),
           type: "new-message"

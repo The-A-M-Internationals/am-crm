@@ -121,6 +121,41 @@ export async function GET(request: Request) {
           emailsSent++;
         }
 
+        // CREATE IN-APP NOTIFICATIONS
+        const notificationPromises = [];
+        
+        // Notify Assignee
+        if (task.assignedTo) {
+          notificationPromises.push(adminDb.collection('notifications').add({
+            userId: task.assignedTo,
+            title: "Deadline Approaching",
+            message: `Task "${task.title}" is due in ${needsEmailFor.replace('h', ' hours')}`,
+            link: `/tasks/${taskId}?tab=blueprints`,
+            read: false,
+            createdAt: now.toISOString(),
+            type: "system"
+          }));
+        }
+
+        // Notify Admins/Leads
+        for (const uDoc of usersSnap.docs) {
+          const d = uDoc.data();
+          if (d.role === 'admin' || d.role === 'lead') {
+            if (uDoc.id !== task.assignedTo) {
+               notificationPromises.push(adminDb.collection('notifications').add({
+                  userId: uDoc.id,
+                  title: "Team Deadline",
+                  message: `Task "${task.title}" is due in ${needsEmailFor.replace('h', ' hours')}`,
+                  link: `/tasks/${taskId}?tab=blueprints`,
+                  read: false,
+                  createdAt: now.toISOString(),
+                  type: "system"
+               }));
+            }
+          }
+        }
+        await Promise.all(notificationPromises);
+
         // 5. Update the task document so we never send this specific reminder interval again
         await adminDb.collection('tasks').doc(taskId).update({
           [`remindersSent.${needsEmailFor}`]: true
