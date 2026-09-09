@@ -163,6 +163,29 @@ export async function GET(request: Request) {
       }
     }
 
+    // 6. Database Cleanup: Delete old read notifications (older than 7 days) to prevent bloat
+    try {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const oldNotifsSnap = await adminDb.collection('notifications')
+        .where('read', '==', true)
+        .where('createdAt', '<', sevenDaysAgo)
+        .get();
+        
+      const batch = adminDb.batch();
+      let deletedCount = 0;
+      oldNotifsSnap.forEach(doc => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+      
+      if (deletedCount > 0) {
+        await batch.commit();
+        console.log(`CRON: Cleaned up ${deletedCount} old notifications.`);
+      }
+    } catch (cleanupError) {
+      console.error("CRON Cleanup Error:", cleanupError);
+    }
+
     return NextResponse.json({ 
       success: true, 
       message: `Cron job executed successfully. Sent ${emailsSent} reminder emails.` 

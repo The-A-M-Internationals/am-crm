@@ -25,7 +25,18 @@ export default function NotificationBell() {
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const nowMs = Date.now();
+      const items = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((i: any) => {
+          // Always show unread
+          if (!i.read) return true;
+          // Hide read notifications older than 3 days
+          if (!i.createdAt) return true;
+          const daysOld = (nowMs - new Date(i.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          return daysOld <= 3;
+        });
+
       // Sort client-side to avoid needing a composite index in Firestore
       items.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
