@@ -93,8 +93,11 @@ export default function Sidebar() {
     <div className="h-screen w-[220px] flex-shrink-0 flex flex-col" style={{ background: "var(--navy)", borderRight: "1px solid rgba(201,168,76,0.1)" }}>
       {/* Logo */}
       <div className="px-5 py-5 border-b flex items-center justify-between" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>
-          A&M
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>
+            A&M
+          </div>
+          <span className="text-white font-bold text-sm tracking-widest uppercase">CRM</span>
         </div>
         <NotificationBell />
       </div>
