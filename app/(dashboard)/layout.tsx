@@ -122,7 +122,7 @@ export default function DashboardLayout({
     >
       <Sidebar />
       <main className="flex-1 overflow-y-auto flex flex-col relative">
-        <div className="absolute top-8 right-8 z-50">
+        <div className="fixed top-8 right-8 z-50">
           <NotificationBell />
         </div>
         {children}
