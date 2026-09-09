@@ -85,12 +85,12 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setOpen(!open)}
-        className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 border border-slate-200 text-slate-500 hover:bg-[#0D1B3E] hover:text-[#C9A84C] hover:border-[#0D1B3E] transition-all shadow-sm group"
+        className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-[#C9A84C] hover:bg-white/10 hover:text-white transition-all shadow-sm"
         title="Notifications"
       >
-        <Bell className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-md ring-2 ring-white">
+          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] font-black flex items-center justify-center shadow-md ring-1 ring-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </div>
         )}
@@ -99,11 +99,11 @@ export default function NotificationBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, x: -10, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-[calc(100%+12px)] w-80 sm:w-[400px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
+            className="absolute left-[calc(100%+20px)] top-0 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-bold text-sm text-[#0D1B3E]">Notifications</h3>

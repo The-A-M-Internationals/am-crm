@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import Link from 'next/link';
+import NotificationBell from './NotificationBell';
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/types";
@@ -92,14 +93,15 @@ export default function Sidebar() {
   return (
     <div className="h-screen w-[220px] flex-shrink-0 flex flex-col" style={{ background: "var(--navy)", borderRight: "1px solid rgba(201,168,76,0.1)" }}>
       {/* Logo */}
-      <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
-        <div className="flex items-center gap-3">
+      <div className="px-4 py-5 border-b flex items-center justify-between" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
+        <div className="flex items-center gap-2 overflow-hidden">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>A&M</div>
-          <div>
-            <p className="text-white font-semibold text-sm leading-tight">A&M CRM</p>
-            <p className="text-xs leading-tight" style={{ color: "var(--gold-light)", opacity: 0.8 }}>The A&M Internationals</p>
+          <div className="overflow-hidden">
+            <p className="text-white font-semibold text-[13px] leading-tight truncate">A&M CRM</p>
+            <p className="text-[9px] leading-tight truncate" style={{ color: "var(--gold-light)", opacity: 0.8 }}>The A&M Internationals</p>
           </div>
         </div>
+        <NotificationBell />
       </div>
 
       {/* Nav */}
