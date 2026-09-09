@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/types";
+import NotificationBell from "./NotificationBell";
 
 interface NavItem {
   href: string;
@@ -94,9 +95,9 @@ export default function Sidebar() {
       <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>A&M</div>
-          <div>
+          <div className="flex-1 flex items-center justify-between">
             <p className="text-white font-semibold text-sm leading-tight">A&M CRM</p>
-            <p className="text-xs leading-tight" style={{ color: "var(--gold-light)", opacity: 0.8 }}>The A&M Internationals</p>
+            <NotificationBell />
           </div>
         </div>
       </div>

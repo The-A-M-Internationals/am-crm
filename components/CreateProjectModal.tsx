@@ -78,6 +78,7 @@ export default function CreateProjectModal({
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [customTech, setCustomTech] = useState("");
 
   useEffect(() => {
     if (isOpen && initialClient) {
@@ -271,32 +272,68 @@ export default function CreateProjectModal({
           <div className="border-t pt-4 mt-4" style={{ borderColor: "#f0f0f5" }}>
             <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-500">Environment Provisioning</h4>
             
-            {/* Tech Stack Pills */}
+            {/* Tech Stack Dropdown & Custom Input */}
             <div className="mb-4">
-              <label className="block text-xs font-bold text-slate-500 mb-1">Core Architecture Stack (Select framework environments)</label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(SERVICE_TECH_STACKS[form.service] || DEFAULT_STACK).map((tech) => {
-                  const selected = form.techStack.includes(tech);
-                  return (
-                    <button
-                      key={tech}
-                      type="button"
-                      onClick={() => {
-                        const newStack = selected
-                          ? form.techStack.filter((t) => t !== tech)
-                          : [...form.techStack, tech];
-                        setForm({ ...form, techStack: newStack });
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        selected 
-                          ? "bg-[#0D1B3E] text-[#C9A84C] border-[#0D1B3E] font-bold" 
-                          : "bg-white text-slate-600 border-slate-200 hover:border-[#0D1B3E]"
-                      }`}
-                    >
-                      {tech}
+              <label className="block text-xs font-bold text-slate-500 mb-1">Core Architecture Stack</label>
+              
+              <div className="flex gap-2 mb-2">
+                <select 
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900 bg-white"
+                  onChange={(e) => {
+                    const tech = e.target.value;
+                    if (tech && !form.techStack.includes(tech)) {
+                      setForm({ ...form, techStack: [...form.techStack, tech] });
+                    }
+                    e.target.value = ""; // Reset after selection
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>Select predefined stack...</option>
+                  {(SERVICE_TECH_STACKS[form.service] || DEFAULT_STACK).map((tech) => (
+                    <option key={tech} value={tech} disabled={form.techStack.includes(tech)}>{tech}</option>
+                  ))}
+                </select>
+
+                <input 
+                  type="text"
+                  placeholder="Custom stack..."
+                  className="w-1/3 px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900 bg-white"
+                  value={customTech}
+                  onChange={(e) => setCustomTech(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (customTech.trim() && !form.techStack.includes(customTech.trim())) {
+                        setForm({ ...form, techStack: [...form.techStack, customTech.trim()] });
+                        setCustomTech("");
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customTech.trim() && !form.techStack.includes(customTech.trim())) {
+                      setForm({ ...form, techStack: [...form.techStack, customTech.trim()] });
+                      setCustomTech("");
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-[#0D1B3E] text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+
+              {/* Selected Stack Pills */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.techStack.map((tech) => (
+                  <div key={tech} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#0D1B3E] text-[#C9A84C] text-xs font-bold border border-[#0D1B3E]">
+                    {tech}
+                    <button type="button" className="ml-1 text-[#C9A84C]/70 hover:text-white" onClick={() => setForm({ ...form, techStack: form.techStack.filter((t) => t !== tech) })}>
+                      ✕
                     </button>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
 

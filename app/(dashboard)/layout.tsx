@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Sidebar from "@/components/sidebar";
 import { PipelineService } from "@/lib/pipeline-service";
-import NotificationBell from "@/components/NotificationBell";
 
 export default function DashboardLayout({
   children,
@@ -122,15 +121,7 @@ export default function DashboardLayout({
     >
       <Sidebar />
       <main className="flex-1 overflow-y-auto flex flex-col bg-[#F4F5F7] relative">
-        {/* Global Topbar */}
-        <header className="sticky top-0 z-40 bg-[#F4F5F7]/80 backdrop-blur-md border-b border-slate-200/50 h-16 shrink-0 flex items-center justify-end px-8">
-          <NotificationBell />
-        </header>
-        
-        {/* Page Content */}
-        <div className="flex-1">
-          {children}
-        </div>
+        {children}
       </main>
     </div>
   );
