@@ -85,11 +85,12 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setOpen(!open)}
-        className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 transition-all"
+        className="relative w-9 h-9 flex items-center justify-center rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/20 hover:text-white hover:border-[#C9A84C]/50 transition-all shadow-[0_0_15px_rgba(201,168,76,0.1)]"
+        title="Notifications"
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center shadow-sm ring-2 ring-[#0D1B3E]">
             {unreadCount > 99 ? "99+" : unreadCount}
           </div>
         )}
