@@ -3,7 +3,7 @@ import { Rocket, MessageSquare, Check, Target, Clipboard } from "lucide-react";
 
 
 import { useEffect, useState, useRef } from "react";
-import { doc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
