@@ -30,7 +30,7 @@ export default function NotificationBell() {
       items.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
       setNotifications(items.slice(0, 50));
-      setUnreadCount(items.filter((i) => !i.read).length);
+      setUnreadCount(items.filter((i: any) => !i.read).length);
     });
 
     return () => unsub();
