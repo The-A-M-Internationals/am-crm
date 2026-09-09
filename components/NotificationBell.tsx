@@ -58,7 +58,11 @@ export default function NotificationBell() {
       }
     }
     if (notif.link) {
-      router.push(notif.link);
+      let finalLink = notif.link;
+      if (notif.type === "new-message" && !finalLink.includes("tab=chat")) {
+        finalLink += finalLink.includes("?") ? "&tab=chat" : "?tab=chat";
+      }
+      router.push(finalLink);
     }
   };
 

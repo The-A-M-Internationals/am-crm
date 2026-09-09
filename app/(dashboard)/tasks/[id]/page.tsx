@@ -20,6 +20,15 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
   
   const initialTab = searchParams.get("tab") === "chat" ? "chat" : "blueprints";
   const [activeTab, setActiveTab] = useState<"blueprints" | "chat">(initialTab);
+
+  // Sync tab state if URL query param changes without full page reload
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "chat" || tab === "blueprints") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
   const [localProgress, setLocalProgress] = useState(0);
   const [localDesc, setLocalDesc] = useState("");
   
