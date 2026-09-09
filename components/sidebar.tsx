@@ -92,14 +92,14 @@ export default function Sidebar() {
   return (
     <div className="h-screen w-[220px] flex-shrink-0 flex flex-col" style={{ background: "var(--navy)", borderRight: "1px solid rgba(201,168,76,0.1)" }}>
       {/* Logo */}
-      <div className="px-5 py-5 border-b flex items-center justify-between" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
+      <div className="px-5 py-5 border-b" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>
-            A&M
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold flex-shrink-0" style={{ background: "rgba(197,168,90,0.08)", border: "1px solid rgba(197,168,90,0.3)", color: "var(--gold)", fontFamily: "var(--font-outfit)", fontSize: "12px", letterSpacing: "0px" }}>A&M</div>
+          <div>
+            <p className="text-white font-semibold text-sm leading-tight">A&M CRM</p>
+            <p className="text-xs leading-tight" style={{ color: "var(--gold-light)", opacity: 0.8 }}>The A&M Internationals</p>
           </div>
-          <span className="text-white font-bold text-sm tracking-widest uppercase">CRM</span>
         </div>
-        <NotificationBell />
       </div>
 
       {/* Nav */}
@@ -128,7 +128,7 @@ export default function Sidebar() {
       {/* User */}
       {crmUser && (
         <div className="px-3 py-4 border-t" style={{ borderColor: "rgba(201,168,76,0.1)" }}>
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center gap-2 px-2 py-2 rounded-xl mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: "#0D1B3E", border: `2px solid ${roleColors[crmUser.role] || "#94a3b8"}`, color: roleColors[crmUser.role] || "#94a3b8" }}>
               {getInitials(crmUser.name)}
             </div>
@@ -136,6 +136,7 @@ export default function Sidebar() {
               <p className="text-white text-xs font-medium truncate">{crmUser.name}</p>
               <p className="font-mono tracking-wider text-[10px] uppercase" style={{ color: "#C9A84C" }}>{crmUser.role}</p>
             </div>
+            <NotificationBell />
           </div>
           <button
             onClick={signOut}

@@ -85,7 +85,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setOpen(!open)}
-        className="relative w-9 h-9 flex items-center justify-center rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/20 hover:text-white hover:border-[#C9A84C]/50 transition-all shadow-[0_0_15px_rgba(201,168,76,0.1)]"
+        className="relative w-8 h-8 flex items-center justify-center rounded-lg bg-transparent text-slate-400 hover:bg-white/10 hover:text-[#C9A84C] transition-all"
         title="Notifications"
       >
         <Bell className="w-4 h-4" />
@@ -103,7 +103,7 @@ export default function NotificationBell() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-[calc(100%+20px)] top-0 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
+            className="absolute left-[calc(100%+15px)] bottom-0 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
               <h3 className="font-bold text-sm text-[#0D1B3E]">Notifications</h3>
