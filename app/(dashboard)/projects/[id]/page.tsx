@@ -815,7 +815,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 {editingBlueprint ? (
                   <div className="space-y-3">
                     <textarea 
-                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap text-slate-900 bg-slate-50"
                       rows={6}
                       value={blueprintValue}
                       onChange={e => setBlueprintValue(e.target.value)}
@@ -849,7 +849,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 {editingInstructions ? (
                   <div className="space-y-3">
                     <textarea 
-                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap text-slate-900 bg-slate-50"
                       rows={4}
                       value={instructionsValue}
                       onChange={e => setInstructionsValue(e.target.value)}

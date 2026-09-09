@@ -154,13 +154,13 @@ export default function CreateProjectModal({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </div>
         <div className="space-y-4">
-          <div><label className="block text-xs font-bold text-slate-500 mb-1">Project Title *</label><input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Website Redesign" /></div>
+          <div><label className="block text-xs font-bold text-slate-500 mb-1">Project Title *</label><input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Website Redesign" /></div>
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1">Client Name *</label>
             {initialClient ? (
               <input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none bg-slate-50 text-slate-500" value={form.clientName} readOnly />
             ) : (
-              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" value={form.clientId} onChange={(e) => {
+              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" value={form.clientId} onChange={(e) => {
                 const selectedClient = clients.find(c => c.id === e.target.value);
                 setForm({ ...form, clientId: e.target.value, clientName: selectedClient ? (selectedClient.company || selectedClient.name) : "" });
               }}>
@@ -172,31 +172,31 @@ export default function CreateProjectModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Service</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value as ServiceTag })}>
+              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value as ServiceTag })}>
                 {SERVICES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Status</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ProjectStatus })}>
+              <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ProjectStatus })}>
                 {STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               </select>
             </div>
           </div>
           <div className={crmUser?.role === "admin" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
-            <div><label className="block text-xs font-bold text-slate-500 mb-1">Deadline</label><input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
+            <div><label className="block text-xs font-bold text-slate-500 mb-1">Deadline</label><input className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
             {crmUser?.role === "admin" && (
               <div className="flex gap-2">
                 <div className="w-24">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Currency</label>
-                  <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                  <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
                     {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Budget</label>
                   <input
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900"
                     type="number"
                     value={Number(form.budget) === 0 ? "" : form.budget}
                     onChange={(e) => {
@@ -219,7 +219,7 @@ export default function CreateProjectModal({
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Due</label>
                 <input
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900"
                   type="number"
                   value={Number(form.due) === 0 ? "" : form.due}
                   onChange={(e) => setForm({ ...form, due: e.target.value })}
@@ -229,7 +229,7 @@ export default function CreateProjectModal({
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Paid</label>
                 <input
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C]"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900"
                   type="number"
                   value={Number(form.paid) === 0 ? "" : form.paid}
                   onChange={(e) => {
@@ -259,7 +259,7 @@ export default function CreateProjectModal({
           <div className="col-span-full">
             <label className="block text-xs font-bold text-slate-500 mb-1">Master Blueprint</label>
             <textarea 
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] resize-none" 
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#C9A84C] text-slate-900 resize-none" 
               rows={4} 
               value={form.masterBlueprint} 
               onChange={(e) => setForm({ ...form, masterBlueprint: e.target.value })} 
