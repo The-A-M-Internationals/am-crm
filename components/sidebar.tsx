@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/types";
-import NotificationBell from "./NotificationBell";
+
 
 interface NavItem {
   href: string;
@@ -136,7 +136,6 @@ export default function Sidebar() {
               <p className="text-white text-xs font-medium truncate">{crmUser.name}</p>
               <p className="font-mono tracking-wider text-[10px] uppercase" style={{ color: "#C9A84C" }}>{crmUser.role}</p>
             </div>
-            <NotificationBell />
           </div>
           <button
             onClick={signOut}
