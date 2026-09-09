@@ -40,6 +40,14 @@ const SERVICE_TECH_STACKS: Record<string, string[]> = {
 
 const DEFAULT_STACK = ["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"];
 
+const CURRENCIES = [
+  { code: "AED", label: "AED (Dirham)" },
+  { code: "USD", label: "USD (Dollar)" },
+  { code: "INR", label: "INR (Rupee)" },
+  { code: "EUR", label: "EUR (Euro)" },
+  { code: "GBP", label: "GBP (Pound)" },
+];
+
 const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,
   status: "not-started" as ProjectStatus, deadline: "",
