@@ -3,7 +3,7 @@ import { Rocket, MessageSquare, Check, Target, Clipboard } from "lucide-react";
 
 
 import { useEffect, useState, useRef } from "react";
-import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -115,6 +115,21 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
       await updateDoc(doc(db, "tasks", task.id), { 
         activityLogs: arrayUnion(newLog)
       });
+
+      // Create notification for the other party
+      const recipientUid = crmUser?.uid === task.assignedTo ? task.assignedBy : task.assignedTo;
+      if (recipientUid) {
+        await addDoc(collection(db, "notifications"), {
+          userId: recipientUid,
+          title: "New Message",
+          message: `${crmUser?.name} sent a message on task: ${task.title}`,
+          link: `/tasks/${task.id}`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          type: "new-message"
+        });
+      }
+
       setLocalDesc("");
     } catch (err) {
       console.error(err);
@@ -165,6 +180,19 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
       status: newStatus,
       done: newProgress === 100
     });
+
+    // Notify assignedBy when assignedTo updates progress
+    if (crmUser?.uid === task.assignedTo && task.assignedBy) {
+      await addDoc(collection(db, "notifications"), {
+        userId: task.assignedBy,
+        title: "Task Progress Updated",
+        message: `${crmUser?.name} updated task progress to ${newProgress}% on: ${task.title}`,
+        link: `/tasks/${task.id}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        type: "system"
+      });
+    }
     
     if (task.relatedType === "project" && task.relatedTo) {
       const q = query(collection(db, "tasks"), where("relatedTo", "==", task.relatedTo));
