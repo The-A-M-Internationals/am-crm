@@ -1385,15 +1385,15 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Project Assets</h3>
                   {/* Category Filter Tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                  <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-300 dark:border-slate-700">
                     {["All", "Design", "Development", "Documentation", "Credentials"].map((cat) => (
                       <button
                         key={cat}
                         onClick={() => setActiveCategoryFilter(cat as any)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-200 ${
                           activeCategoryFilter === cat
-                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                            ? "bg-[#0D1B3E] text-[#C9A84C] shadow-md dark:bg-[#C9A84C] dark:text-[#0D1B3E]"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-300/50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/50"
                         }`}
                       >
                         {cat}
