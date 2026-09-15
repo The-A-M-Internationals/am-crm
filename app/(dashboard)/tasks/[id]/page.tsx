@@ -174,7 +174,10 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
   };
 
   const handleProgressClick = async (newProgress: number) => {
-    
+    if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
+      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      return;
+    }
     setLocalProgress(newProgress);
     
     let newStatus = "not-started";

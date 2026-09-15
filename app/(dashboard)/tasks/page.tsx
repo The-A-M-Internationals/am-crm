@@ -247,7 +247,10 @@ export default function TasksPage() {
   }
 
   async function toggleDone(task: any) {
-    
+    if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
+      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      return;
+    }
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
     await PipelineService.handleTaskStatusUpdate(task, newStatus, crmUser?.uid ?? "");
   }
@@ -258,7 +261,10 @@ export default function TasksPage() {
   }
 
   async function updateStatus(task: any, status: string) {
-    
+    if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
+      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      return;
+    }
     await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
   }
 
