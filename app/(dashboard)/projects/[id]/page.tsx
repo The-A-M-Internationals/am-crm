@@ -914,11 +914,29 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     {/* Tech Stack Pills */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1">Core Architecture Stack</label>
-                      <div className="flex items-center gap-2 mt-1 mb-2">
+                      <div className="flex gap-2 mt-1 mb-2">
+                        <select 
+                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200 text-slate-900 bg-white"
+                          onChange={(e) => {
+                            const tech = e.target.value;
+                            if (tech && !techHubForm.techStack.includes(tech)) {
+                              setTechHubForm({ ...techHubForm, techStack: [...techHubForm.techStack, tech] });
+                            }
+                            e.target.value = ""; // Reset
+                          }}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select predefined stack...</option>
+                          {/* We don't have SERVICE_TECH_STACKS here, so we use a generic list or the project's service if we had it, but hardcoded fallback is fine */}
+                          {["Next.js", "React", "Tailwind CSS", "Node.js", "Three.js", "Firestore", "GSAP"].map((tech: string) => (
+                            <option key={tech} value={tech} disabled={techHubForm.techStack.includes(tech)}>{tech}</option>
+                          ))}
+                        </select>
+
                         <input
                           type="text"
-                          placeholder="e.g. Three.js, Django..."
-                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200 text-slate-900 bg-white text-slate-900 bg-white"
+                          placeholder="Custom stack... (Press Enter)"
+                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200 text-slate-900 bg-white"
                           value={newTechTag}
                           onChange={(e) => setNewTechTag(e.target.value)}
                           onKeyDown={(e) => {
@@ -932,7 +950,6 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                             }
                           }}
                         />
-                        <span className="text-[10px] text-slate-400 italic">Press Enter to add</span>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {techHubForm.techStack.map((tech) => (
@@ -1034,28 +1051,31 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pl-1">Primary Focus Scope</span>
                           {editingCoreFocus ? (
-                            <input 
-                              type="text"
+                            <select
                               autoFocus
-                              className="text-xs font-bold bg-white  border border-[#C9A84C] text-[#C9A84C] px-3 py-1.5 rounded-lg shadow-sm outline-none w-48"
+                              className="text-xs font-bold bg-white border border-[#C9A84C] text-[#C9A84C] px-3 py-1.5 rounded-lg shadow-sm outline-none w-48"
                               value={tempCoreFocus}
-                              onChange={e => setTempCoreFocus(e.target.value)}
-                              onBlur={async () => {
+                              onChange={async (e) => {
+                                const newVal = e.target.value;
+                                setTempCoreFocus(newVal);
                                 setEditingCoreFocus(false);
-                                if (tempCoreFocus.trim() !== ((project as any).coreFocus || "Dynamic Web App")) {
-                                  const newVal = tempCoreFocus.trim();
+                                if (newVal.trim() !== ((project as any).coreFocus || "Dynamic Web App")) {
                                   try {
-                                    await updateDoc(doc(db, "projects", project.id), { coreFocus: newVal });
-                                    setProject({ ...project, coreFocus: newVal });
+                                    await updateDoc(doc(db, "projects", project.id), { coreFocus: newVal.trim() });
+                                    setProject({ ...project, coreFocus: newVal.trim() });
                                   } catch (err) { console.error(err); }
                                 }
                               }}
-                              onKeyDown={async (e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
+                              onBlur={() => setEditingCoreFocus(false)}
+                            >
+                              <option value="Dynamic Web App">Dynamic Web App</option>
+                              <option value="Static Branding">Static Branding</option>
+                              <option value="E-Commerce Build">E-Commerce Build</option>
+                              <option value="Enterprise Dashboard">Enterprise Dashboard</option>
+                              <option value="Mobile App">Mobile App</option>
+                              <option value="API / Backend System">API / Backend System</option>
+                              <option value="Other">Other</option>
+                            </select>
                           ) : (
                             <span 
                               onClick={() => {

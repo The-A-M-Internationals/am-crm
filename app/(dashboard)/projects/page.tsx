@@ -787,57 +787,78 @@ export default function ProjectsPage() {
               <div className="border-t pt-4 mt-4" style={{ borderColor: "#f0f0f5" }}>
                 <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-slate-500">Environment Provisioning</h4>
                 
-                {/* Tech Stack Pills */}
+                {/* Tech Stack Dropdown & Custom Input */}
                 <div className="mb-4">
-                  <label className="form-label">Core Architecture Stack (Select framework environments)</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {((SERVICE_TECH_STACKS as any)[form.service] || ["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"]).map((tech: string) => {
-                      const selected = form.techStack.includes(tech);
-                      return (
-                        <button
-                          key={tech}
+                  <label className="form-label">Core Architecture Stack</label>
+                  
+                  <div className="flex gap-2 mb-2">
+                    <select 
+                      className="flex-1 form-input bg-white"
+                      onChange={(e) => {
+                        const tech = e.target.value;
+                        if (tech && !form.techStack.includes(tech)) {
+                          setForm({ ...form, techStack: [...form.techStack, tech] });
+                        }
+                        e.target.value = ""; // Reset after selection
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Select predefined stack...</option>
+                      {((SERVICE_TECH_STACKS as any)[form.service] || ["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"]).map((tech: string) => (
+                        <option key={tech} value={tech} disabled={form.techStack.includes(tech)}>{tech}</option>
+                      ))}
+                    </select>
+
+                    <input 
+                      type="text"
+                      placeholder="Custom stack... (Press Enter)"
+                      className="w-1/3 form-input bg-white"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim();
+                          if (val && !form.techStack.includes(val)) {
+                            setForm({ ...form, techStack: [...form.techStack, val] });
+                          }
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {form.techStack.map((tech: string) => (
+                      <div key={tech} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#0D1B3E] text-[#C9A84C]">
+                        <span>{tech}</span>
+                        <button 
                           type="button"
-                          onClick={() => {
-                            const newStack = selected
-                              ? form.techStack.filter((t) => t !== tech)
-                              : [...form.techStack, tech];
-                            setForm({ ...form, techStack: newStack });
-                          }}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                            selected 
-                              ? "bg-[#0D1B3E] text-[#C9A84C] border-[#0D1B3E] font-bold" 
-                              : "bg-white text-slate-600 border-slate-200 hover:border-[#0D1B3E]"
-                          }`}
-                        >
-                          {tech}
-                        </button>
-                      );
-                    })}
+                          onClick={() => setForm({ ...form, techStack: form.techStack.filter((t: string) => t !== tech) })}
+                          className="hover:text-white transition-colors"
+                        >×</button>
+                      </div>
+                    ))}
+                    {form.techStack.length === 0 && (
+                      <span className="text-xs text-slate-400 italic">No stack selected</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Core Focus Toggle */}
+                {/* Core Focus Dropdown */}
                 <div className="mb-4">
                   <label className="form-label">Primary Core Focus</label>
-                  <div className="grid grid-cols-3 gap-2 mt-1">
-                    {["Dynamic Web App", "Static Branding", "E-Commerce Build"].map((focus) => {
-                      const selected = form.coreFocus === focus;
-                      return (
-                        <button
-                          key={focus}
-                          type="button"
-                          onClick={() => setForm({ ...form, coreFocus: focus })}
-                          className={`py-2 px-1.5 rounded-lg text-xs font-semibold border transition-all text-center ${
-                            selected
-                              ? "bg-[#C9A84C] text-[#0D1B3E] border-[#C9A84C] shadow-sm"
-                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                          }`}
-                        >
-                          {focus}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <select 
+                    className="form-input bg-white w-full"
+                    value={form.coreFocus}
+                    onChange={(e) => setForm({ ...form, coreFocus: e.target.value })}
+                  >
+                    <option value="Dynamic Web App">Dynamic Web App</option>
+                    <option value="Static Branding">Static Branding</option>
+                    <option value="E-Commerce Build">E-Commerce Build</option>
+                    <option value="Enterprise Dashboard">Enterprise Dashboard</option>
+                    <option value="Mobile App">Mobile App</option>
+                    <option value="API / Backend System">API / Backend System</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
 
                 {/* URL Inputs */}
