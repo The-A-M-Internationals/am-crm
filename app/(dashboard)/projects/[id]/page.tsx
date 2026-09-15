@@ -70,7 +70,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   // Task Delegation State
   const [showDelegateModal, setShowDelegateModal] = useState(false);
   const [delegateForm, setDelegateForm] = useState({
-    employeeId: "",
+    employeeIds: [] as string[],
     title: "",
     instructions: "",
     taskType: "project-task" as SystemTaskType,
@@ -404,7 +404,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
   async function delegateTask() {
     if (isDelegatingRef.current) return;
-    if (!project || !delegateForm.employeeId || !delegateForm.title) {
+    if (!project || delegateForm.employeeIds.length === 0 || !delegateForm.title) {
       alert("Please specify both an employee and a task title.");
       return;
     }
@@ -423,12 +423,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setDelegating(true);
     try {
       const now = new Date().toISOString();
-      const employee = users.find(u => u.uid === delegateForm.employeeId);
+      const employee = users.find(u => u.uid === delegateForm.employeeIds);
       
       const payload = {
         title: delegateForm.title,
         description: delegateForm.instructions || `Task for project: ${project.title}`,
-        assignedTo: delegateForm.employeeId,
+        assignedTo: delegateForm.employeeIds,
         assignedToName: employee?.name || "Team Member",
         assignedBy: crmUser?.uid || "System",
         clientId: project.clientId || "",
@@ -449,6 +449,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       };
 
       const docRef = await addDoc(collection(db, "tasks"), payload);
+      
+      await addDoc(collection(db, "notifications"), {
+        userId: delegateForm.employeeIds,
+        title: "Task Assigned",
+        message: `You were assigned a new task: ${delegateForm.title}`,
+        link: `/tasks/${docRef.id}?tab=blueprints`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        type: "task-assigned"
+      });
       
       // SEND EMAIL NOTIFICATION TO ASSIGNEE
       if (employee?.email) {
@@ -493,7 +503,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       }
 
       setShowDelegateModal(false);
-      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
+      setDelegateForm({ employeeIds: [] as string[], title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
       alert("Task successfully delegated and assigned!");
     } catch (err: any) {
       console.error(err);
@@ -815,7 +825,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 {editingBlueprint ? (
                   <div className="space-y-3">
                     <textarea 
-                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap text-slate-900 bg-slate-50"
                       rows={6}
                       value={blueprintValue}
                       onChange={e => setBlueprintValue(e.target.value)}
@@ -849,7 +859,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 {editingInstructions ? (
                   <div className="space-y-3">
                     <textarea 
-                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap"
+                      className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-sm whitespace-pre-wrap text-slate-900 bg-slate-50"
                       rows={4}
                       value={instructionsValue}
                       onChange={e => setInstructionsValue(e.target.value)}
@@ -904,11 +914,29 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     {/* Tech Stack Pills */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1">Core Architecture Stack</label>
-                      <div className="flex items-center gap-2 mt-1 mb-2">
+                      <div className="flex gap-2 mt-1 mb-2">
+                        <select 
+                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200 text-slate-900 bg-white"
+                          onChange={(e) => {
+                            const tech = e.target.value;
+                            if (tech && !techHubForm.techStack.includes(tech)) {
+                              setTechHubForm({ ...techHubForm, techStack: [...techHubForm.techStack, tech] });
+                            }
+                            e.target.value = ""; // Reset
+                          }}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select predefined stack...</option>
+                          {/* We don't have SERVICE_TECH_STACKS here, so we use a generic list or the project's service if we had it, but hardcoded fallback is fine */}
+                          {["Next.js", "React", "Tailwind CSS", "Node.js", "Three.js", "Firestore", "GSAP"].map((tech: string) => (
+                            <option key={tech} value={tech} disabled={techHubForm.techStack.includes(tech)}>{tech}</option>
+                          ))}
+                        </select>
+
                         <input
                           type="text"
-                          placeholder="e.g. Three.js, Django..."
-                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200"
+                          placeholder="Custom stack... (Press Enter)"
+                          className="form-input text-xs py-1.5 px-3 rounded-lg border-slate-200 text-slate-900 bg-white"
                           value={newTechTag}
                           onChange={(e) => setNewTechTag(e.target.value)}
                           onKeyDown={(e) => {
@@ -922,7 +950,6 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                             }
                           }}
                         />
-                        <span className="text-[10px] text-slate-400 italic">Press Enter to add</span>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {techHubForm.techStack.map((tech) => (
@@ -956,7 +983,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       <label className="block text-xs font-bold text-slate-500 mb-1">Primary Core Focus</label>
                       <input
                         type="text"
-                        className="form-input text-xs w-full py-2 px-3 rounded-lg border-slate-200"
+                        className="form-input text-xs w-full py-2 px-3 rounded-lg border-slate-200 text-slate-900 bg-white"
                         value={techHubForm.coreFocus}
                         onChange={(e) => setTechHubForm({ ...techHubForm, coreFocus: e.target.value })}
                         placeholder="e.g. Dynamic Web App"
@@ -967,20 +994,20 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">Figma Canvas URL</label>
-                        <input className="form-input" value={techHubForm.figmaUrl} onChange={(e) => setTechHubForm({ ...techHubForm, figmaUrl: e.target.value })} placeholder="https://figma.com/file/..." />
+                        <input className="form-input text-slate-900 bg-white" value={techHubForm.figmaUrl} onChange={(e) => setTechHubForm({ ...techHubForm, figmaUrl: e.target.value })} placeholder="https://figma.com/file/..." />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1">Repository Endpoint</label>
-                        <input className="form-input" value={techHubForm.repoUrl} onChange={(e) => setTechHubForm({ ...techHubForm, repoUrl: e.target.value })} placeholder="https://github.com/..." />
+                        <input className="form-input text-slate-900 bg-white" value={techHubForm.repoUrl} onChange={(e) => setTechHubForm({ ...techHubForm, repoUrl: e.target.value })} placeholder="https://github.com/..." />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1">Staging Environment Link</label>
-                          <input className="form-input" value={techHubForm.stagingUrl} onChange={(e) => setTechHubForm({ ...techHubForm, stagingUrl: e.target.value })} placeholder="https://staging.domain.com" />
+                          <input className="form-input text-slate-900 bg-white" value={techHubForm.stagingUrl} onChange={(e) => setTechHubForm({ ...techHubForm, stagingUrl: e.target.value })} placeholder="https://staging.domain.com" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 mb-1">Production Endpoint</label>
-                          <input className="form-input" value={techHubForm.productionUrl} onChange={(e) => setTechHubForm({ ...techHubForm, productionUrl: e.target.value })} placeholder="https://domain.com" />
+                          <input className="form-input text-slate-900 bg-white" value={techHubForm.productionUrl} onChange={(e) => setTechHubForm({ ...techHubForm, productionUrl: e.target.value })} placeholder="https://domain.com" />
                         </div>
                       </div>
                     </div>
@@ -1020,32 +1047,35 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       </div>
 
                       {/* Display Stack Badges & Focus */}
-                      <div className="flex items-start justify-between pt-4 mt-2 flex-wrap gap-6 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-start justify-between pt-4 mt-2 flex-wrap gap-6 border-t border-slate-100 ">
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 pl-1">Primary Focus Scope</span>
                           {editingCoreFocus ? (
-                            <input 
-                              type="text"
+                            <select
                               autoFocus
-                              className="text-xs font-bold bg-white dark:bg-slate-900 border border-[#C9A84C] text-[#C9A84C] px-3 py-1.5 rounded-lg shadow-sm outline-none w-48"
+                              className="text-xs font-bold bg-white border border-[#C9A84C] text-[#C9A84C] px-3 py-1.5 rounded-lg shadow-sm outline-none w-48"
                               value={tempCoreFocus}
-                              onChange={e => setTempCoreFocus(e.target.value)}
-                              onBlur={async () => {
+                              onChange={async (e) => {
+                                const newVal = e.target.value;
+                                setTempCoreFocus(newVal);
                                 setEditingCoreFocus(false);
-                                if (tempCoreFocus.trim() !== ((project as any).coreFocus || "Dynamic Web App")) {
-                                  const newVal = tempCoreFocus.trim();
+                                if (newVal.trim() !== ((project as any).coreFocus || "Dynamic Web App")) {
                                   try {
-                                    await updateDoc(doc(db, "projects", project.id), { coreFocus: newVal });
-                                    setProject({ ...project, coreFocus: newVal });
+                                    await updateDoc(doc(db, "projects", project.id), { coreFocus: newVal.trim() });
+                                    setProject({ ...project, coreFocus: newVal.trim() });
                                   } catch (err) { console.error(err); }
                                 }
                               }}
-                              onKeyDown={async (e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
+                              onBlur={() => setEditingCoreFocus(false)}
+                            >
+                              <option value="Dynamic Web App">Dynamic Web App</option>
+                              <option value="Static Branding">Static Branding</option>
+                              <option value="E-Commerce Build">E-Commerce Build</option>
+                              <option value="Enterprise Dashboard">Enterprise Dashboard</option>
+                              <option value="Mobile App">Mobile App</option>
+                              <option value="API / Backend System">API / Backend System</option>
+                              <option value="Other">Other</option>
+                            </select>
                           ) : (
                             <span 
                               onClick={() => {
@@ -1066,7 +1096,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               <span className="text-[11px] text-slate-400 italic py-1 px-2">No technologies defined</span>
                             ) : (
                               ((project as any).techStack || []).map((t: string) => (
-                                <span key={t} className="text-xs font-bold bg-slate-100 dark:bg-[#0D1B3E]/40 border border-slate-200 dark:border-[#0D1B3E]/60 text-[#0D1B3E] dark:text-slate-300 px-2.5 py-1 rounded-md shadow-sm">
+                                <span key={t} className="text-xs font-bold bg-slate-100  border border-slate-200  text-[#0D1B3E]  px-2.5 py-1 rounded-md shadow-sm">
                                   {t}
                                 </span>
                               ))
@@ -1294,7 +1324,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               >
                                 <option value="">Re-allocate...</option>
                                 {users
-                                  .filter(u => u.role !== "admin")
+                                  
                                   .map(u => (
                                     <option key={u.uid} value={u.uid}>{u.name}</option>
                                   ))
@@ -1337,21 +1367,21 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           {activeTab === "files" && (
             <div className="space-y-6">
               {/* Asset Vault Intake Grid */}
-              <div className="bg-white dark:bg-slate-900/40 backdrop-blur-md border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl">
-                <h3 className="text-sm font-bold mb-4 text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <div className="bg-white  backdrop-blur-md border border-slate-200  rounded-2xl p-6 shadow-xl">
+                <h3 className="text-sm font-bold mb-4 text-slate-900  flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                   Asset Vault
                 </h3>
                 
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                   <input 
-                    className="w-full md:flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
+                    className="w-full md:flex-1 bg-slate-50  border border-slate-200  rounded-xl px-4 py-3 text-sm text-slate-900  placeholder-slate-400  focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
                     placeholder="Custom Asset Name (e.g. Figma Wireframes)"
                     value={assetName}
                     onChange={e => setAssetName(e.target.value)}
                   />
                   <input 
-                    className="w-full md:flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
+                    className="w-full md:flex-1 bg-slate-50  border border-slate-200  rounded-xl px-4 py-3 text-sm text-slate-900  placeholder-slate-400  focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all" 
                     placeholder="Asset URL Link"
                     value={assetUrl}
                     onChange={e => setAssetUrl(e.target.value)}
@@ -1359,7 +1389,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   
                   <div className="flex items-center gap-4 w-full md:w-auto">
                     <select 
-                      className="w-full md:w-[150px] bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500 transition-all cursor-pointer" 
+                      className="w-full md:w-[150px] bg-slate-50  border border-slate-200  rounded-xl px-4 py-3 text-sm font-semibold text-slate-700  focus:outline-none focus:border-blue-500 transition-all cursor-pointer" 
                       value={assetCategory} 
                       onChange={e => setAssetCategory(e.target.value)}
                     >
@@ -1383,17 +1413,17 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               {/* Asset Registry List */}
               <div className="space-y-4 mt-8">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Project Assets</h3>
+                  <h3 className="text-sm font-bold text-slate-900  uppercase tracking-wider">Project Assets</h3>
                   {/* Category Filter Tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                  <div className="flex items-center gap-1 bg-slate-200/80  p-1.5 rounded-xl border border-slate-300 ">
                     {["All", "Design", "Development", "Documentation", "Credentials"].map((cat) => (
                       <button
                         key={cat}
                         onClick={() => setActiveCategoryFilter(cat as any)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-200 ${
                           activeCategoryFilter === cat
-                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                            : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                            ? "bg-[#0D1B3E] text-[#C9A84C] shadow-md  "
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-300/50   "
                         }`}
                       >
                         {cat}
@@ -1410,7 +1440,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     );
                     
                     if (filtered.length === 0) {
-                      return <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800"><p className="text-sm font-medium text-slate-500">No assets match this category.</p></div>;
+                      return <div className="text-center py-10 bg-slate-50  rounded-2xl border border-dashed border-slate-200 "><p className="text-sm font-medium text-slate-500">No assets match this category.</p></div>;
                     }
 
                     return filtered.map((file: any, index: number) => {
@@ -1427,7 +1457,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       if (isFigma) {
                         Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"></path><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"></path><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"></path></svg>;
                       } else if (isGithub) {
-                        Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-800 dark:text-slate-200"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>;
+                        Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-800 "><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>;
                       }
 
                       // Category Badge Logic
@@ -1440,14 +1470,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       else if (cat === "CREDENTIALS") badgeClasses = "bg-rose-500/10 text-rose-400 border-rose-500/20";
 
                       return (
-                        <div key={index} className="flex items-center justify-between p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all group">
+                        <div key={index} className="flex items-center justify-between p-5 rounded-2xl bg-white  border border-slate-200  shadow-sm hover:shadow-md transition-all group">
                           <div className="flex items-center gap-4 truncate">
-                            <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 flex items-center justify-center flex-shrink-0">
+                            <div className="w-12 h-12 rounded-xl bg-slate-50  border border-slate-100  flex items-center justify-center flex-shrink-0">
                               {Icon}
                             </div>
                             <div className="truncate">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mb-0.5">{file.name}</p>
-                              <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-xs md:max-w-md lg:max-w-lg mb-1">{file.url}</p>
+                              <p className="text-sm font-semibold text-slate-900  truncate mb-0.5">{file.name}</p>
+                              <p className="text-[11px] font-mono text-slate-400  truncate max-w-xs md:max-w-md lg:max-w-lg mb-1">{file.url}</p>
                               <p className="text-[10px] font-medium text-slate-400">Added by {file.addedBy} &bull; {new Date(file.at).toLocaleDateString("en-GB")}</p>
                             </div>
                           </div>
@@ -1459,14 +1489,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               href={file.url} 
                               target="_blank" 
                               rel="noopener noreferrer" 
-                              className="text-xs font-bold text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 hover:underline flex items-center gap-1"
+                              className="text-xs font-bold text-blue-500 hover:text-blue-600  hover:underline flex items-center gap-1"
                             >
                               Open Link <span className="text-[10px]">↗</span>
                             </a>
                             {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                               <button 
                                 onClick={() => deleteFile(origIndex)}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50  hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Delete Asset"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1844,7 +1874,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Task Type *</label>
                 <select 
-                  className="form-input mb-4"
+                  className="form-input mb-4 text-slate-900 bg-white"
                   value={delegateForm.taskType}
                   onChange={e => setDelegateForm({...delegateForm, taskType: e.target.value as SystemTaskType})}
                 >
@@ -1858,7 +1888,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 <label className="block text-xs font-bold text-slate-500 mb-1">Task Title *</label>
                 <input 
                   type="text" 
-                  className="form-input"
+                  className="form-input text-slate-900 bg-white"
                   placeholder="e.g. Implement Figma Designs"
                   value={delegateForm.title}
                   onChange={e => setDelegateForm({...delegateForm, title: e.target.value})}
@@ -1867,25 +1897,43 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Select Employee Asset *</label>
                 <select 
-                  className="form-input"
-                  value={delegateForm.employeeId}
-                  onChange={e => setDelegateForm({...delegateForm, employeeId: e.target.value})}
+                  className="form-input text-slate-900 bg-white"
+                  onChange={e => {
+                    const uid = e.target.value;
+                    if (!uid) return;
+                    if (!delegateForm.employeeIds.includes(uid)) {
+                      setDelegateForm({...delegateForm, employeeIds: [...delegateForm.employeeIds, uid]});
+                    }
+                    e.target.value = "";
+                  }}
+                  defaultValue=""
                 >
-                  <option value="">Select an employee...</option>
+                  <option value="" disabled>Select an employee...</option>
                   {users
-                    .filter(u => u.role !== "admin")
+                    
                     .map(u => (
                       <option key={u.uid} value={u.uid}>{u.name} ({u.role})</option>
                     ))
                   }
                 </select>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {delegateForm.employeeIds.map(uid => {
+                    const m = users.find(x => x.uid === uid);
+                    return (
+                      <div key={uid} className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold border border-indigo-100">
+                        {m?.name || "Unknown"}
+                        <button type="button" onClick={() => setDelegateForm({...delegateForm, employeeIds: delegateForm.employeeIds.filter(u => u !== uid)})} className="hover:text-indigo-900">&times;</button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Due Date</label>
                   <input 
                     type="date" 
-                    className="form-input"
+                    className="form-input text-slate-900 bg-white"
                     value={delegateForm.dueDate}
                     onChange={e => setDelegateForm({...delegateForm, dueDate: e.target.value})}
                   />
@@ -1894,7 +1942,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                   <label className="block text-xs font-bold text-slate-500 mb-1">Time</label>
                   <input 
                     type="time" 
-                    className="form-input"
+                    className="form-input text-slate-900 bg-white"
                     value={delegateForm.time}
                     onChange={e => setDelegateForm({...delegateForm, time: e.target.value})}
                   />
@@ -1903,7 +1951,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">Task Instructions</label>
                 <textarea 
-                  className="form-input resize-none"
+                  className="form-input resize-none text-slate-900 bg-white"
                   rows={4}
                   placeholder="Provide step-by-step directions for the employee..."
                   value={delegateForm.instructions}
@@ -1921,7 +1969,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               </button>
               <button 
                 onClick={delegateTask}
-                disabled={delegating || !delegateForm.employeeId || !delegateForm.title}
+                disabled={delegating || delegateForm.employeeIds.length === 0 || !delegateForm.title}
                 className="flex-1 py-3 text-sm font-bold text-white bg-[#0D1B3E] rounded-xl hover:opacity-90 disabled:opacity-50"
               >
                 {delegating ? "Assigning..." : "Assign Task"}
@@ -1964,7 +2012,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
-                      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
+                      setDelegateForm({ employeeIds: [], title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
                     } catch(e) {
                       console.error(e);
                       alert("Failed to add instructions");
@@ -2131,7 +2179,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                           value={logInputText}
                           onChange={(e) => setLogInputText(e.target.value)}
                           placeholder="Type log entry update here..."
-                          className="form-input resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C]"
+                          className="form-input resize-none text-xs p-3 rounded-xl border border-slate-200 outline-none focus:border-[#C9A84C] text-slate-900 bg-white"
                         />
                         <button 
                           onClick={commitLogEntry}
