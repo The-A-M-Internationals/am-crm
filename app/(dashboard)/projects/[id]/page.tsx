@@ -1324,7 +1324,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                               >
                                 <option value="">Re-allocate...</option>
                                 {users
-                                  .filter(u => u.role !== "admin")
+                                  
                                   .map(u => (
                                     <option key={u.uid} value={u.uid}>{u.name}</option>
                                   ))
@@ -1910,7 +1910,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 >
                   <option value="" disabled>Select an employee...</option>
                   {users
-                    .filter(u => u.role !== "admin")
+                    
                     .map(u => (
                       <option key={u.uid} value={u.uid}>{u.name} ({u.role})</option>
                     ))
