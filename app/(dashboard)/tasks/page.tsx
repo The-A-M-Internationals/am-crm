@@ -141,6 +141,23 @@ export default function TasksPage() {
     finally { setCreatingProject(false); }
   }
 
+  async function sendReminderEmail(taskData: any, email: string, name: string) {
+    try {
+      const html = `<div style="padding:40px 20px;font-family:Arial,sans-serif;background:#f8f9fc;"><div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><h2 style="color:#0D1B3E;">Task Deadline Reminder</h2><p>Hi ${name},</p><p>This is a reminder that the task <strong>${taskData.title}</strong> is due tomorrow.</p></div></div>`;
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: [email],
+          subject: `Reminder: Task Due Tomorrow - ${taskData.title}`,
+          html,
+        }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function handleSave() {
     if (!form.title) return;
 
@@ -520,11 +537,37 @@ export default function TasksPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owner</label>
-                  <select disabled={crmUser?.role === "employee"} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" value={form.assignedTo} onChange={e => { const m = members.find(x => x.uid === e.target.value); setForm({ ...form, assignedTo: e.target.value, assignedToName: m?.name ?? "" }); }}>
-                    <option value="">Unassigned</option>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owners (Multiple)</label>
+                  <select 
+                    disabled={crmUser?.role === "employee"} 
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" 
+                    onChange={e => { 
+                      const uid = e.target.value;
+                      if (!uid) return;
+                      const arr = Array.isArray(form.assignedTo) ? form.assignedTo : (form.assignedTo ? [form.assignedTo] : []);
+                      if (!arr.includes(uid)) {
+                        setForm({ ...form, assignedTo: [...arr, uid] });
+                      }
+                      e.target.value = ""; 
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select employees...</option>
                     {members.map(m => <option key={m.uid} value={m.uid}>{m.name}</option>)}
                   </select>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {Array.isArray(form.assignedTo) && form.assignedTo.map((uid: string) => {
+                      const m = members.find(x => x.uid === uid);
+                      return (
+                        <div key={uid} className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold border border-indigo-100">
+                          {m?.name || "Unknown"}
+                          {crmUser?.role !== "employee" && (
+                            <button type="button" onClick={() => setForm({ ...form, assignedTo: form.assignedTo.filter((u: string) => u !== uid) })} className="hover:text-indigo-900">&times;</button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
