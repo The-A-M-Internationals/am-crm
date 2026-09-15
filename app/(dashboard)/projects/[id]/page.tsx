@@ -70,7 +70,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   // Task Delegation State
   const [showDelegateModal, setShowDelegateModal] = useState(false);
   const [delegateForm, setDelegateForm] = useState({
-    employeeId: "",
+    employeeIds: [] as string[],
     title: "",
     instructions: "",
     taskType: "project-task" as SystemTaskType,
@@ -404,7 +404,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
   async function delegateTask() {
     if (isDelegatingRef.current) return;
-    if (!project || !delegateForm.employeeId || !delegateForm.title) {
+    if (!project || delegateForm.employeeIds.length === 0 || !delegateForm.title) {
       alert("Please specify both an employee and a task title.");
       return;
     }
@@ -423,12 +423,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setDelegating(true);
     try {
       const now = new Date().toISOString();
-      const employee = users.find(u => u.uid === delegateForm.employeeId);
+      const employee = users.find(u => u.uid === delegateForm.employeeIds);
       
       const payload = {
         title: delegateForm.title,
         description: delegateForm.instructions || `Task for project: ${project.title}`,
-        assignedTo: delegateForm.employeeId,
+        assignedTo: delegateForm.employeeIds,
         assignedToName: employee?.name || "Team Member",
         assignedBy: crmUser?.uid || "System",
         clientId: project.clientId || "",
@@ -451,7 +451,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       const docRef = await addDoc(collection(db, "tasks"), payload);
       
       await addDoc(collection(db, "notifications"), {
-        userId: delegateForm.employeeId,
+        userId: delegateForm.employeeIds,
         title: "Task Assigned",
         message: `You were assigned a new task: ${delegateForm.title}`,
         link: `/tasks/${docRef.id}?tab=blueprints`,
@@ -503,7 +503,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       }
 
       setShowDelegateModal(false);
-      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
+      setDelegateForm({ employeeIds: [] as string[], title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
       alert("Task successfully delegated and assigned!");
     } catch (err: any) {
       console.error(err);
@@ -1895,13 +1895,20 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Select Employee Asset *</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Select Employee Assets (Multiple) *</label>
                 <select 
                   className="form-input text-slate-900 bg-white"
-                  value={delegateForm.employeeId}
-                  onChange={e => setDelegateForm({...delegateForm, employeeId: e.target.value})}
+                  onChange={e => {
+                    const uid = e.target.value;
+                    if (!uid) return;
+                    if (!delegateForm.employeeIds.includes(uid)) {
+                      setDelegateForm({...delegateForm, employeeIds: [...delegateForm.employeeIds, uid]});
+                    }
+                    e.target.value = "";
+                  }}
+                  defaultValue=""
                 >
-                  <option value="">Select an employee...</option>
+                  <option value="" disabled>Select an employee...</option>
                   {users
                     .filter(u => u.role !== "admin")
                     .map(u => (
@@ -1909,6 +1916,17 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     ))
                   }
                 </select>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {delegateForm.employeeIds.map(uid => {
+                    const m = users.find(x => x.uid === uid);
+                    return (
+                      <div key={uid} className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold border border-indigo-100">
+                        {m?.name || "Unknown"}
+                        <button type="button" onClick={() => setDelegateForm({...delegateForm, employeeIds: delegateForm.employeeIds.filter(u => u !== uid)})} className="hover:text-indigo-900">&times;</button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1951,7 +1969,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
               </button>
               <button 
                 onClick={delegateTask}
-                disabled={delegating || !delegateForm.employeeId || !delegateForm.title}
+                disabled={delegating || delegateForm.employeeIds.length === 0 || !delegateForm.title}
                 className="flex-1 py-3 text-sm font-bold text-white bg-[#0D1B3E] rounded-xl hover:opacity-90 disabled:opacity-50"
               >
                 {delegating ? "Assigning..." : "Assign Task"}
@@ -1994,7 +2012,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
-                      setDelegateForm({ employeeId: "", title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
+                      setDelegateForm({ employeeIds: [], title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
                     } catch(e) {
                       console.error(e);
                       alert("Failed to add instructions");

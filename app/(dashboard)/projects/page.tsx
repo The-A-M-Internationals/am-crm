@@ -112,7 +112,7 @@ export default function ProjectsPage() {
 
   // Task Delegation State for Projects Page
   const [delegateProject, setDelegateProject] = useState<Project | null>(null);
-  const [delegateForm, setDelegateForm] = useState({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
+  const [delegateForm, setDelegateForm] = useState({ employeeIds: [] as string[], title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
   const [delegating, setDelegating] = useState(false);
 
   const canEdit = crmUser?.role === "admin" || crmUser?.role === "lead";
@@ -350,17 +350,17 @@ export default function ProjectsPage() {
   }
 
   async function handleDelegateTask() {
-    if (!delegateProject || !delegateForm.employeeId || !delegateForm.title) {
+    if (!delegateProject || delegateForm.employeeIds.length === 0 || !delegateForm.title) {
       alert("Please specify employee and task title."); return;
     }
     setDelegating(true);
     try {
-      const employee = members.find(m => m.uid === delegateForm.employeeId);
+      const employee = members.find(m => m.uid === delegateForm.employeeIds);
       const now = new Date().toISOString();
       await addDoc(collection(db, "tasks"), {
         title: delegateForm.title,
         description: delegateForm.instructions || `Task for project: ${delegateProject.title}`,
-        assignedTo: delegateForm.employeeId,
+        assignedTo: delegateForm.employeeIds,
         assignedToName: employee?.name || "Team Member",
         assignedBy: crmUser?.uid || "System",
         clientId: delegateProject.clientId || "",
@@ -379,7 +379,7 @@ export default function ProjectsPage() {
       });
       alert("Task successfully delegated and assigned!");
       setDelegateProject(null);
-      setDelegateForm({ employeeId: "", title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
+      setDelegateForm({ employeeIds: [] as string[], title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
     } catch (e: any) {
       console.error(e);
       alert("Failed to delegate task:" + e.message);
@@ -597,7 +597,7 @@ export default function ProjectsPage() {
                             onClick={() => {
                               setDelegateProject(project);
                               setDelegateForm({ 
-                                employeeId: "", 
+                                employeeIds: [] as string[], 
                                 title: "", 
                                 deadline: project.deadline || "", 
                                 instructions: "",
@@ -954,15 +954,33 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Assign To *</label>
+                <label className="form-label">Assign To (Multiple) *</label>
                 <select 
                   className="form-input" 
-                  value={delegateForm.employeeId} 
-                  onChange={(e) => setDelegateForm({ ...delegateForm, employeeId: e.target.value })}
+                  onChange={(e) => {
+                    const uid = e.target.value;
+                    if (!uid) return;
+                    if (!delegateForm.employeeIds.includes(uid)) {
+                      setDelegateForm({...delegateForm, employeeIds: [...delegateForm.employeeIds, uid]});
+                    }
+                    e.target.value = "";
+                  }}
+                  defaultValue=""
                 >
-                  <option value="">Select team member...</option>
+                  <option value="" disabled>Select team member...</option>
                   {members.map((m) => <option key={m.uid} value={m.uid}>{m.name} ({m.role})</option>)}
                 </select>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {delegateForm.employeeIds.map(uid => {
+                    const m = members.find(x => x.uid === uid);
+                    return (
+                      <div key={uid} className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold border border-indigo-100">
+                        {m?.name || "Unknown"}
+                        <button type="button" onClick={() => setDelegateForm({...delegateForm, employeeIds: delegateForm.employeeIds.filter(u => u !== uid)})} className="hover:text-indigo-900">&times;</button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label className="form-label">Deadline</label>
@@ -1026,15 +1044,33 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Assign To *</label>
+                <label className="form-label">Assign To (Multiple) *</label>
                 <select 
                   className="form-input" 
-                  value={delegateForm.employeeId} 
-                  onChange={(e) => setDelegateForm({ ...delegateForm, employeeId: e.target.value })}
+                  onChange={(e) => {
+                    const uid = e.target.value;
+                    if (!uid) return;
+                    if (!delegateForm.employeeIds.includes(uid)) {
+                      setDelegateForm({...delegateForm, employeeIds: [...delegateForm.employeeIds, uid]});
+                    }
+                    e.target.value = "";
+                  }}
+                  defaultValue=""
                 >
-                  <option value="">Select team member...</option>
+                  <option value="" disabled>Select team member...</option>
                   {members.map((m) => <option key={m.uid} value={m.uid}>{m.name} ({m.role})</option>)}
                 </select>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {delegateForm.employeeIds.map(uid => {
+                    const m = members.find(x => x.uid === uid);
+                    return (
+                      <div key={uid} className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold border border-indigo-100">
+                        {m?.name || "Unknown"}
+                        <button type="button" onClick={() => setDelegateForm({...delegateForm, employeeIds: delegateForm.employeeIds.filter(u => u !== uid)})} className="hover:text-indigo-900">&times;</button>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label className="form-label">Deadline</label>
