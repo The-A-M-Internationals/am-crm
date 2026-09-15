@@ -258,29 +258,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
           </div>
         </div>
 
-        
-        {task.taskType !== "project-task" ? (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm mt-8">
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Task Description</h2>
-            <div className="text-slate-800 whitespace-pre-wrap leading-loose">{task.description || "No specific instructions provided for this task."}</div>
-            
-            <div className="mt-8 pt-8 border-t border-slate-100">
-              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h2>
-              <button 
-                onClick={() => handleProgressClick(task.progress === 100 ? 0 : 100)}
-                className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
-                  task.progress === 100 
-                    ? "bg-slate-100 text-slate-500 hover:bg-slate-200" 
-                    : "bg-[#0D1B3E] text-white hover:bg-blue-900"
-                }`}
-              >
-                {task.progress === 100 ? "Mark as Incomplete" : "Complete Task"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Global View Navigation Toggles */}
+        {/* Global View Navigation Toggles */}
         <div className="flex space-x-2 border-b-2 border-slate-200 mb-8 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setActiveTab("blueprints")}
@@ -517,9 +495,6 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
             </motion.div>
           )}
         </AnimatePresence>
-          </>
-        )}
-
 
       </div>
     </div>
