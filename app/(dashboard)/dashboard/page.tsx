@@ -219,7 +219,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length > 0 ? (
               tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).slice(0, 3).map(t => (
-                <Link href={`/tasks/${t.id}`} key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 hover:bg-red-100 transition-colors rounded-lg cursor-pointer">
+                <Link href={t.relatedType === 'project' && t.relatedTo ? `/projects/${t.relatedTo}` : `/tasks`} key={t.id} className="flex justify-between items-center text-xs p-2 bg-red-50 hover:bg-red-100 transition-colors rounded-lg cursor-pointer">
                   <span className="font-semibold text-red-900 truncate pr-2">{t.title}</span>
                   <span className="text-red-700 whitespace-nowrap">Overdue</span>
                 </Link>
