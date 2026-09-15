@@ -247,10 +247,7 @@ export default function TasksPage() {
   }
 
   async function toggleDone(task: any) {
-    if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
-      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
-      return;
-    }
+    
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
     await PipelineService.handleTaskStatusUpdate(task, newStatus, crmUser?.uid ?? "");
   }
@@ -261,10 +258,7 @@ export default function TasksPage() {
   }
 
   async function updateStatus(task: any, status: string) {
-    if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
-      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
-      return;
-    }
+    
     await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
   }
 
@@ -285,7 +279,7 @@ export default function TasksPage() {
 
   const handleDrop = (e: React.DragEvent, statusKey: string) => {
     e.preventDefault();
-    const taskId = e.dataTransfer.getData("taskId");
+    const taskId = e.dataTransfer.getData("text/plain");
     const task = tasks.find(t => t.id === taskId);
     if (task && task.status !== statusKey) {
       updateStatus(task, statusKey);
@@ -398,7 +392,7 @@ export default function TasksPage() {
                           layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
                           key={task.id} 
                           draggable
-                          onDragStart={(e: any) => e.dataTransfer.setData("taskId", task.id)}
+                          onDragStart={(e: any) => e.dataTransfer.setData("text/plain", task.id)}
                           onClick={(e) => {
                             if (task.relatedType === "lead") {
                               return; // No specific page for lead follow-ups
@@ -631,3 +625,4 @@ export default function TasksPage() {
     </div>
   );
 }
+
