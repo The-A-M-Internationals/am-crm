@@ -954,7 +954,7 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Assign To (Multiple) *</label>
+                <label className="form-label">Assign To *</label>
                 <select 
                   className="form-input" 
                   onChange={(e) => {
@@ -1044,7 +1044,7 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <div>
-                <label className="form-label">Assign To (Multiple) *</label>
+                <label className="form-label">Assign To *</label>
                 <select 
                   className="form-input" 
                   onChange={(e) => {

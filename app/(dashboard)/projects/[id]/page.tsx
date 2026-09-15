@@ -1895,7 +1895,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Select Employee Assets (Multiple) *</label>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Select Employee Asset *</label>
                 <select 
                   className="form-input text-slate-900 bg-white"
                   onChange={e => {

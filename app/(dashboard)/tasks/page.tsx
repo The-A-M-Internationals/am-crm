@@ -537,7 +537,7 @@ export default function TasksPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owners (Multiple)</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Owners</label>
                   <select 
                     disabled={crmUser?.role === "employee"} 
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-[#C9A84C] transition-colors disabled:bg-slate-50 disabled:text-slate-500" 
