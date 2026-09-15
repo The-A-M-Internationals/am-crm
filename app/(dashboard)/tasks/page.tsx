@@ -111,7 +111,7 @@ export default function TasksPage() {
     return () => { unsubTasks(); unsubUsers(); unsubClients(); unsubProjects(); };
   }, [crmUser, viewMode]);
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ?? "" }); setShowModal(true); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM, assignedTo: crmUser?.uid ? [crmUser.uid] : [] }); setShowModal(true); }
   
   function openEdit(t: any) {
     setEditing(t);
