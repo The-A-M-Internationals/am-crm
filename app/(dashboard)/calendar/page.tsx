@@ -659,8 +659,6 @@ export default function CalendarPage() {
                         ) : null}
                         {ev.title}
                       </p>
-                    </div>
-
                       <div className="flex gap-2 mt-1">
                         <span
                           className="badge"
@@ -917,8 +915,6 @@ export default function CalendarPage() {
                   title="Delete Event"
                 >
                   🗑️
-                </button>
-
                 </button>
               )}
               <button
