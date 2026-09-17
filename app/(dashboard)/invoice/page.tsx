@@ -16,6 +16,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { PhoneInput } from "@/components/phone-input";
+import { toast } from "@/components/ui/toast";
 
 const SERVICES = [
   { key: "digital-marketing", label: "Digital Marketing" },
@@ -227,23 +228,25 @@ export default function InvoicePage() {
 
   async function handleSave() {
     if (!form.clientName.trim()) {
-      alert("Client Name is required");
+      toast("Client Name is required", "error");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (form.clientEmail && !emailRegex.test(form.clientEmail)) {
-      alert(
+      toast(
         "Please enter a valid email address (example: abc@gmail.com, abc@yahoo.in, abc@company.co.uk)",
+        "info"
       );
       return;
     }
     const phoneRegex = /^\+\d{8,15}$/;
 
     if (form.clientPhone && !phoneRegex.test(form.clientPhone)) {
-      alert(
+      toast(
         "Please enter a valid phone number with country code (Example: +919876543210)",
+        "info"
       );
       return;
     }
@@ -276,7 +279,7 @@ export default function InvoicePage() {
       fetchInvoices();
     } catch (err: any) {
       console.error("Save Invoice Error:", err);
-      alert("Failed to save invoice: " + err.message);
+      toast("Failed to save invoice: " + err.message, "error");
     } finally {
       setSaving(false);
     }
@@ -325,10 +328,10 @@ export default function InvoicePage() {
       await deleteDoc(doc(db, "invoices", inv.id));
 
       fetchInvoices();
-      alert("Invoice deleted and admin notified.");
+      toast("Invoice deleted and admin notified.", "info");
     } catch (error: any) {
       console.error("Delete Invoice Error:", error);
-      alert("Failed to delete invoice: " + error.message);
+      toast("Failed to delete invoice: " + error.message, "error");
     }
   }
 
@@ -340,7 +343,7 @@ export default function InvoicePage() {
       );
     } catch (err: any) {
       console.error(err);
-      alert("Failed to update status");
+      toast("Failed to update status", "error");
     }
   }
 
@@ -377,8 +380,9 @@ export default function InvoicePage() {
 
   async function sendEmail(inv: any) {
     if (!inv.clientEmail) {
-      alert(
+      toast(
         "No client email on this invoice! Please edit the invoice and add a client email first.",
+        "info"
       );
       return;
     }
@@ -426,18 +430,20 @@ export default function InvoicePage() {
       const result = await res.json();
 
       if (result.error) {
-        alert(
+        toast(
           `Failed to send email!\n\nError: ${JSON.stringify(result.error)}`,
+          "error"
         );
       } else if (result.skipped) {
-        alert(
+        toast(
           "⚠️ Email skipped — RESEND_API_KEY not configured in environment variables.",
+          "info"
         );
       } else {
-        alert(`Invoice email sent to ${inv.clientEmail} successfully!`);
+        toast(`Invoice email sent to ${inv.clientEmail} successfully!`, "success");
       }
     } catch (err: any) {
-      alert(`Network error: ${err.message}`);
+      toast(`Network error: ${err.message}`, "error");
     } finally {
       setSending(false);
     }
@@ -446,7 +452,7 @@ export default function InvoicePage() {
   function sendWhatsApp(inv: any) {
     const phone = inv.clientPhone?.replace(/\D/g, "");
     if (!phone) {
-      alert("No client phone number on this invoice!");
+      toast("No client phone number on this invoice!", "info");
       return;
     }
 

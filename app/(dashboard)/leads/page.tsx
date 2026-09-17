@@ -150,7 +150,7 @@ export default function LeadsPage() {
   async function handleQuickTask() {
     if (!selectedLeadForTask) return;
     if (!quickTaskForm.title || !quickTaskForm.dueDate) {
-      alert("Title and Date are required!");
+      toast("Title and Date are required!", "error");
       return;
     }
     setSubmittingTask(true);
@@ -188,7 +188,7 @@ export default function LeadsPage() {
       setQuickTaskForm({ title: "", description: "", dueDate: "", time: "" });
       setSelectedLeadForTask(null);
     } catch (e: any) {
-      alert("Failed:" + e.message);
+      toast("Failed:" + e.message, "error");
     } finally {
       setSubmittingTask(false);
     }

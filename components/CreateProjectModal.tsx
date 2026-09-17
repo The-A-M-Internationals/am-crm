@@ -5,6 +5,7 @@ import { collection, addDoc, onSnapshot, query, where } from "firebase/firestore
 import { db } from "@/lib/firebase";
 import { ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/toast";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -110,7 +111,10 @@ export default function CreateProjectModal({
   if (!isOpen) return null;
 
   async function handleSave() {
-    if (!form.title || !form.clientName) return alert("Title and Client Name are required.");
+    if (!form.title || !form.clientName) {
+      toast("Title and Client Name are required.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const projectData = {
@@ -139,9 +143,10 @@ export default function CreateProjectModal({
       };
 
       await addDoc(collection(db, "projects"), projectData);
+      toast("Project created successfully!", "success");
       onClose();
     } catch (e: any) {
-      alert("Failed to create project: " + e.message);
+      toast("Failed to create project: " + e.message, "error");
     } finally {
       setSaving(false);
     }

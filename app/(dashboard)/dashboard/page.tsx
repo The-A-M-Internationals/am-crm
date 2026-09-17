@@ -11,6 +11,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
+import { toast } from "@/components/ui/toast";
 
 const SERVICE_LABELS: Record<string, string> = {
   "digital-marketing": "Digital",
@@ -96,12 +97,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/cron/reminders");
       const data = await res.json();
       if (data.success) {
-        alert(`Success! Processed reminders. Alerts sent: ${data.emailsSent}`);
+        toast(`Success! Processed reminders. Alerts sent: ${data.emailsSent}`, "success");
       } else {
-        alert(`Error: ${data.error || "Failed to trigger"}`);
+        toast(`Error: ${data.error || "Failed to trigger"}`, "error");
       }
     } catch (err) {
-      alert("Network error triggering reminders");
+      toast("Network error triggering reminders", "error");
     } finally {
       setTriggering(false);
     }

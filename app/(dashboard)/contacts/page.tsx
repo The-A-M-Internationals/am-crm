@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/toast";
 
 export default function ContactsDirectoryPage() {
   const { crmUser } = useAuth();
@@ -19,7 +20,7 @@ export default function ContactsDirectoryPage() {
 
   async function handleAddContact() {
     if (!form.name || !form.email) {
-      alert("Name and email are required.");
+      toast("Name and email are required.", "error");
       return;
     }
     setSaving(true);
@@ -39,7 +40,7 @@ export default function ContactsDirectoryPage() {
       setForm({ name: "", company: "", email: "", phone: "" });
     } catch (err) {
       console.error(err);
-      alert("Failed to add contact.");
+      toast("Failed to add contact.", "error");
     } finally {
       setSaving(false);
     }

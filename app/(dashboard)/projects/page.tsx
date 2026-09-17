@@ -11,6 +11,7 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import { toast } from "@/components/ui/toast";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -351,7 +352,7 @@ export default function ProjectsPage() {
 
   async function handleDelegateTask() {
     if (!delegateProject || delegateForm.employeeIds.length === 0 || !delegateForm.title) {
-      alert("Please specify employee and task title."); return;
+      toast("Please specify employee and task title.", "info"); return;
     }
     setDelegating(true);
     try {
@@ -377,12 +378,12 @@ export default function ProjectsPage() {
         leadInstructions: (delegateProject as any).leadInstructions || "",
         taskType: delegateForm.taskType
       });
-      alert("Task successfully delegated and assigned!");
+      toast("Task successfully delegated and assigned!", "success");
       setDelegateProject(null);
       setDelegateForm({ employeeIds: [] as string[], title: "", deadline: "", instructions: "", taskType: "project-task" as SystemTaskType });
     } catch (e: any) {
       console.error(e);
-      alert("Failed to delegate task:" + e.message);
+      toast("Failed to delegate task:" + e.message, "error");
     } finally {
       setDelegating(false);
     }

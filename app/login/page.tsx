@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { setCookie } from "cookies-next";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "@/components/ui/toast";
 
 const SERVICES = [
   { icon: "📱", title: "Social Media Marketing", desc: "Instagram, Facebook, LinkedIn — content that converts" },
@@ -185,7 +186,7 @@ export default function LoginPage() {
                     }
                     
                     setError("");
-                    alert("Password reset email sent! Check your inbox.");
+                    toast("Password reset email sent! Check your inbox.", "info");
                   } catch (err: any) {
                     setError(err.message || "Error sending reset email.");
                   }

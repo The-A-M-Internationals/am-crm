@@ -14,6 +14,7 @@ import { getMasterTemplate } from "@/lib/proposal-templates";
 import DynamicTemplate from "@/components/dynamic-template";
 import { PipelineService } from "@/lib/pipeline-service";
 import SignatureCanvas from "react-signature-canvas";
+import { toast } from "@/components/ui/toast";
 
 const STATUSES: Record<string, { label: string; color: string; bg: string; border: string }> = {
   proposal: { label: "Proposal", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
@@ -266,7 +267,7 @@ export default function ProposalDetailPage() {
       setIsEditing(false);
     } catch (err) {
       console.error("Error saving proposal changes:", err);
-      alert("Failed to save changes. Please try again.");
+      toast("Failed to save changes. Please try again.", "error");
     } finally {
       setSavingChanges(false);
     }
@@ -288,7 +289,7 @@ export default function ProposalDetailPage() {
       pdf.save(`Quotation_${proposal?.clientName || "Document"}.pdf`);
     } catch (err) {
       console.error(err);
-      alert("Failed to generate PDF");
+      toast("Failed to generate PDF", "error");
     }
   }
 
@@ -316,10 +317,10 @@ export default function ProposalDetailPage() {
         setHistoryIndex(prev => prev + 1);
       }
       
-      alert("Proposal sent successfully to" + proposal.clientEmail);
+      toast("Proposal sent successfully to" + proposal.clientEmail, "success");
     } catch (err) {
       console.error("Error sending proposal:", err);
-      alert("Error sending proposal. Please try again.");
+      toast("Error sending proposal. Please try again.", "error");
     } finally {
       setSending(false);
     }
@@ -333,7 +334,7 @@ export default function ProposalDetailPage() {
       router.push("/proposals");
     } catch (err) {
       console.error(err);
-      alert("Failed to delete proposal.");
+      toast("Failed to delete proposal.", "error");
     }
   }
 
@@ -351,7 +352,7 @@ export default function ProposalDetailPage() {
       router.push(`/proposals/${docRef.id}`);
     } catch (err) {
       console.error(err);
-      alert("Failed to duplicate proposal.");
+      toast("Failed to duplicate proposal.", "error");
     }
   }
 
@@ -378,10 +379,10 @@ export default function ProposalDetailPage() {
         createdAt: new Date().toISOString(),
       });
       setShowFollowUpModal(false);
-      alert("Follow-up task successfully added to your Operations Board!");
+      toast("Follow-up task successfully added to your Operations Board!", "success");
     } catch (err) {
       console.error(err);
-      alert("Failed to set follow-up.");
+      toast("Failed to set follow-up.", "error");
     } finally {
       setSavingFollowUp(false);
     }
@@ -412,7 +413,7 @@ export default function ProposalDetailPage() {
     if (!id || !signingName || !signingTitle || !isAgreed || !proposal) return;
 
     if (proposal.packages && proposal.packages.length > 0 && !proposal.selectedPackageName) {
-      alert("Please select a package before signing the proposal.");
+      toast("Please select a package before signing the proposal.", "info");
       setShowSignModal(false);
       return;
     }
@@ -454,10 +455,10 @@ export default function ProposalDetailPage() {
       setHistoryIndex(prev => prev + 1);
 
       setShowSignModal(false);
-      alert("Proposal signed and accepted successfully!");
+      toast("Proposal signed and accepted successfully!", "success");
     } catch (err: any) {
       console.error(err);
-      alert("Error signing proposal:" + (err.message || String(err)));
+      toast("Error signing proposal:" + (err.message || String(err)), "error");
     } finally {
       setSubmittingSign(false);
     }
@@ -494,10 +495,10 @@ export default function ProposalDetailPage() {
       setHistoryIndex(prev => prev + 1);
 
       setShowSignModal(false);
-      alert("Proposal has been rejected.");
+      toast("Proposal has been rejected.", "info");
     } catch (err: any) {
       console.error("Error rejecting proposal:", err);
-      alert("Error rejecting proposal. Please try again:" + (err.message || String(err)));
+      toast("Error rejecting proposal. Please try again:" + (err.message || String(err)), "error");
     } finally {
       setSubmittingSign(false);
     }
@@ -514,7 +515,7 @@ export default function ProposalDetailPage() {
       setHistoryIndex(prev => prev + 1);
     } catch (err) {
       console.error("Error updating status:", err);
-      alert("Failed to update status.");
+      toast("Failed to update status.", "error");
     }
   }
 
@@ -525,7 +526,7 @@ export default function ProposalDetailPage() {
       : (proposal?.packages || []).filter((p: any) => p.status !== 'hidden' && p.offered !== false);
       
     if (visiblePackages.length > 1 && (!proposal?.selectedPackageName || proposal.selectedPackageName.trim() === '')) {
-      alert("Please select a package first before signing.");
+      toast("Please select a package first before signing.", "info");
       const packagesSection = document.getElementById("packages-section");
       if (packagesSection) {
         packagesSection.scrollIntoView({ behavior: "smooth" });

@@ -12,6 +12,7 @@ import {
 import { db } from "@/lib/firebase";
 import { CRMUser, UserRole } from "@/types";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/toast";
 
 const ROLES: {
   key: UserRole;
@@ -170,7 +171,7 @@ export default function TeamPage() {
   }
 
   async function deleteMember(uid: string) {
-    if (uid === crmUser?.uid) return alert("You cannot delete yourself.");
+    if (uid === crmUser?.uid) return toast("You cannot delete yourself.", "info");
     if (!confirm("Remove this team member? This will also delete their login access.")) return;
     
     try {
@@ -187,7 +188,7 @@ export default function TeamPage() {
 
       fetchMembers();
     } catch (err: any) {
-      alert("Error:" + err.message);
+      toast("Error:" + err.message, "error");
     }
   }
 
@@ -201,7 +202,7 @@ export default function TeamPage() {
       );
 
       if (!firestoreDoc) {
-        alert("User not found");
+        toast("User not found", "error");
         return;
       }
 
@@ -212,10 +213,10 @@ export default function TeamPage() {
       setEditingMember(null);
       fetchMembers();
 
-      alert("Role updated successfully");
+      toast("Role updated successfully", "success");
     } catch (err) {
       console.error(err);
-      alert("Failed to update role");
+      toast("Failed to update role", "error");
     }
   }
 
@@ -857,7 +858,7 @@ export default function TeamPage() {
                       throw new Error(data.error || "Failed to reset password.");
                     }
 
-                    alert(`Password reset successfully to ${tempPassword}. The user will be prompted to create a new password on login.`);
+                    toast(`Password reset successfully to ${tempPassword}. The user will be prompted to create a new password on login.`, "success");
                     setResettingMember(null);
                   } catch (err: any) {
                     setResetError(err.message);

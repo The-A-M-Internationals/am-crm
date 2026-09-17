@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { PhoneInput } from "@/components/phone-input";
+import { toast } from "@/components/ui/toast";
 
 function Toggle({ defaultChecked = true }: { defaultChecked?: boolean }) {
   const [on, setOn] = useState(defaultChecked);
@@ -134,7 +135,7 @@ export default function SettingsPage() {
       }, 2500);
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Failed to save settings");
+      toast("Failed to save settings", "error");
     }
   }
   return (

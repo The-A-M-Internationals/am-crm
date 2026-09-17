@@ -10,6 +10,7 @@ import { Client, Proposal, Task, Invoice } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import { toast } from "@/components/ui/toast";
 
 export default function ClientProfilePage({ params }: { params: { id: string } }) {
   const { crmUser } = useAuth();
@@ -93,7 +94,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
   };
 
   async function submitQuickTask() {
-    if (!quickTaskForm.title) return alert("Title is required.");
+    if (!quickTaskForm.title) return toast("Title is required.", "error");
     setSubmittingTask(true);
     try {
       await addDoc(collection(db, "tasks"), {
@@ -129,7 +130,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
       setShowQuickTask(false);
       setQuickTaskForm({ type: "meeting", title: "", description: "", dueDate: "", time: "" });
     } catch (e: any) {
-      alert("Failed:" + e.message);
+      toast("Failed:" + e.message, "error");
     } finally {
       setSubmittingTask(false);
     }
@@ -277,7 +278,7 @@ export default function ClientProfilePage({ params }: { params: { id: string } }
                         className="text-[10px] font-bold uppercase tracking-widest p-1.5 bg-white border border-slate-200 rounded outline-none focus:border-[#C9A84C]"
                         value={task.assignedTo || ""}
                         onChange={(e) => {
-                          alert("To reassign, use the main Tasks board.");
+                          toast("To reassign, use the main Tasks board.", "info");
                         }}
                       >
                         <option value="">Unassigned</option>

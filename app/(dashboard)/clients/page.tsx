@@ -11,6 +11,7 @@ import { PhoneInput } from "@/components/phone-input";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import { toast } from "@/components/ui/toast";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
   { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
@@ -152,7 +153,7 @@ export default function ClientsPage() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.email)) {
-      alert("Please enter a valid email address.");
+      toast("Please enter a valid email address.", "info");
       return;
     }
 
@@ -204,7 +205,7 @@ export default function ClientsPage() {
       console.log("Client and related items processed successfully.");
     } catch (error) {
       console.error("Error archiving client:", error);
-      alert("Failed to archive client properly.");
+      toast("Failed to archive client properly.", "error");
     }
   }
 
@@ -225,7 +226,7 @@ export default function ClientsPage() {
       console.log("Client and all associated data deleted permanently.");
     } catch (error) {
       console.error("Error deleting client:", error);
-      alert("Failed to delete client completely.");
+      toast("Failed to delete client completely.", "error");
     }
   }
 

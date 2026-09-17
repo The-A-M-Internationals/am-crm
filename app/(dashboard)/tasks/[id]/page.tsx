@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "@/components/ui/toast";
 
 export default function TaskOperationalSheet({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -144,7 +145,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
       setLocalDesc("");
     } catch (err) {
       console.error(err);
-      alert("Failed to commit message.");
+      toast("Failed to commit message.", "error");
     }
   };
 
@@ -169,13 +170,13 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
       setEditingLogText("");
     } catch (err) {
       console.error(err);
-      alert("Failed to update log.");
+      toast("Failed to update log.", "error");
     }
   };
 
   const handleProgressClick = async (newProgress: number) => {
     if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
-      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      toast("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.", "error");
       return;
     }
     setLocalProgress(newProgress);

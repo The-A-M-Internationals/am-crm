@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "@/components/ui/toast";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -126,7 +127,7 @@ export default function TasksPage() {
   }
 
   async function quickCreateProject() {
-    if (!form.clientId || !form.title) return alert("Please select a client and give the task a title first.");
+    if (!form.clientId || !form.title) return toast("Please select a client and give the task a title first.", "info");
     setCreatingProject(true);
     try {
       const now = new Date().toISOString();
@@ -136,8 +137,8 @@ export default function TasksPage() {
         assignedTo: form.assignedTo || []
       });
       setForm(f => ({ ...f, relatedTo: docRef.id, relatedType: "project" }));
-      alert("Project created and linked!");
-    } catch (e) { console.error(e); alert("Failed to create project"); } 
+      toast("Project created and linked!", "info");
+    } catch (e) { console.error(e); toast("Failed to create project", "error"); } 
     finally { setCreatingProject(false); }
   }
 
@@ -169,7 +170,7 @@ export default function TasksPage() {
       );
 
       if (isDuplicate) {
-        alert("WARNING: A task with this exact title already exists on this project. Please use a unique title or append a sequence index.");
+        toast("WARNING: A task with this exact title already exists on this project. Please use a unique title or append a sequence index.", "error");
         return;
       }
     }
@@ -248,7 +249,7 @@ export default function TasksPage() {
 
   async function toggleDone(task: any) {
     if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
-      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      toast("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.", "error");
       return;
     }
     const newStatus = task.status === "completed" ? "in-progress" : "completed";
@@ -262,7 +263,7 @@ export default function TasksPage() {
 
   async function updateStatus(task: any, status: string) {
     if (crmUser?.role === "admin" && !(Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid)) {
-      alert("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.");
+      toast("Action Restricted: As an admin, please allow the assigned project managers and employees to update their own task progress.", "error");
       return;
     }
     await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");

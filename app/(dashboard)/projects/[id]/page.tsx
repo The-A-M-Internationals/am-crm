@@ -195,7 +195,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setAssetUrl("");
     } catch (e) {
       console.error(e);
-      alert("Failed to add asset");
+      toast("Failed to add asset", "error");
     } finally {
       setAddingFile(false);
     }
@@ -210,7 +210,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setProject({ ...project, sharedFiles: currentFiles } as any);
     } catch (e) {
       console.error(e);
-      alert("Failed to delete file");
+      toast("Failed to delete file", "error");
     }
   }
 
@@ -259,7 +259,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setEditingPaymentId(null);
     } catch (e) {
       console.error(e);
-      alert("Failed to log payment");
+      toast("Failed to log payment", "error");
     } finally {
       setLoggingPayment(false);
     }
@@ -275,10 +275,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       await PipelineService.draftInvoiceForProject(project.id, crmUser?.uid || "", batch);
       await batch.commit();
       
-      alert("Invoice drafted successfully! Redirecting...");
+      toast("Invoice drafted successfully! Redirecting...", "success");
       router.push("/invoice");
     } catch (e: any) {
-      alert("Failed to generate invoice: " + e.message);
+      toast("Failed to generate invoice: " + e.message, "error");
     } finally {
       setLoggingPayment(false);
     }
@@ -304,7 +304,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
     } catch (e) {
       console.error(e);
-      alert("Failed to delete payment.");
+      toast("Failed to delete payment.", "error");
     }
   }
 
@@ -339,7 +339,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setShowFinancialsModal(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to save financials");
+      toast("Failed to save financials", "error");
     } finally {
       setSavingFin(false);
     }
@@ -375,11 +375,11 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         updatedAt: now
       });
       
-      alert("Reminder logged to operations successfully!");
+      toast("Reminder logged to operations successfully!", "success");
       setShowReminderModal(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to log reminder.");
+      toast("Failed to log reminder.", "error");
     } finally {
       setSendingReminder(false);
     }
@@ -387,7 +387,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
+    toast("Copied to clipboard!", "success");
   };
 
   async function saveTechnicalHub() {
@@ -398,14 +398,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setEditingTechHub(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to save Technical Infrastructure Hub");
+      toast("Failed to save Technical Infrastructure Hub", "error");
     }
   }
 
   async function delegateTask() {
     if (isDelegatingRef.current) return;
     if (!project || delegateForm.employeeIds.length === 0 || !delegateForm.title) {
-      alert("Please specify both an employee and a task title.");
+      toast("Please specify both an employee and a task title.", "info");
       return;
     }
 
@@ -415,7 +415,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     );
 
     if (titleCollision) {
-      alert("WARNING: A task with this exact title already exists on this project. Please append a sequence index (e.g., V2, Part 2) to ensure separate communication history sheets.");
+      toast("WARNING: A task with this exact title already exists on this project. Please append a sequence index (e.g., V2, Part 2) to ensure separate communication history sheets.", "error");
       return;
     }
 
@@ -504,10 +504,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
       setShowDelegateModal(false);
       setDelegateForm({ employeeIds: [] as string[], title: "", instructions: "", taskType: "project-task" as SystemTaskType, dueDate: "", time: "" });
-      alert("Task successfully delegated and assigned!");
+      toast("Task successfully delegated and assigned!", "success");
     } catch (err: any) {
       console.error(err);
-      alert("Failed to delegate task:" + (err.message || String(err)));
+      toast("Failed to delegate task:" + (err.message || String(err)), "error");
     } finally {
       isDelegatingRef.current = false;
       setDelegating(false);
@@ -536,7 +536,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
 
   async function updateTaskStatus(task: any, status: string) {
     if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
-      alert("Action Restricted: Admins cannot update an employee's progress on their tasks.");
+      toast("Action Restricted: Admins cannot update an employee's progress on their tasks.", "error");
       return;
     }
     try {
@@ -604,10 +604,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       if (selectedDrawerTask && selectedDrawerTask.id === task.id) {
         setSelectedDrawerTask({ ...selectedDrawerTask, assignedTo: employeeId, assignedToName: employee.name });
       }
-      alert(`Asset reallocated to ${employee.name}`);
+      toast(`Asset reallocated to ${employee.name}`, "info");
     } catch (e) {
       console.error(e);
-      alert("Failed to reallocate asset");
+      toast("Failed to reallocate asset", "error");
     }
   }
 
@@ -626,7 +626,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   async function saveBlueprint() {
     if (!project) return;
     if (crmUser?.role !== "admin") {
-      alert("Only Administrators can modify the Master Blueprint.");
+      toast("Only Administrators can modify the Master Blueprint.", "info");
       return;
     }
     try {
@@ -635,7 +635,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setEditingBlueprint(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to save master blueprint");
+      toast("Failed to save master blueprint", "error");
     }
   }
 
@@ -647,7 +647,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setEditingInstructions(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to save lead instructions");
+      toast("Failed to save lead instructions", "error");
     }
   }
 
@@ -663,7 +663,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setFieldValue("");
     } catch (e) {
       console.error(e);
-      alert("Failed to add field");
+      toast("Failed to add field", "error");
     }
   }
 
@@ -695,7 +695,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setMilestoneDate("");
     } catch (e) {
       console.error(e);
-      alert("Failed to add milestone");
+      toast("Failed to add milestone", "error");
     }
   }
 
@@ -2008,14 +2008,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       await updateDoc(doc(db, "tasks", duplicateConflictTask.id), { 
                         taskInstructions: (duplicateConflictTask.taskInstructions || "") + "\n\n[NEW INSTRUCTIONS]: " + duplicateInstructionNote 
                       });
-                      alert("Instructions added successfully!");
+                      toast("Instructions added successfully!", "success");
                       setDuplicateConflictTask(null);
                       setDuplicateInstructionNote("");
                       setShowDelegateModal(false);
                       setDelegateForm({ employeeIds: [], title: "", instructions: "", taskType: "project-task", dueDate: "", time: "" });
                     } catch(e) {
                       console.error(e);
-                      alert("Failed to add instructions");
+                      toast("Failed to add instructions", "error");
                     }
                   }}
                   disabled={!duplicateInstructionNote.trim()}

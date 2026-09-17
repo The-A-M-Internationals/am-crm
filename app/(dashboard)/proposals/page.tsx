@@ -39,6 +39,7 @@ const CURRENCIES = [
 ];
 
 import { getMasterTemplate } from "@/lib/proposal-templates";
+import { toast } from "@/components/ui/toast";
 
 const EMPTY_ITEM: ProposalItem = { description: "", qty: 1, rate: 0, amount: 0 };
 
@@ -220,7 +221,7 @@ function ProposalsContent() {
       }
     } catch (err) {
       console.error("Error saving proposal:", err);
-      alert("Failed to save proposal. Please try again.");
+      toast("Failed to save proposal. Please try again.", "error");
     } finally {
       setSaving(false);
     }
@@ -246,7 +247,7 @@ function ProposalsContent() {
         if (!res.ok) throw new Error("API fallback failed");
       } catch (err) {
         console.error(err);
-        alert("Failed to update status. Check console.");
+        toast("Failed to update status. Check console.", "error");
       }
     } else if (p.status === "accepted" && p.fromLeadId) {
       await PipelineService.withdrawProposal(p.id, p.fromLeadId, "proposal");
@@ -399,9 +400,9 @@ function ProposalsContent() {
                           if (p.status !== "accepted" && p.status !== "rejected") {
                             await PipelineService.handleProposalStatusChange(p, "sent");
                           }
-                          alert("Proposal sent successfully to" + p.clientEmail);
+                          toast("Proposal sent successfully to " + p.clientEmail, "success");
                         } catch (err) {
-                          alert("Error sending proposal");
+                          toast("Error sending proposal", "error");
                         }
                       }}
                     >
@@ -466,7 +467,7 @@ function ProposalsContent() {
                                 router.push(`/proposals/${docRef.id}`);
                               } catch (err) {
                                 console.error(err);
-                                alert("Failed to duplicate proposal");
+                                toast("Failed to duplicate proposal", "error");
                               }
                             }}
                           >
