@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,12 +15,14 @@ const firebaseConfig = {
 let auth: any;
 let db: any;
 let secondaryAuth: any;
+let storage: any;
 let app: any;
 
 try {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app);
 
   /* Secondary Firebase App */
   const secondaryApp =
@@ -31,5 +34,5 @@ try {
   console.warn("Firebase initialization skipped during build:", error);
 }
 
-export { auth, db, secondaryAuth };
+export { auth, db, secondaryAuth, storage };
 export default app;

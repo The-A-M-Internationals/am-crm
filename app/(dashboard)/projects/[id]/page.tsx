@@ -1,10 +1,10 @@
 "use client";
-import { X, Trash2, ClipboardList, Search, Mail, Building2, DollarSign, Pencil, User, Bell } from "lucide-react";
+import { X, Trash2, ClipboardList, Search, Mail, Building2, DollarSign, Pencil, User, Bell, Upload, FileText, FileSpreadsheet, Presentation, File, Download, Paperclip } from "lucide-react";
 
 
 import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, collection, getDocs, query, where, orderBy, updateDoc, onSnapshot, deleteDoc, addDoc, arrayUnion, arrayRemove, writeBatch } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { Project, ProjectTask, ServiceTag, ProjectStatus, SystemTaskType } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toast";
@@ -34,6 +34,15 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   const [assetUrl, setAssetUrl] = useState("");
   const [assetCategory, setAssetCategory] = useState("Documentation");
   const [addingFile, setAddingFile] = useState(false);
+
+  // Upload Document Modal State (matching Upload Document design)
+  const [showUploadDocModal, setShowUploadDocModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocName, setUploadDocName] = useState("");
+  const [uploadDocCategory, setUploadDocCategory] = useState("Documentation");
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [isDraggingDoc, setIsDraggingDoc] = useState(false);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
 
   // Payment Log State
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
@@ -198,6 +207,72 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       toast("Failed to add asset", "error");
     } finally {
       setAddingFile(false);
+    }
+  }
+
+  async function handleUploadDocument() {
+    if (!uploadFile || !project) {
+      toast("Please choose a file to upload.", "error");
+      return;
+    }
+    setIsUploadingDoc(true);
+    try {
+      let fileUrl = "";
+      const customOrFileName = uploadDocName.trim() || uploadFile.name;
+
+      // Try uploading to Firebase Storage if available
+      try {
+        if (storage) {
+          const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+          const storageRef = ref(storage, `projects/${project.id}/${Date.now()}_${uploadFile.name}`);
+          const snap = await uploadBytes(storageRef, uploadFile);
+          fileUrl = await getDownloadURL(snap.ref);
+        }
+      } catch (storageErr) {
+        console.warn("Firebase Storage upload failed, falling back to data URL:", storageErr);
+      }
+
+      // If Firebase Storage is unconfigured or blocked, fallback to base64 Data URL
+      if (!fileUrl) {
+        fileUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(uploadFile);
+        });
+      }
+
+      const ext = uploadFile.name.split('.').pop()?.toLowerCase() || "file";
+      const sizeStr = (uploadFile.size / 1024 < 1024)
+        ? `${(uploadFile.size / 1024).toFixed(1)} KB`
+        : `${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB`;
+
+      const fileObj = {
+        name: customOrFileName,
+        url: fileUrl,
+        category: uploadDocCategory,
+        fileName: uploadFile.name,
+        fileSize: sizeStr,
+        fileType: ext,
+        isUploaded: true,
+        addedBy: crmUser?.name || "Admin",
+        at: new Date().toISOString()
+      };
+
+      const updatedFiles = [...((project as any).sharedFiles || []), fileObj];
+      await updateDoc(doc(db, "projects", project.id), { sharedFiles: updatedFiles });
+      setProject({ ...project, sharedFiles: updatedFiles } as any);
+
+      toast("Document uploaded successfully!", "success");
+      setShowUploadDocModal(false);
+      setUploadFile(null);
+      setUploadDocName("");
+      setUploadDocCategory("Documentation");
+    } catch (err: any) {
+      console.error(err);
+      toast("Failed to upload document: " + (err.message || "Unknown error"), "error");
+    } finally {
+      setIsUploadingDoc(false);
     }
   }
 
@@ -1367,11 +1442,23 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           {activeTab === "files" && (
             <div className="space-y-6">
               {/* Asset Vault Intake Grid */}
-              <div className="bg-white  backdrop-blur-md border border-slate-200  rounded-2xl p-6 shadow-xl">
-                <h3 className="text-sm font-bold mb-4 text-slate-900  flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-                  Asset Vault
-                </h3>
+              <div className="bg-white backdrop-blur-md border border-slate-200 rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    Asset Vault
+                  </h3>
+                  <button 
+                    onClick={() => {
+                      setUploadFile(null);
+                      setUploadDocName("");
+                      setShowUploadDocModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload Document
+                  </button>
+                </div>
                 
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                   <input 
@@ -1446,9 +1533,14 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                     return filtered.map((file: any, index: number) => {
                       const origIndex = shared.indexOf(file);
                       
-                      // Platform Icon Logic
-                      const isFigma = file.url.includes("figma.com");
-                      const isGithub = file.url.includes("github.com") || file.url.includes("gitlab.com") || file.url.includes("bitbucket");
+                      // Platform & Document Icon Logic
+                      const isFigma = file.url?.includes("figma.com");
+                      const isGithub = file.url?.includes("github.com") || file.url?.includes("gitlab.com") || file.url?.includes("bitbucket");
+                      const ext = (file.fileType || file.fileName || file.name || "").toLowerCase();
+                      const isPdf = ext.includes("pdf");
+                      const isExcel = ext.includes("xls") || ext.includes("csv");
+                      const isDoc = ext.includes("doc");
+                      const isPpt = ext.includes("ppt");
                       
                       let Icon = (
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
@@ -1458,6 +1550,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path><path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"></path><path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"></path><path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"></path></svg>;
                       } else if (isGithub) {
                         Icon = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-800 "><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>;
+                      } else if (isPdf) {
+                        Icon = <FileText className="w-5 h-5 text-red-500" />;
+                      } else if (isExcel) {
+                        Icon = <FileSpreadsheet className="w-5 h-5 text-emerald-600" />;
+                      } else if (isDoc) {
+                        Icon = <FileText className="w-5 h-5 text-blue-600" />;
+                      } else if (isPpt) {
+                        Icon = <Presentation className="w-5 h-5 text-amber-500" />;
+                      } else if (file.isUploaded) {
+                        Icon = <File className="w-5 h-5 text-indigo-500" />;
                       }
 
                       // Category Badge Logic
@@ -1485,13 +1587,27 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                             <span className={`hidden md:inline-block px-2.5 py-1 rounded-md text-[9px] font-black tracking-widest border ${badgeClasses}`}>
                               {cat}
                             </span>
+                            {file.fileSize && (
+                              <span className="text-[10px] font-mono text-slate-400 hidden sm:inline-block bg-slate-100 px-2 py-0.5 rounded">
+                                {file.fileSize}
+                              </span>
+                            )}
                             <a 
                               href={file.url} 
                               target="_blank" 
                               rel="noopener noreferrer" 
-                              className="text-xs font-bold text-blue-500 hover:text-blue-600  hover:underline flex items-center gap-1"
+                              download={file.fileName || file.name}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
                             >
-                              Open Link <span className="text-[10px]">↗</span>
+                              {file.isUploaded ? (
+                                <>
+                                  <Download className="w-3.5 h-3.5" /> Download
+                                </>
+                              ) : (
+                                <>
+                                  Open Link <span className="text-[10px]">?</span>
+                                </>
+                              )}
                             </a>
                             {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                               <button 
@@ -2246,6 +2362,161 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
             </>
           );
         })()}
+      </AnimatePresence>
+      {/* Upload Document Modal - matching user reference screenshot */}
+      <AnimatePresence>
+        {showUploadDocModal && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isUploadingDoc) setShowUploadDocModal(false);
+              }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -10 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative bg-white rounded-2xl shadow-2xl max-w-[480px] w-full border border-slate-100 z-10 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-800">Upload Document</h3>
+                <button
+                  onClick={() => setShowUploadDocModal(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6">
+                {/* Hidden File Input */}
+                <input
+                  ref={docFileInputRef}
+                  type="file"
+                  accept=".ppts,.ppt,.pptx,.pdf,.xls,.xlsx,.doc,.docx,.txt,image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setUploadFile(f);
+                      if (!uploadDocName) setUploadDocName(f.name.replace(/\.[^/.]+$/, ""));
+                    }
+                  }}
+                />
+
+                {/* Drag and Drop Zone matching user reference screenshot */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingDoc(true);
+                  }}
+                  onDragLeave={() => setIsDraggingDoc(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingDoc(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) {
+                      setUploadFile(f);
+                      if (!uploadDocName) setUploadDocName(f.name.replace(/\.[^/.]+$/, ""));
+                    }
+                  }}
+                  onClick={() => docFileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-150 flex flex-col items-center justify-center min-h-[160px] ${
+                    isDraggingDoc
+                      ? "border-blue-500 bg-blue-50/60 scale-[1.01]"
+                      : uploadFile
+                      ? "border-emerald-300 bg-emerald-50/30"
+                      : "border-slate-300 hover:border-blue-400 bg-slate-50/50 hover:bg-slate-50"
+                  }`}
+                >
+                  {uploadFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 max-w-[340px] truncate">{uploadFile.name}</p>
+                      <p className="text-xs text-slate-400 font-medium">
+                        {(uploadFile.size / 1024 < 1024)
+                          ? `${(uploadFile.size / 1024).toFixed(1)} KB`
+                          : `${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB`}
+                      </p>
+                      <span className="text-xs text-blue-600 hover:underline mt-1 font-semibold">Click to change file</span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-700 font-medium">
+                        Drag and drop or{" "}
+                        <span className="text-blue-600 font-semibold underline hover:text-blue-700">
+                          choose a file.
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-400 mt-2">
+                        We support .ppts, .pdf, .xls and .doc files.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {/* Additional Optional Metadata */}
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Custom Document Title (optional)</label>
+                    <input
+                      value={uploadDocName}
+                      onChange={(e) => setUploadDocName(e.target.value)}
+                      placeholder="e.g. Project Scope Document"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Asset Category</label>
+                    <select
+                      value={uploadDocCategory}
+                      onChange={(e) => setUploadDocCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                    >
+                      <option value="Documentation">Documentation</option>
+                      <option value="Design">Design</option>
+                      <option value="Development">Development</option>
+                      <option value="Credentials">Credentials</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadDocModal(false)}
+                  disabled={isUploadingDoc}
+                  className="px-5 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all shadow-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUploadDocument}
+                  disabled={!uploadFile || isUploadingDoc}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {isUploadingDoc ? "Uploading..." : "Upload"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
