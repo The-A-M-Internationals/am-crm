@@ -113,7 +113,7 @@ export function ToastProvider() {
   return (
     <AnimatePresence>
       {activeDialog && (
-        <div className="fixed inset-0 z-[999999] flex items-start justify-center p-4 pt-20 sm:pt-28 overflow-y-auto">
+        <div className="fixed inset-0 z-[999999] flex items-start justify-center p-4 pt-10 sm:pt-14 overflow-y-auto">
           {/* Backdrop overlay */}
           <motion.div
             initial={{ opacity: 0 }}
