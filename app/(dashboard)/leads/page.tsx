@@ -1,5 +1,5 @@
 "use client";
-import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2, Check } from "lucide-react";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 
@@ -42,6 +42,29 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
 ];
 
 const SOURCES = ["LinkedIn", "Referral", "Instagram", "Website", "WhatsApp", "Cold Call", "Email Campaign", "Other"];
+
+const LOST_REASONS = [
+  "Price / Budget Constraint",
+  "Chose Competitor",
+  "Timing / Project Delayed",
+  "No Decision / Ghosted",
+  "Feature / Solution Mismatch",
+  "Internal Priority Shift",
+  "Poor Fit / Qualification",
+  "Other",
+];
+
+function formatDateLabel(dateStr: string) {
+  if (!dateStr) return "TODAY";
+  const today = new Date().toISOString().split("T")[0];
+  if (dateStr === today) return "TODAY";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
 
 const EMPTY_FORM = {
   name: "", company: "", email: "", phone: "",
@@ -90,6 +113,20 @@ export default function LeadsPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [bottomDragTarget, setBottomDragTarget] = useState<"won" | "lost" | null>(null);
   const [activeDropColumn, setActiveDropColumn] = useState<string | null>(null);
+
+  // Deal Won Modal State
+  const [wonModalLead, setWonModalLead] = useState<Lead | null>(null);
+  const [wonAmount, setWonAmount] = useState<string>("5000");
+  const [wonDate, setWonDate] = useState<string>("");
+  const [wonNotes, setWonNotes] = useState<string>("");
+  const [isSubmittingWon, setIsSubmittingWon] = useState<boolean>(false);
+
+  // Lost Deal Modal State
+  const [lostModalLead, setLostModalLead] = useState<Lead | null>(null);
+  const [lostReason, setLostReason] = useState<string>("");
+  const [lostDate, setLostDate] = useState<string>("");
+  const [lostComment, setLostComment] = useState<string>("");
+  const [isSubmittingLost, setIsSubmittingLost] = useState<boolean>(false);
 
   useEffect(() => {
     const handleGlobalDragEnd = () => {
@@ -213,10 +250,23 @@ export default function LeadsPage() {
   }
 
   async function moveStage(lead: Lead, stage: LeadStage) {
+    if (stage === "won") {
+      setWonModalLead(lead);
+      const initialAmt = lead.dealValue ?? lead.wonAmount ?? "";
+      setWonAmount(initialAmt ? String(initialAmt) : "5000");
+      setWonDate(new Date().toISOString().split("T")[0]);
+      setWonNotes(lead.wonNotes || "");
+      return;
+    }
+    if (stage === "lost") {
+      setLostModalLead(lead);
+      setLostReason(lead.lostReason || "");
+      setLostDate(new Date().toISOString().split("T")[0]);
+      setLostComment(lead.lostComment || "");
+      return;
+    }
     try {
-      if (stage === "won") await PipelineService.markAsWon(lead);
-      else if (stage === "lost") await PipelineService.markAsLost(lead.id, lead.email, "lead");
-      else if (stage === "proposal") {
+      if (stage === "proposal") {
         await PipelineService.transitionToProposal(lead, crmUser?.uid ?? "");
         router.push(`/proposals?editLead=${lead.id}`);
       }
@@ -224,7 +274,50 @@ export default function LeadsPage() {
       toast(`Stage updated to ${stage}`, "success");
     } catch (error: any) {
       console.error("Error moving stage:", error);
-      toast("Failed to update stage:" + (error.message || "Unknown error"), "error");
+      toast("Failed to update stage: " + (error.message || "Unknown error"), "error");
+    }
+  }
+
+  async function handleConfirmWon() {
+    if (!wonModalLead) return;
+    setIsSubmittingWon(true);
+    try {
+      const amtNum = wonAmount ? parseFloat(wonAmount.replace(/,/g, "")) : undefined;
+      await PipelineService.markAsWon(wonModalLead, {
+        amount: amtNum,
+        wonDate: wonDate || new Date().toISOString(),
+        wonNotes: wonNotes.trim(),
+      });
+      toast(`Deal marked as Won! (${wonModalLead.company})`, "success");
+      setWonModalLead(null);
+    } catch (error: any) {
+      console.error("Error marking deal as won:", error);
+      toast("Failed to mark deal as won: " + (error.message || "Unknown error"), "error");
+    } finally {
+      setIsSubmittingWon(false);
+    }
+  }
+
+  async function handleConfirmLost() {
+    if (!lostModalLead) return;
+    if (!lostReason) {
+      toast("Please select a lost reason.", "error");
+      return;
+    }
+    setIsSubmittingLost(true);
+    try {
+      await PipelineService.markAsLost(lostModalLead.id, lostModalLead.email, "lead", {
+        reason: lostReason,
+        lostDate: lostDate || new Date().toISOString(),
+        comment: lostComment.trim(),
+      });
+      toast(`Deal marked as Lost (${lostModalLead.company})`, "success");
+      setLostModalLead(null);
+    } catch (error: any) {
+      console.error("Error marking deal as lost:", error);
+      toast("Failed to mark deal as lost: " + (error.message || "Unknown error"), "error");
+    } finally {
+      setIsSubmittingLost(false);
     }
   }
 
@@ -488,6 +581,36 @@ export default function LeadsPage() {
                                 <p className="text-[11px] font-semibold flex items-center gap-1" style={{ color: isOverdue ? "#ef4444" : "#64748b" }}>
                                   <Calendar className="inline-block w-4 h-4 shrink-0 mr-1" /> {new Date(lead.followUpDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                                 </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Won Details Pill */}
+                          {lead.stage === "won" && (lead.wonAmount || lead.dealValue) && (
+                            <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50/90 rounded-lg border border-emerald-200/60 mb-3">
+                              <div className="flex items-center gap-1.5 text-xs font-black text-emerald-800">
+                                <Trophy className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>${Number(lead.wonAmount || lead.dealValue).toLocaleString()}</span>
+                              </div>
+                              {lead.wonDate && (
+                                <span className="text-[10px] font-bold text-emerald-700/80">
+                                  {new Date(lead.wonDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Lost Details Pill */}
+                          {lead.stage === "lost" && lead.lostReason && (
+                            <div className="flex items-center justify-between px-2.5 py-1.5 bg-rose-50/90 rounded-lg border border-rose-200/60 mb-3">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-800 truncate pr-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                <span className="truncate">{lead.lostReason}</span>
+                              </div>
+                              {lead.lostDate && (
+                                <span className="text-[10px] font-bold text-rose-600/80 shrink-0">
+                                  {new Date(lead.lostDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
                               )}
                             </div>
                           )}
@@ -783,6 +906,274 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      {/* Deal Won Details Modal - Award Winning Executive Design */}
+      <AnimatePresence>
+        {wonModalLead && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 bg-slate-950/45 backdrop-blur-[3px]"
+              onClick={() => !isSubmittingWon && setWonModalLead(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-white rounded-2xl w-full max-w-[500px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] relative z-10 overflow-hidden border border-slate-100 flex flex-col"
+            >
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-100/80">
+                <div>
+                  <h3 className="text-xl font-bold text-[#1e293b] tracking-tight">Deal Won Details</h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {wonModalLead.company} • {wonModalLead.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isSubmittingWon && setWonModalLead(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5 stroke-[2]" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <div className="px-6 py-5 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  {/* Amount Field */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Add amount (US Dollar (USD))
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="5000"
+                        value={wonAmount}
+                        onChange={(e) => setWonAmount(e.target.value)}
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm font-bold outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder-slate-400"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actual Close Date Pill */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Actual Close Date
+                    </label>
+                    <div className="relative">
+                      <div className="flex items-center justify-between px-3 py-2 bg-[#eef4f9] hover:bg-[#e2edf6] rounded-xl border border-[#d6e4f0] text-xs font-bold text-slate-700 tracking-wider cursor-pointer transition-colors shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span className="uppercase">{formatDateLabel(wonDate)}</span>
+                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </div>
+                      <input
+                        type="date"
+                        value={wonDate}
+                        onChange={(e) => setWonDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Won Notes */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Won notes
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={wonNotes}
+                    onChange={(e) => setWonNotes(e.target.value)}
+                    placeholder="Enter winning details, client commitments, or handover notes..."
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition-all resize-none font-normal"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={isSubmittingWon}
+                  onClick={() => setWonModalLead(null)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingWon}
+                  onClick={handleConfirmWon}
+                  className="min-w-[130px] px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-bold shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                >
+                  {isSubmittingWon ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Confirm Won</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Lost Deal Details Modal - Award Winning Executive Design */}
+      <AnimatePresence>
+        {lostModalLead && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 bg-slate-950/45 backdrop-blur-[3px]"
+              onClick={() => !isSubmittingLost && setLostModalLead(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="bg-white rounded-2xl w-full max-w-[500px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] relative z-10 overflow-hidden border border-slate-100 flex flex-col"
+            >
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-100/80">
+                <div>
+                  <h3 className="text-xl font-bold text-[#1e293b] tracking-tight">Lost Deal Details</h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {lostModalLead.company} • {lostModalLead.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isSubmittingLost && setLostModalLead(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5 stroke-[2]" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <div className="px-6 py-5 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  {/* Lost Reason */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Lost Reason
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={lostReason}
+                        onChange={(e) => setLostReason(e.target.value)}
+                        className="w-full pl-3 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs font-bold tracking-wider outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all appearance-none cursor-pointer uppercase"
+                      >
+                        <option value="" disabled>SELECT REASON</option>
+                        {LOST_REASONS.map(r => (
+                          <option key={r} value={r} className="font-semibold text-slate-800 normal-case">{r}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Actual Lost Date Pill */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Actual Lost Date
+                    </label>
+                    <div className="relative">
+                      <div className="flex items-center justify-between px-3 py-2 bg-[#eef4f9] hover:bg-[#e2edf6] rounded-xl border border-[#d6e4f0] text-xs font-bold text-slate-700 tracking-wider cursor-pointer transition-colors shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span className="uppercase">{formatDateLabel(lostDate)}</span>
+                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </div>
+                      <input
+                        type="date"
+                        value={lostDate}
+                        onChange={(e) => setLostDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lost Comment */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Lost Comment
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={lostComment}
+                    onChange={(e) => setLostComment(e.target.value)}
+                    placeholder="Enter reason details, competitor info, or follow-up feedback..."
+                    className="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all resize-none font-normal"
+                  />
+                </div>
+
+                {/* Pipeline Settings Helper Note */}
+                <p className="text-xs text-slate-500 pt-1">
+                  You can manage lost reasons in{" "}
+                  <span className="text-[#0284c7] font-bold hover:underline cursor-pointer">
+                    Pipelines settings
+                  </span>{" "}
+                  section.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={isSubmittingLost}
+                  onClick={() => setLostModalLead(null)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingLost || !lostReason}
+                  onClick={handleConfirmLost}
+                  className={`min-w-[140px] px-5 py-2.5 rounded-xl text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+                    !lostReason
+                      ? "bg-[#c6d7e4] text-white/90 shadow-none cursor-not-allowed"
+                      : "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20"
+                  }`}
+                >
+                  {isSubmittingLost ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    "Mark Deal Lost"
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

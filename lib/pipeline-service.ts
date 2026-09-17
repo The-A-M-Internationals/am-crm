@@ -303,17 +303,26 @@ export const PipelineService = {
    * Note: Leads DO NOT become Clients here. Only accepted proposals create clients.
    * If a client record somehow exists for this email, it will be deactivated to ensure state consistency.
    */
-  async markAsWon(lead: Lead) {
+  async markAsWon(lead: Lead, details?: { amount?: number | string; wonDate?: string; wonNotes?: string }) {
     const batch = writeBatch(db);
     const now = new Date().toISOString();
     const email = normalizeEmail(lead.email);
 
-    // 1. Mark the lead as Won
-    batch.update(doc(db, "leads", lead.id), {
+    const leadUpdate: any = {
       stage: "won",
       active: true,
       updatedAt: now,
-    });
+    };
+    if (details?.amount !== undefined && details.amount !== "") {
+      const numVal = Number(details.amount);
+      leadUpdate.dealValue = !isNaN(numVal) ? numVal : details.amount;
+      leadUpdate.wonAmount = !isNaN(numVal) ? numVal : details.amount;
+    }
+    if (details?.wonDate) leadUpdate.wonDate = details.wonDate;
+    if (details?.wonNotes !== undefined) leadUpdate.wonNotes = details.wonNotes;
+
+    // 1. Mark the lead as Won
+    batch.update(doc(db, "leads", lead.id), leadUpdate);
 
     // 2. Check whether a client already exists with this email
     const clientQ = query(
@@ -552,7 +561,7 @@ export const PipelineService = {
    * 2. Hides associated Client from active view (active: false).
    * 3. Updates associated proposal to 'lost'.
    */
-  async markAsLost(id: string, email: string, type: "lead" | "client") {
+  async markAsLost(id: string, email: string, type: "lead" | "client", details?: { reason?: string; lostDate?: string; comment?: string }) {
     const batch = writeBatch(db);
     const normEmail = normalizeEmail(email);
     const now = new Date().toISOString();
@@ -562,7 +571,12 @@ export const PipelineService = {
       const leadDoc = await getDoc(leadRef);
 
       if (leadDoc.exists()) {
-        batch.update(leadRef, { stage: "lost", active: false });
+        const leadUpdate: any = { stage: "lost", active: false, updatedAt: now };
+        if (details?.reason) leadUpdate.lostReason = details.reason;
+        if (details?.lostDate) leadUpdate.lostDate = details.lostDate;
+        if (details?.comment !== undefined) leadUpdate.lostComment = details.comment;
+
+        batch.update(leadRef, leadUpdate);
 
         // Update associated proposal to 'lost'
         const propQ = query(

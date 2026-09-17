@@ -62,6 +62,13 @@ export interface Lead {
   notes?: string;
   source?: string;
   nextAction?: string;
+  dealValue?: number;
+  wonAmount?: number;
+  wonDate?: string;
+  wonNotes?: string;
+  lostReason?: string;
+  lostDate?: string;
+  lostComment?: string;
   active?: boolean;
   createdAt: string;
   updatedAt: string;
