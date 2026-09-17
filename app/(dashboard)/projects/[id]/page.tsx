@@ -217,43 +217,30 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     }
     setIsUploadingDoc(true);
     try {
-      let fileUrl = "";
       const customOrFileName = uploadDocName.trim() || uploadFile.name;
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("projectId", project.id);
+      formData.append("documentName", customOrFileName);
+      formData.append("category", uploadDocCategory);
 
-      // Try uploading to Firebase Storage if available
-      try {
-        if (storage) {
-          const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-          const storageRef = ref(storage, `projects/${project.id}/${Date.now()}_${uploadFile.name}`);
-          const snap = await uploadBytes(storageRef, uploadFile);
-          fileUrl = await getDownloadURL(snap.ref);
-        }
-      } catch (storageErr) {
-        console.warn("Firebase Storage upload failed, falling back to data URL:", storageErr);
+      const res = await fetch("/api/upload-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to upload file");
       }
-
-      // If Firebase Storage is unconfigured or blocked, fallback to base64 Data URL
-      if (!fileUrl) {
-        fileUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(uploadFile);
-        });
-      }
-
-      const ext = uploadFile.name.split('.').pop()?.toLowerCase() || "file";
-      const sizeStr = (uploadFile.size / 1024 < 1024)
-        ? `${(uploadFile.size / 1024).toFixed(1)} KB`
-        : `${(uploadFile.size / (1024 * 1024)).toFixed(1)} MB`;
 
       const fileObj = {
-        name: customOrFileName,
-        url: fileUrl,
+        name: data.name || customOrFileName,
+        url: data.url,
         category: uploadDocCategory,
-        fileName: uploadFile.name,
-        fileSize: sizeStr,
-        fileType: ext,
+        fileName: data.fileName || uploadFile.name,
+        fileSize: data.fileSize,
+        fileType: data.fileType,
         isUploaded: true,
         addedBy: crmUser?.name || "Admin",
         at: new Date().toISOString()
@@ -269,7 +256,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       setUploadDocName("");
       setUploadDocCategory("Documentation");
     } catch (err: any) {
-      console.error(err);
+      console.error("Upload error:", err);
       toast("Failed to upload document: " + (err.message || "Unknown error"), "error");
     } finally {
       setIsUploadingDoc(false);
