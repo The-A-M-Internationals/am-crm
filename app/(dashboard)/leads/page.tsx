@@ -1,5 +1,6 @@
 "use client";
-import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2 } from "lucide-react";
+import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, TrendingDown, User, Handshake, Trash2, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 
 import React, { useEffect, useState } from "react";
@@ -87,6 +88,18 @@ export default function LeadsPage() {
 
   // Drag and drop state
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [bottomDragTarget, setBottomDragTarget] = useState<"won" | "lost" | null>(null);
+  const [activeDropColumn, setActiveDropColumn] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      setDraggingId(null);
+      setBottomDragTarget(null);
+      setActiveDropColumn(null);
+    };
+    window.addEventListener("dragend", handleGlobalDragEnd);
+    return () => window.removeEventListener("dragend", handleGlobalDragEnd);
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "leads"), orderBy("createdAt", "desc"));
@@ -218,11 +231,56 @@ export default function LeadsPage() {
   // --- Drag and Drop Handlers ---
   const onDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData("leadId", id);
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+
+    // Create a beautiful, elevated, slightly tilted drag preview ghost matching Nimble CRM
+    const target = e.currentTarget as HTMLElement;
+    const clone = target.cloneNode(true) as HTMLElement;
+    clone.style.position = "absolute";
+    clone.style.top = "-9999px";
+    clone.style.left = "-9999px";
+    clone.style.width = `${target.offsetWidth}px`;
+    clone.style.transform = "rotate(3deg) scale(1.02)";
+    clone.style.boxShadow = "0 25px 50px -12px rgba(0, 0, 0, 0.35)";
+    clone.style.borderRadius = "16px";
+    clone.style.opacity = "0.95";
+    clone.style.pointerEvents = "none";
+    document.body.appendChild(clone);
+
+    const rect = target.getBoundingClientRect();
+    e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+
+    setTimeout(() => {
+      if (document.body.contains(clone)) {
+        document.body.removeChild(clone);
+      }
+    }, 0);
+
     setDraggingId(id);
   };
 
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); 
+  const onDragEnd = () => {
+    setDraggingId(null);
+    setBottomDragTarget(null);
+    setActiveDropColumn(null);
+  };
+
+  const onColumnDragOver = (e: React.DragEvent, stageKey: LeadStage) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (activeDropColumn !== stageKey) {
+      setActiveDropColumn(stageKey);
+    }
+  };
+
+  const onColumnDragLeave = (e: React.DragEvent, stageKey: LeadStage) => {
+    const related = e.relatedTarget as Node | null;
+    if (!e.currentTarget.contains(related)) {
+      if (activeDropColumn === stageKey) {
+        setActiveDropColumn(null);
+      }
+    }
   };
 
   const handleBoardDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -244,7 +302,9 @@ export default function LeadsPage() {
   const onDrop = async (e: React.DragEvent, stageKey: LeadStage) => {
     e.preventDefault();
     setDraggingId(null);
-    const leadId = e.dataTransfer.getData("leadId");
+    setBottomDragTarget(null);
+    setActiveDropColumn(null);
+    const leadId = e.dataTransfer.getData("leadId") || e.dataTransfer.getData("text/plain");
     if (!leadId) return;
     const lead = leads.find(l => l.id === leadId);
     if (!lead || lead.stage === stageKey) return;
@@ -345,13 +405,18 @@ export default function LeadsPage() {
               return (
                 <div 
                   key={stage.key} 
-                  onDragOver={onDragOver}
+                  onDragOver={(e) => onColumnDragOver(e, stage.key)}
+                  onDragLeave={(e) => onColumnDragLeave(e, stage.key)}
                   onDrop={(e) => onDrop(e, stage.key)}
-                  className="w-[340px] flex-shrink-0 flex flex-col max-h-full rounded-2xl border transition-colors duration-200"
+                  className={`w-[340px] flex-shrink-0 flex flex-col max-h-full rounded-2xl border transition-all duration-200 ${
+                    activeDropColumn === stage.key && draggingId
+                      ? "ring-2 ring-blue-500/50 border-blue-400 scale-[1.01] shadow-xl bg-blue-50/30"
+                      : ""
+                  }`}
                   style={{
-                    background: "rgba(255,255,255,0.4)",
-                    borderColor: stage.border,
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.02)"
+                    background: activeDropColumn === stage.key && draggingId ? "rgba(239, 246, 255, 0.7)" : "rgba(255,255,255,0.4)",
+                    borderColor: activeDropColumn === stage.key && draggingId ? "#3b82f6" : stage.border,
+                    boxShadow: activeDropColumn === stage.key && draggingId ? "0 10px 25px -5px rgba(59, 130, 246, 0.15)" : "0 4px 20px rgba(0,0,0,0.02)"
                   }}
                 >
                   {/* Column Header */}
@@ -377,10 +442,12 @@ export default function LeadsPage() {
                           key={lead.id} 
                           draggable
                           onDragStart={(e) => onDragStart(e, lead.id)}
-                          onDragEnd={() => setDraggingId(null)}
+                          onDragEnd={onDragEnd}
                           onClick={() => openEdit(lead)} 
-                          className={`bg-white p-4 rounded-xl border cursor-grab active:cursor-grabbing transition-all group ${
-                            isDragging ? "opacity-50 scale-95" : "opacity-100 scale-100 hover:shadow-md hover:-translate-y-0.5"
+                          className={`bg-white p-4 rounded-xl border cursor-grab active:cursor-grabbing transition-all duration-200 group ${
+                            isDragging
+                              ? "opacity-25 scale-95 border-2 border-dashed border-blue-400 bg-blue-50/40 shadow-inner"
+                              : "opacity-100 scale-100 hover:shadow-md hover:-translate-y-0.5"
                           }`}
                           style={{
                             borderColor: isOverdue ? "#fca5a5" : "#e2e8f0",
@@ -453,6 +520,89 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
+
+      {/* Nimble-style Bottom Deal Won & Deal Lost Drop Targets */}
+      <AnimatePresence>
+        {draggingId && (
+          <motion.div
+            initial={{ opacity: 0, y: 70, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 70, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 450, damping: 30 }}
+            className="fixed bottom-6 left-6 right-6 md:left-[270px] md:right-10 z-50 flex items-center gap-5 max-w-4xl mx-auto pointer-events-auto select-none"
+          >
+            {/* Deal Won Drop Target */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = "move";
+                if (bottomDragTarget !== "won") setBottomDragTarget("won");
+              }}
+              onDragLeave={(e) => {
+                const related = e.relatedTarget as Node | null;
+                if (!e.currentTarget.contains(related)) {
+                  setBottomDragTarget(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDrop(e, "won");
+              }}
+              className={`flex-1 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3.5 transition-all duration-200 cursor-pointer shadow-2xl ${
+                bottomDragTarget === "won"
+                  ? "bg-emerald-600 border-emerald-500 text-white scale-[1.03] shadow-emerald-600/30"
+                  : "bg-emerald-50/95 border-emerald-400 text-emerald-800 backdrop-blur-md hover:bg-emerald-100"
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                bottomDragTarget === "won" 
+                  ? "bg-white text-emerald-600 shadow-md" 
+                  : "bg-emerald-200/80 text-emerald-800"
+              }`}>
+                <Check className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <span className="font-bold text-base tracking-wide">Deal Won</span>
+            </div>
+
+            {/* Deal Lost Drop Target */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = "move";
+                if (bottomDragTarget !== "lost") setBottomDragTarget("lost");
+              }}
+              onDragLeave={(e) => {
+                const related = e.relatedTarget as Node | null;
+                if (!e.currentTarget.contains(related)) {
+                  setBottomDragTarget(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDrop(e, "lost");
+              }}
+              className={`flex-1 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3.5 transition-all duration-200 cursor-pointer shadow-2xl ${
+                bottomDragTarget === "lost"
+                  ? "bg-rose-600 border-rose-500 text-white scale-[1.03] shadow-rose-600/30"
+                  : "bg-rose-50/95 border-rose-400 text-rose-800 backdrop-blur-md hover:bg-rose-100"
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                bottomDragTarget === "lost" 
+                  ? "bg-white text-rose-600 shadow-md" 
+                  : "bg-rose-200/80 text-rose-800"
+              }`}>
+                <X className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <span className="font-bold text-base tracking-wide">Deal Lost</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal */}
       {showModal && (
