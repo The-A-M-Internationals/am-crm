@@ -3,7 +3,7 @@ import { X, Rocket, Search, Calendar, AlertTriangle, BarChart3, Trophy, Trending
 import { motion, AnimatePresence } from "framer-motion";
 
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Lead, ServiceTag, LeadStage } from "@/types";
@@ -64,6 +64,131 @@ function formatDateLabel(dateStr: string) {
   } catch {
     return dateStr;
   }
+}
+
+function DateDropdownPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayStr = yesterdayDate.toISOString().split("T")[0];
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const getDisplayLabel = () => {
+    if (!value || value === todayStr) return "TODAY";
+    if (value === yesterdayStr) return "YESTERDAY";
+    try {
+      const d = new Date(value);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+    } catch {
+      return value;
+    }
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Dropdown Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-[#eef4f9] hover:bg-[#e2edf6] active:bg-[#d5e5f2] rounded-xl border border-[#d6e4f0] text-xs font-bold text-slate-700 tracking-wider cursor-pointer transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+      >
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+          <span className="uppercase">{getDisplayLabel()}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* Dropdown Popover */}
+      {isOpen && (
+        <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-1.5 z-[120] text-xs animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
+            Quick Select Date
+          </div>
+
+          {/* Option: Today */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange(todayStr);
+              setIsOpen(false);
+            }}
+            className={`w-full px-3.5 py-2 text-left flex items-center justify-between hover:bg-slate-50 transition-colors ${
+              (!value || value === todayStr) ? "font-bold text-blue-700 bg-blue-50/60" : "font-medium text-slate-700"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${(!value || value === todayStr) ? "bg-blue-600" : "bg-slate-300"}`}></span>
+              <span>Today</span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-normal">
+              {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
+          </button>
+
+          {/* Option: Yesterday */}
+          <button
+            type="button"
+            onClick={() => {
+              onChange(yesterdayStr);
+              setIsOpen(false);
+            }}
+            className={`w-full px-3.5 py-2 text-left flex items-center justify-between hover:bg-slate-50 transition-colors ${
+              value === yesterdayStr ? "font-bold text-blue-700 bg-blue-50/60" : "font-medium text-slate-700"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${value === yesterdayStr ? "bg-blue-600" : "bg-slate-300"}`}></span>
+              <span>Yesterday</span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-normal">
+              {yesterdayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
+          </button>
+
+          <div className="border-t border-slate-100 my-1.5"></div>
+
+          {/* Option: Custom Date Picker */}
+          <div className="px-3 py-2 bg-slate-50/80 rounded-b-lg">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Pick Custom Date
+            </label>
+            <input
+              type="date"
+              value={value || todayStr}
+              onChange={(e) => {
+                if (e.target.value) {
+                  onChange(e.target.value);
+                  setIsOpen(false);
+                }
+              }}
+              className="w-full text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all cursor-pointer shadow-sm"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const EMPTY_FORM = {
@@ -968,26 +1093,12 @@ export default function LeadsPage() {
                     </div>
                   </div>
 
-                  {/* Actual Close Date Pill */}
+                  {/* Actual Close Date Pill with Working Interactive Dropdown */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                       Actual Close Date
                     </label>
-                    <div className="relative">
-                      <div className="flex items-center justify-between px-3 py-2 bg-[#eef4f9] hover:bg-[#e2edf6] rounded-xl border border-[#d6e4f0] text-xs font-bold text-slate-700 tracking-wider cursor-pointer transition-colors shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span className="uppercase">{formatDateLabel(wonDate)}</span>
-                        </div>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </div>
-                      <input
-                        type="date"
-                        value={wonDate}
-                        onChange={(e) => setWonDate(e.target.value)}
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                      />
-                    </div>
+                    <DateDropdownPicker value={wonDate} onChange={setWonDate} />
                   </div>
                 </div>
 
@@ -1096,26 +1207,12 @@ export default function LeadsPage() {
                     </div>
                   </div>
 
-                  {/* Actual Lost Date Pill */}
+                  {/* Actual Lost Date Pill with Working Interactive Dropdown */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                       Actual Lost Date
                     </label>
-                    <div className="relative">
-                      <div className="flex items-center justify-between px-3 py-2 bg-[#eef4f9] hover:bg-[#e2edf6] rounded-xl border border-[#d6e4f0] text-xs font-bold text-slate-700 tracking-wider cursor-pointer transition-colors shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span className="uppercase">{formatDateLabel(lostDate)}</span>
-                        </div>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </div>
-                      <input
-                        type="date"
-                        value={lostDate}
-                        onChange={(e) => setLostDate(e.target.value)}
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                      />
-                    </div>
+                    <DateDropdownPicker value={lostDate} onChange={setLostDate} />
                   </div>
                 </div>
 
