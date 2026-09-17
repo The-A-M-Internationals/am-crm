@@ -113,7 +113,7 @@ export function ToastProvider() {
   return (
     <AnimatePresence>
       {activeDialog && (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[999999] flex items-start justify-center p-4 pt-20 sm:pt-28 overflow-y-auto">
           {/* Backdrop overlay */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -126,9 +126,9 @@ export function ToastProvider() {
 
           {/* Modal dialog card - matching reference image design */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: -10 }}
+            initial={{ opacity: 0, scale: 0.96, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -10 }}
+            exit={{ opacity: 0, scale: 0.96, y: -20 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             className="relative bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] p-7 sm:p-8 max-w-[490px] w-full border border-gray-100/80 z-10"
           >
