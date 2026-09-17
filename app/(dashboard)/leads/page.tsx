@@ -234,17 +234,18 @@ export default function LeadsPage() {
     e.dataTransfer.setData("text/plain", id);
     e.dataTransfer.effectAllowed = "move";
 
-    // Create a beautiful, elevated, slightly tilted drag preview ghost matching Nimble CRM
+    // Professional drag ghost: pure white, clean elevation, subtle 1.5deg tilt
     const target = e.currentTarget as HTMLElement;
     const clone = target.cloneNode(true) as HTMLElement;
     clone.style.position = "absolute";
     clone.style.top = "-9999px";
     clone.style.left = "-9999px";
     clone.style.width = `${target.offsetWidth}px`;
-    clone.style.transform = "rotate(3deg) scale(1.02)";
-    clone.style.boxShadow = "0 25px 50px -12px rgba(0, 0, 0, 0.35)";
-    clone.style.borderRadius = "16px";
-    clone.style.opacity = "0.95";
+    clone.style.backgroundColor = "#ffffff";
+    clone.style.transform = "rotate(1.5deg)";
+    clone.style.boxShadow = "0 20px 35px -8px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.08)";
+    clone.style.borderRadius = "14px";
+    clone.style.opacity = "1";
     clone.style.pointerEvents = "none";
     document.body.appendChild(clone);
 
@@ -410,13 +411,13 @@ export default function LeadsPage() {
                   onDrop={(e) => onDrop(e, stage.key)}
                   className={`w-[340px] flex-shrink-0 flex flex-col max-h-full rounded-2xl border transition-all duration-200 ${
                     activeDropColumn === stage.key && draggingId
-                      ? "ring-2 ring-blue-500/50 border-blue-400 scale-[1.01] shadow-xl bg-blue-50/30"
+                      ? "ring-2 ring-slate-400/30 border-slate-400 shadow-md bg-white/70"
                       : ""
                   }`}
                   style={{
-                    background: activeDropColumn === stage.key && draggingId ? "rgba(239, 246, 255, 0.7)" : "rgba(255,255,255,0.4)",
-                    borderColor: activeDropColumn === stage.key && draggingId ? "#3b82f6" : stage.border,
-                    boxShadow: activeDropColumn === stage.key && draggingId ? "0 10px 25px -5px rgba(59, 130, 246, 0.15)" : "0 4px 20px rgba(0,0,0,0.02)"
+                    background: activeDropColumn === stage.key && draggingId ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)",
+                    borderColor: activeDropColumn === stage.key && draggingId ? "#94a3b8" : stage.border,
+                    boxShadow: activeDropColumn === stage.key && draggingId ? "0 8px 24px rgba(0,0,0,0.06)" : "0 4px 20px rgba(0,0,0,0.02)"
                   }}
                 >
                   {/* Column Header */}
@@ -446,8 +447,8 @@ export default function LeadsPage() {
                           onClick={() => openEdit(lead)} 
                           className={`bg-white p-4 rounded-xl border cursor-grab active:cursor-grabbing transition-all duration-200 group ${
                             isDragging
-                              ? "opacity-25 scale-95 border-2 border-dashed border-blue-400 bg-blue-50/40 shadow-inner"
-                              : "opacity-100 scale-100 hover:shadow-md hover:-translate-y-0.5"
+                              ? "opacity-25 scale-[0.98] border border-dashed border-slate-300 bg-slate-50/80 shadow-none"
+                              : "opacity-100 scale-100 hover:shadow-sm hover:border-slate-300 hover:-translate-y-0.5"
                           }`}
                           style={{
                             borderColor: isOverdue ? "#fca5a5" : "#e2e8f0",
@@ -521,17 +522,17 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* Nimble-style Bottom Deal Won & Deal Lost Drop Targets */}
+      {/* Executive Grade Bottom Deal Won & Deal Lost Drop Dock */}
       <AnimatePresence>
         {draggingId && (
           <motion.div
-            initial={{ opacity: 0, y: 70, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 70, scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 450, damping: 30 }}
-            className="fixed bottom-6 left-6 right-6 md:left-[270px] md:right-10 z-50 flex items-center gap-5 max-w-4xl mx-auto pointer-events-auto select-none"
+            initial={{ opacity: 0, y: 35 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 35 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-6 left-6 right-6 md:left-[270px] md:right-10 z-50 flex items-center gap-4 max-w-3xl mx-auto pointer-events-auto select-none"
           >
-            {/* Deal Won Drop Target */}
+            {/* Deal Won Drop Target - Pure White Card */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -550,23 +551,27 @@ export default function LeadsPage() {
                 e.stopPropagation();
                 onDrop(e, "won");
               }}
-              className={`flex-1 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3.5 transition-all duration-200 cursor-pointer shadow-2xl ${
+              className={`flex-1 h-14 bg-white rounded-xl border flex items-center justify-center gap-3 transition-all duration-150 cursor-pointer ${
                 bottomDragTarget === "won"
-                  ? "bg-emerald-600 border-emerald-500 text-white scale-[1.03] shadow-emerald-600/30"
-                  : "bg-emerald-50/95 border-emerald-400 text-emerald-800 backdrop-blur-md hover:bg-emerald-100"
+                  ? "border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20 shadow-lg scale-[1.01]"
+                  : "border-slate-200/90 hover:border-slate-300 shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
               }`}
             >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                bottomDragTarget === "won" 
-                  ? "bg-white text-emerald-600 shadow-md" 
-                  : "bg-emerald-200/80 text-emerald-800"
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                bottomDragTarget === "won"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-100 text-slate-700"
               }`}>
-                <Check className="w-5 h-5 stroke-[2.5]" />
+                <Check className="w-4 h-4 stroke-[2.5]" />
               </div>
-              <span className="font-bold text-base tracking-wide">Deal Won</span>
+              <span className={`text-sm font-semibold tracking-tight transition-colors ${
+                bottomDragTarget === "won" ? "text-emerald-950 font-bold" : "text-slate-700"
+              }`}>
+                Deal Won
+              </span>
             </div>
 
-            {/* Deal Lost Drop Target */}
+            {/* Deal Lost Drop Target - Pure White Card */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -585,20 +590,24 @@ export default function LeadsPage() {
                 e.stopPropagation();
                 onDrop(e, "lost");
               }}
-              className={`flex-1 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center gap-3.5 transition-all duration-200 cursor-pointer shadow-2xl ${
+              className={`flex-1 h-14 bg-white rounded-xl border flex items-center justify-center gap-3 transition-all duration-150 cursor-pointer ${
                 bottomDragTarget === "lost"
-                  ? "bg-rose-600 border-rose-500 text-white scale-[1.03] shadow-rose-600/30"
-                  : "bg-rose-50/95 border-rose-400 text-rose-800 backdrop-blur-md hover:bg-rose-100"
+                  ? "border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/20 shadow-lg scale-[1.01]"
+                  : "border-slate-200/90 hover:border-slate-300 shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
               }`}
             >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                bottomDragTarget === "lost" 
-                  ? "bg-white text-rose-600 shadow-md" 
-                  : "bg-rose-200/80 text-rose-800"
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                bottomDragTarget === "lost"
+                  ? "bg-rose-600 text-white"
+                  : "bg-slate-100 text-slate-700"
               }`}>
-                <X className="w-5 h-5 stroke-[2.5]" />
+                <X className="w-4 h-4 stroke-[2.5]" />
               </div>
-              <span className="font-bold text-base tracking-wide">Deal Lost</span>
+              <span className={`text-sm font-semibold tracking-tight transition-colors ${
+                bottomDragTarget === "lost" ? "text-rose-950 font-bold" : "text-slate-700"
+              }`}>
+                Deal Lost
+              </span>
             </div>
           </motion.div>
         )}
