@@ -368,3 +368,19 @@ export interface Invoice {
   createdBy: string;
   createdAt: string;
 }
+
+export interface CRMNote {
+  id: string;
+  content: string;
+  relatedType?: "lead" | "client" | "project" | "general";
+  relatedId?: string;
+  relatedName?: string;
+  authorId: string;
+  authorName: string;
+  authorEmail?: string;
+  activityDate: string;
+  tags?: string[];
+  pinned?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
