@@ -339,7 +339,7 @@ export default function NotesPage() {
               className="flex items-center gap-2 text-2xl font-black text-[#0D1B3E] hover:text-[#C9A84C] transition-colors focus:outline-none"
             >
               <span>
-                {currentView === "all" && "Notes Directory"}
+                {currentView === "all" && "Notes"}
                 {currentView === "my" && "My Notes"}
                 {currentView === "leads" && "Lead Notes"}
                 {currentView === "clients" && "Client Notes"}
