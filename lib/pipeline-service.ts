@@ -7,6 +7,7 @@ import {
   where,
   writeBatch,
   updateDoc,
+  deleteDoc,
   addDoc,
   onSnapshot,
 } from "firebase/firestore";
@@ -1335,15 +1336,29 @@ export const PipelineService = {
    * Hard deletes a Lead and cascades to delete generated proposals.
    */
   async deleteLeadAndRelations(leadId: string) {
-    const batch = writeBatch(db);
+    if (!leadId) return;
+    try {
+      // 1. Direct delete on the lead document first so it disappears instantly
+      await deleteDoc(doc(db, "leads", leadId));
 
-    batch.delete(doc(db, "leads", leadId));
+      // 2. Cascade cleanup to proposals and notes
+      const batch = writeBatch(db);
+      const [propSnap1, propSnap2, notesSnap] = await Promise.all([
+        getDocs(query(collection(db, "proposals"), where("fromLeadId", "==", leadId))),
+        getDocs(query(collection(db, "proposals"), where("leadId", "==", leadId))),
+        getDocs(query(collection(db, "notes"), where("relatedId", "==", leadId)))
+      ]);
 
-    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", leadId));
-    const propSnap = await getDocs(propQ);
-    propSnap.forEach(d => batch.delete(d.ref));
+      propSnap1.forEach(d => batch.delete(d.ref));
+      propSnap2.forEach(d => batch.delete(d.ref));
+      notesSnap.forEach(d => batch.delete(d.ref));
 
-    await batch.commit();
+      await batch.commit();
+    } catch (err) {
+      console.warn("Cascade delete error in deleteLeadAndRelations:", err);
+      // Guarantee lead doc itself is definitely deleted
+      await deleteDoc(doc(db, "leads", leadId)).catch(() => {});
+    }
   },
 
   /**

@@ -370,8 +370,20 @@ export default function LeadsPage() {
   }
 
   async function deleteLead(id: string) {
-    if (!confirm("Delete this lead?")) return;
-    await PipelineService.deleteLeadAndRelations(id);
+    if (!confirm("Are you sure you want to delete this lead?")) return;
+    try {
+      // Immediately close the modal and exit editing state
+      setShowModal(false);
+      setEditing(null);
+      setForm({ ...EMPTY_FORM });
+      // Optimistically remove from state immediately
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      await PipelineService.deleteLeadAndRelations(id);
+      toast("Lead deleted successfully", "success");
+    } catch (e: any) {
+      console.error("Failed to delete lead:", e);
+      toast("Failed to delete lead: " + (e?.message || "Unknown error"), "error");
+    }
   }
 
   async function moveStage(lead: Lead, stage: LeadStage) {
@@ -673,16 +685,28 @@ export default function LeadsPage() {
                             boxShadow: isOverdue ? "0 4px 12px rgba(239,68,68,0.1)" : "0 2px 8px rgba(0,0,0,0.04)"
                           }}
                         >
-                          {/* Top Row: Service & Overdue Badge */}
+                          {/* Top Row: Service & Overdue Badge & Quick Delete */}
                           <div className="flex justify-between items-start mb-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: svc.bg, color: svc.text }}>
                               {svc.label}
                             </span>
-                            {isOverdue && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
-                                <AlertTriangle className="inline-block w-4 h-4 shrink-0 mr-1" /> Overdue
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {isOverdue && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+                                  <AlertTriangle className="inline-block w-4 h-4 shrink-0 mr-1" /> Overdue
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteLead(lead.id);
+                                }}
+                                title="Delete Lead"
+                                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Contact Info */}
