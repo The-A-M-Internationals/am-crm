@@ -1,5 +1,5 @@
 "use client";
-import { X, Trash2, FileText, Pencil, Check } from "lucide-react";
+import { X, Trash2, FileText, Pencil, Check, Download } from "lucide-react";
 
 
 import React, { useEffect, useState, useRef } from "react";
@@ -75,6 +75,7 @@ export default function ProposalDetailPage() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [savingChanges, setSavingChanges] = useState(false);
@@ -253,6 +254,7 @@ export default function ProposalDetailPage() {
   }
 
   async function downloadPDF() {
+    setDownloadingPDF(true);
     try {
       const jsPDF = (await import("jspdf")).default;
       const html2canvas = (await import("html2canvas")).default;
@@ -265,10 +267,14 @@ export default function ProposalDetailPage() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Quotation_${proposal?.clientName || "Document"}.pdf`);
+      const safeName = (proposal?.company || proposal?.clientName || "Document").replace(/[^a-zA-Z0-9_-]/g, "_");
+      pdf.save(`Proposal_${safeName}.pdf`);
+      toast("PDF downloaded successfully", "success");
     } catch (err) {
       console.error(err);
       toast("Failed to generate PDF", "error");
+    } finally {
+      setDownloadingPDF(false);
     }
   }
 
@@ -826,7 +832,10 @@ export default function ProposalDetailPage() {
         <div className="max-w-7xl mx-auto mb-8 bg-white border border-slate-200 rounded-3xl shadow-sm p-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left">
             <span className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] block mb-1">Proposal For</span>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{proposal.clientName}</h1>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{proposal.company || proposal.clientName}</h1>
+            {proposal.company && proposal.clientName && proposal.company.trim().toLowerCase() !== proposal.clientName.trim().toLowerCase() && (
+              <p className="text-xs font-medium text-slate-500 mt-0.5">Contact: {proposal.clientName}</p>
+            )}
           </div>
           <div className="flex flex-wrap justify-center gap-3 w-full md:w-auto">
             {proposal.status !== "accepted" && proposal.status !== "won" && proposal.status !== "rejected" ? (
@@ -837,18 +846,40 @@ export default function ProposalDetailPage() {
                 >
                   Sign & Accept Proposal
                 </button>
-                <button onClick={downloadPDF} className="w-full md:w-auto px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all">
-                  Download PDF
+                <button 
+                  onClick={downloadPDF} 
+                  disabled={downloadingPDF}
+                  className="w-full md:w-auto px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
                 </button>
               </>
             ) : proposal.status === "rejected" ? (
-              <div className="px-6 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm flex items-center gap-2">
-                <span className="text-lg"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Proposal Declined
-              </div>
+              <>
+                <div className="px-6 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm flex items-center gap-2">
+                  <span className="text-lg"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Proposal Declined
+                </div>
+                <button 
+                  onClick={downloadPDF} 
+                  disabled={downloadingPDF}
+                  className="w-full md:w-auto px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </>
             ) : (
-              <div className="px-6 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm flex items-center gap-2">
-                <span className="text-lg"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Signed & Accepted
-              </div>
+              <>
+                <div className="px-6 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm flex items-center gap-2 shadow-sm">
+                  <span className="text-lg text-emerald-600"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Signed & Accepted
+                </div>
+                <button 
+                  onClick={downloadPDF} 
+                  disabled={downloadingPDF}
+                  className="w-full md:w-auto px-6 py-3.5 rounded-xl border-2 border-[#0D1B3E] bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1021,6 +1052,66 @@ export default function ProposalDetailPage() {
           />
         </div>
       </div>
+
+      {/* Bottom Action Strip for Client */}
+      {showAsClient && (
+        <div className="max-w-7xl mx-auto mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-[#0D1B3E]">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-[#0D1B3E]">{proposal.company || proposal.clientName} Proposal</p>
+              <p className="text-xs text-slate-500 font-medium">Official Quotation & Agreement</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            {proposal.status !== "accepted" && proposal.status !== "won" && proposal.status !== "rejected" ? (
+              <>
+                <button
+                  onClick={handleSignClick}
+                  className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-lg shadow-[#0D1B3E]/20"
+                >
+                  Sign & Accept Proposal
+                </button>
+                <button
+                  onClick={downloadPDF}
+                  disabled={downloadingPDF}
+                  className="flex-1 sm:flex-none px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </>
+            ) : proposal.status === "rejected" ? (
+              <>
+                <div className="px-5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm flex items-center gap-2">
+                  <span className="text-lg"><X className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Proposal Declined
+                </div>
+                <button
+                  onClick={downloadPDF}
+                  disabled={downloadingPDF}
+                  className="px-6 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="px-5 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm flex items-center gap-2 shadow-sm">
+                  <span className="text-lg text-emerald-600"><Check className="inline-block w-4 h-4 shrink-0 mr-1" /></span> Signed & Accepted
+                </div>
+                <button
+                  onClick={downloadPDF}
+                  disabled={downloadingPDF}
+                  className="px-6 py-3.5 rounded-xl border-2 border-[#0D1B3E] bg-[#0D1B3E] text-white font-bold text-sm hover:bg-[#1a3070] transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" /> {downloadingPDF ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Signature Modal */}
       {showSignModal && (
