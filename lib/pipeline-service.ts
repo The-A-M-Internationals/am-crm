@@ -469,9 +469,10 @@ export const PipelineService = {
     });
 
     // 2. Update Lead Stage if applicable
+    let leadDoc: any = null;
     if (proposal.fromLeadId) {
       const leadRef = doc(db, "leads", proposal.fromLeadId);
-      const leadDoc = await getDoc(leadRef);
+      leadDoc = await getDoc(leadRef);
 
       if (leadDoc.exists()) {
         let leadActive = true;
@@ -508,6 +509,45 @@ export const PipelineService = {
             acceptedProposalId: proposal.id
           });
         }
+      }
+
+      // 4. Send Notifications for Accepted Proposal
+      try {
+        const notifTargets = new Set<string>();
+        if (proposal.createdBy) notifTargets.add(proposal.createdBy);
+        if (leadDoc?.exists()) {
+          const leadAssigned = leadDoc.data()?.assignedTo;
+          if (leadAssigned) notifTargets.add(leadAssigned);
+        }
+
+        const adminQ = query(collection(db, "users"), where("role", "==", "admin"));
+        const adminDocs = await getDocs(adminQ);
+        adminDocs.forEach((d) => {
+          const uid = d.data().uid;
+          if (uid) notifTargets.add(uid);
+        });
+
+        const signer = proposal.clientSignatureName || proposal.clientName || "Client";
+        const comp = proposal.company || "";
+        const totalVal = proposal.total;
+        const curr = proposal.currency || "AED";
+        const amountStr = totalVal ? ` for ${curr} ${Number(totalVal).toLocaleString()}` : "";
+
+        notifTargets.forEach((uId) => {
+          const notifRef = doc(collection(db, "notifications"));
+          batch.set(notifRef, {
+            userId: uId,
+            title: "Proposal Signed & Accepted!",
+            message: `${signer}${comp ? ` (${comp})` : ""} has signed the proposal${amountStr}.`,
+            link: `/proposals/${proposal.id}`,
+            read: false,
+            createdAt: now,
+            type: "proposal-signed",
+            proposalId: proposal.id,
+          });
+        });
+      } catch (e) {
+        console.error("Failed to queue notifications for proposal status change:", e);
       }
     }
 

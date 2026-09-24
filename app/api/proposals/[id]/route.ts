@@ -166,6 +166,49 @@ export async function POST(
             t.update(proposalRef, { clientId });
           });
         }
+
+        // Notify team (admins, proposal creator, assigned lead owner)
+        try {
+          const notifTargets = new Set<string>();
+          if (proposalData.createdBy) {
+            notifTargets.add(proposalData.createdBy);
+          }
+          if (proposalData.fromLeadId) {
+            const leadDoc = await adminDb.collection("leads").doc(proposalData.fromLeadId).get();
+            const leadAssignedTo = leadDoc.data()?.assignedTo;
+            if (leadAssignedTo) notifTargets.add(leadAssignedTo);
+          }
+
+          const adminsSnap = await adminDb.collection("users").where("role", "==", "admin").get();
+          adminsSnap.forEach((d) => {
+            const uid = d.data().uid;
+            if (uid) notifTargets.add(uid);
+          });
+
+          const signerName = data.signingName || proposalData.clientSignatureName || proposalData.clientName || "Client";
+          const comp = proposalData.company || "";
+          const totalVal = updateData.total || proposalData.total;
+          const curr = proposalData.currency || "AED";
+          const amountStr = totalVal ? ` for ${curr} ${Number(totalVal).toLocaleString()}` : "";
+
+          const notifBatch = adminDb.batch();
+          notifTargets.forEach((uId) => {
+            const notifRef = adminDb.collection("notifications").doc();
+            notifBatch.set(notifRef, {
+              userId: uId,
+              title: "Proposal Signed & Accepted!",
+              message: `${signerName}${comp ? ` (${comp})` : ""} has signed the proposal${amountStr}.`,
+              link: `/proposals/${id}`,
+              read: false,
+              createdAt: now,
+              type: "proposal-signed",
+              proposalId: id,
+            });
+          });
+          await notifBatch.commit();
+        } catch (notifErr) {
+          console.error("Failed to create proposal signed notifications:", notifErr);
+        }
       } else if (action === "reject") {
         // Do not cascade-deactivate clients on proposal rejection.
         // A client might have other active proposals or be a direct client.

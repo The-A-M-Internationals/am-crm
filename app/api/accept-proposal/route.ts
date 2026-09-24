@@ -90,6 +90,42 @@ export async function POST(req: Request) {
       }
     }
 
+    // 4. Send Notifications for Accepted Proposal
+    try {
+      const notifTargets = new Set<string>();
+      if (proposal.createdBy) notifTargets.add(proposal.createdBy);
+      if (leadContext?.assignedTo) notifTargets.add(leadContext.assignedTo);
+
+      const adminQuery = query(collection(db, "users"), where("role", "==", "admin"));
+      const adminSnap = await getDocs(adminQuery);
+      adminSnap.forEach((d) => {
+        const uid = d.data().uid;
+        if (uid) notifTargets.add(uid);
+      });
+
+      const signer = clientSignatureName || proposal.clientName || "Client";
+      const comp = proposal.company || leadContext?.company || "";
+      const totalVal = proposal.total;
+      const curr = proposal.currency || "AED";
+      const amountStr = totalVal ? ` for ${curr} ${Number(totalVal).toLocaleString()}` : "";
+
+      notifTargets.forEach((uId) => {
+        const notifRef = doc(collection(db, "notifications"));
+        batch.set(notifRef, {
+          userId: uId,
+          title: "Proposal Signed & Accepted!",
+          message: `${signer}${comp ? ` (${comp})` : ""} has signed the proposal${amountStr}.`,
+          link: `/proposals/${proposalId}`,
+          read: false,
+          createdAt: now,
+          type: "proposal-signed",
+          proposalId,
+        });
+      });
+    } catch (e) {
+      console.error("Failed to queue notifications in accept-proposal route:", e);
+    }
+
     await batch.commit();
     return NextResponse.json({ success: true, message: "Proposal accepted successfully and client converted." });
   } catch (error: any) {

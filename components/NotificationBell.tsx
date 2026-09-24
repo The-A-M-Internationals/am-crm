@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, limit } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-import { Bell, CheckCircle2, MessageSquare, Rocket } from "lucide-react";
+import { Bell, CheckCircle2, MessageSquare, Rocket, Trash2, FileSignature, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -14,6 +14,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [clearing, setClearing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,10 +32,10 @@ export default function NotificationBell() {
         .filter((i: any) => {
           // Always show unread
           if (!i.read) return true;
-          // Hide read notifications older than 3 days
+          // Hide read notifications older than 7 days
           if (!i.createdAt) return true;
           const daysOld = (nowMs - new Date(i.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-          return daysOld <= 3;
+          return daysOld <= 7;
         });
 
       // Sort client-side to avoid needing a composite index in Firestore
@@ -88,11 +89,42 @@ export default function NotificationBell() {
     }
   };
 
+  const clearAllNotifications = async () => {
+    if (notifications.length === 0 || clearing) return;
+    setClearing(true);
+    try {
+      const batch = writeBatch(db);
+      notifications.forEach((n) => {
+        batch.delete(doc(db, "notifications", n.id));
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const deleteSingleNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await deleteDoc(doc(db, "notifications", id));
+    } catch (err) {
+      console.error("Failed to delete notification:", err);
+    }
+  };
+
   const getIcon = (type: string) => {
     switch (type) {
-      case "task-assigned": return <Rocket className="w-4 h-4 text-amber-500" />;
-      case "new-message": return <MessageSquare className="w-4 h-4 text-blue-500" />;
-      default: return <Bell className="w-4 h-4 text-slate-500" />;
+      case "proposal-signed":
+      case "proposal-accepted":
+        return <FileSignature className="w-4 h-4 text-emerald-600" />;
+      case "task-assigned":
+        return <Rocket className="w-4 h-4 text-amber-500" />;
+      case "new-message":
+        return <MessageSquare className="w-4 h-4 text-blue-500" />;
+      default:
+        return <Bell className="w-4 h-4 text-slate-500" />;
     }
   };
 
@@ -121,12 +153,33 @@ export default function NotificationBell() {
             className="absolute left-[calc(100%+20px)] top-0 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100]"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-bold text-sm text-[#0D1B3E]">Notifications</h3>
-              {unreadCount > 0 && (
-                <button onClick={markAllAsRead} className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm text-[#0D1B3E]">Notifications</h3>
+                {notifications.length > 0 && (
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                    {notifications.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={markAllAsRead} 
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Mark read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button 
+                    onClick={clearAllNotifications} 
+                    disabled={clearing}
+                    className="text-[11px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="max-h-[400px] overflow-y-auto no-scrollbar">
@@ -137,29 +190,58 @@ export default function NotificationBell() {
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {notifications.map((notif) => (
-                    <button
-                      key={notif.id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className={`text-left p-4 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors flex gap-3 relative ${!notif.read ? "bg-blue-50/30" : "opacity-75"}`}
-                    >
-                      {!notif.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />}
-                      <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${!notif.read ? "bg-white shadow-sm border border-slate-100" : "bg-slate-100"}`}>
-                        {getIcon(notif.type)}
+                  {notifications.map((notif) => {
+                    const isProposalSigned = notif.type === "proposal-signed" || notif.type === "proposal-accepted";
+                    return (
+                      <div
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`group text-left p-4 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors flex items-start gap-3 relative cursor-pointer ${
+                          !notif.read ? (isProposalSigned ? "bg-emerald-50/40" : "bg-blue-50/30") : "opacity-75"
+                        }`}
+                      >
+                        {!notif.read && (
+                          <div 
+                            className={`absolute left-0 top-0 bottom-0 w-1 ${
+                              isProposalSigned ? "bg-emerald-500" : "bg-blue-500"
+                            }`} 
+                          />
+                        )}
+                        <div 
+                          className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                            !notif.read 
+                              ? (isProposalSigned ? "bg-emerald-100 text-emerald-700 shadow-sm" : "bg-white shadow-sm border border-slate-100") 
+                              : "bg-slate-100"
+                          }`}
+                        >
+                          {getIcon(notif.type)}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-1">
+                          <p className={`text-xs ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-600"}`}>
+                            {notif.title}
+                          </p>
+                          <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-2 leading-relaxed">
+                            {notif.message}
+                          </p>
+                          <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-wider">
+                            {notif.createdAt ? new Date(notif.createdAt).toLocaleString(undefined, { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              hour: 'numeric', 
+                              minute: 'numeric' 
+                            }) : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => deleteSingleNotification(e, notif.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-rose-500 transition-all shrink-0 mt-0.5"
+                          title="Dismiss"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <div>
-                        <p className={`text-xs ${!notif.read ? "font-bold text-slate-900" : "font-semibold text-slate-600"}`}>
-                          {notif.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                          {notif.message}
-                        </p>
-                        <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-wider">
-                          {new Date(notif.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' })}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
