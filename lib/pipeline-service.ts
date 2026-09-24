@@ -9,6 +9,7 @@ import {
   updateDoc,
   deleteDoc,
   addDoc,
+  setDoc,
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -19,6 +20,9 @@ import { getMasterTemplate } from "./proposal-templates";
  * Normalizes email for consistent lookups
  */
 const normalizeEmail = (email?: string) => (email || "").trim().toLowerCase();
+
+const inFlightSyncs = new Map<string, Promise<void>>();
+let isSyncingAll = false;
 
 /**
  * Centralized pipeline logic to ensure atomic updates across Leads, Clients, and Proposals.
@@ -1387,81 +1391,114 @@ export const PipelineService = {
    */
   async syncProjectFinancialsToInvoice(projectId: string, projectData?: any) {
     if (!projectId) return;
-    try {
-      let proj = projectData;
-      if (!proj || proj.budget === undefined) {
-        const pSnap = await getDoc(doc(db, "projects", projectId));
-        if (!pSnap.exists()) return;
-        proj = { id: pSnap.id, ...pSnap.data() };
-      }
+    if (inFlightSyncs.has(projectId)) {
+      return inFlightSyncs.get(projectId);
+    }
 
-      const budget = Number(proj.budget) || 0;
-      const basePaid = Number(proj.paid) || 0;
-      const loggedPaid = Array.isArray(proj.payments)
-        ? proj.payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
-        : 0;
-      const totalPaid = Math.max(basePaid, loggedPaid, (basePaid + loggedPaid > budget && budget > 0) ? Math.max(basePaid, loggedPaid) : basePaid + loggedPaid);
-      const remaining = Math.max(0, budget - totalPaid);
-      const isPaid = totalPaid >= budget && budget > 0;
-      const now = new Date().toISOString();
+    const task = (async () => {
+      try {
+        let proj = projectData;
+        if (!proj || proj.budget === undefined) {
+          const pSnap = await getDoc(doc(db, "projects", projectId));
+          if (!pSnap.exists()) return;
+          proj = { id: pSnap.id, ...pSnap.data() };
+        }
 
-      // Check if invoice already exists for this project
-      const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
-      const invSnap = await getDocs(invQ);
+        const budget = Number(proj.budget) || 0;
+        const basePaid = Number(proj.paid) || 0;
+        const loggedPaid = Array.isArray(proj.payments)
+          ? proj.payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+          : 0;
+        const totalPaid = Math.max(basePaid, loggedPaid, (basePaid + loggedPaid > budget && budget > 0) ? Math.max(basePaid, loggedPaid) : basePaid + loggedPaid);
+        const remaining = Math.max(0, budget - totalPaid);
+        const isPaid = totalPaid >= budget && budget > 0;
+        const now = new Date().toISOString();
 
-      if (!invSnap.empty) {
-        // Update existing invoice
-        const invDoc = invSnap.docs[0];
-        const existingData = invDoc.data();
-        const invoiceTotal = budget > 0 ? budget : (Number(existingData.total) || 0);
+        // Check if invoice already exists for this project (or under deterministic id)
+        const deterministicRef = doc(db, "invoices", `proj_inv_${projectId}`);
+        const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
+        const [invSnap, detSnap] = await Promise.all([
+          getDocs(invQ),
+          getDoc(deterministicRef),
+        ]);
 
-        await updateDoc(invDoc.ref, {
-          clientName: proj.clientName || existingData.clientName || "Client",
-          clientEmail: proj.clientEmail || existingData.clientEmail || "",
-          projectTitle: proj.title || existingData.projectTitle || "Project",
-          subtotal: invoiceTotal,
-          total: invoiceTotal,
-          paidAmount: totalPaid,
-          remainingAmount: remaining,
-          status: isPaid ? "paid" : "unpaid",
-          currency: proj.currency || existingData.currency || "AED",
-          updatedAt: now,
-        });
-      } else if (budget > 0 || totalPaid > 0) {
-        // Create new invoice automatically
-        const invoiceNumber = `AM-INV-${Math.floor(10000 + Math.random() * 90000)}`;
-        await addDoc(collection(db, "invoices"), {
-          invoiceNumber,
-          projectId: projectId,
-          projectTitle: proj.title || "Project",
-          clientId: proj.clientId || "",
-          clientName: proj.clientName || "Client",
-          clientEmail: proj.clientEmail || "",
-          clientPhone: proj.clientPhone || "",
-          clientAddress: proj.clientAddress || "",
-          service: proj.service || "web-development",
-          items: [
-            {
-              description: `Project Execution: ${proj.title || "Project"}`,
-              qty: 1,
-              rate: budget,
-              amount: budget,
+        const allDocs = [...invSnap.docs];
+        if (detSnap.exists() && !allDocs.some((d) => d.id === detSnap.id)) {
+          allDocs.push(detSnap as any);
+        }
+
+        if (allDocs.length > 0) {
+          // Update the primary invoice
+          const invDoc = allDocs[0];
+          const existingData = invDoc.data();
+          const invoiceTotal = budget > 0 ? budget : (Number(existingData.total) || 0);
+
+          await updateDoc(invDoc.ref, {
+            clientName: proj.clientName || existingData.clientName || "Client",
+            clientEmail: proj.clientEmail || existingData.clientEmail || "",
+            projectTitle: proj.title || existingData.projectTitle || "Project",
+            subtotal: invoiceTotal,
+            total: invoiceTotal,
+            paidAmount: totalPaid,
+            remainingAmount: remaining,
+            status: isPaid ? "paid" : "unpaid",
+            currency: proj.currency || existingData.currency || "AED",
+            updatedAt: now,
+          });
+
+          // Self-heal: purge any duplicate invoices for this project
+          if (allDocs.length > 1) {
+            for (let i = 1; i < allDocs.length; i++) {
+              await deleteDoc(allDocs[i].ref).catch(() => {});
             }
-          ],
-          subtotal: budget,
-          tax: 0,
-          total: budget,
-          paidAmount: totalPaid,
-          remainingAmount: remaining,
-          currency: proj.currency || "AED",
-          status: isPaid ? "paid" : "unpaid",
-          notes: `Auto-generated from Project financials.`,
-          createdAt: now,
-          updatedAt: now,
-        });
+          }
+        } else if (budget > 0 || totalPaid > 0) {
+          // Create new invoice using deterministic doc ID to prevent any concurrent duplicate creation
+          const invoiceNumber = `AM-INV-${Math.floor(10000 + Math.random() * 90000)}`;
+          await setDoc(
+            deterministicRef,
+            {
+              invoiceNumber,
+              projectId: projectId,
+              projectTitle: proj.title || "Project",
+              clientId: proj.clientId || "",
+              clientName: proj.clientName || "Client",
+              clientEmail: proj.clientEmail || "",
+              clientPhone: proj.clientPhone || "",
+              clientAddress: proj.clientAddress || "",
+              service: proj.service || "web-development",
+              items: [
+                {
+                  description: `Project Execution: ${proj.title || "Project"}`,
+                  qty: 1,
+                  rate: budget,
+                  amount: budget,
+                },
+              ],
+              subtotal: budget,
+              tax: 0,
+              total: budget,
+              paidAmount: totalPaid,
+              remainingAmount: remaining,
+              currency: proj.currency || "AED",
+              status: isPaid ? "paid" : "unpaid",
+              notes: `Auto-generated from Project financials.`,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+        }
+      } catch (err) {
+        console.error("Error in syncProjectFinancialsToInvoice:", err);
       }
-    } catch (err) {
-      console.error("Error in syncProjectFinancialsToInvoice:", err);
+    })();
+
+    inFlightSyncs.set(projectId, task);
+    try {
+      await task;
+    } finally {
+      inFlightSyncs.delete(projectId);
     }
   },
 
@@ -1469,11 +1506,13 @@ export const PipelineService = {
    * Scans all active projects and auto-syncs any project with budget/paid into Invoices
    */
   async syncAllProjectsToInvoices() {
+    if (isSyncingAll) return;
+    isSyncingAll = true;
     try {
       const projSnap = await getDocs(collection(db, "projects"));
       const invSnap = await getDocs(collection(db, "invoices"));
       const existingProjectIds = new Set<string>();
-      invSnap.forEach(d => {
+      invSnap.forEach((d) => {
         const pId = d.data().projectId;
         if (pId) existingProjectIds.add(pId);
       });
@@ -1482,13 +1521,18 @@ export const PipelineService = {
         const p = pDoc.data();
         const budget = Number(p.budget) || 0;
         const paid = Number(p.paid) || 0;
-        const loggedPaid = Array.isArray(p.payments) ? p.payments.reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0) : 0;
+        const loggedPaid = Array.isArray(p.payments)
+          ? p.payments.reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0)
+          : 0;
         if ((budget > 0 || paid > 0 || loggedPaid > 0) && !existingProjectIds.has(pDoc.id)) {
           await this.syncProjectFinancialsToInvoice(pDoc.id, { id: pDoc.id, ...p });
+          existingProjectIds.add(pDoc.id);
         }
       }
     } catch (err) {
       console.error("Error in syncAllProjectsToInvoices:", err);
+    } finally {
+      isSyncingAll = false;
     }
   }
 };
