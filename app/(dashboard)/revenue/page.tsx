@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { PipelineService } from "@/lib/pipeline-service";
 import {
   BarChart,
   Bar,
@@ -149,6 +150,7 @@ export default function RevenuePage() {
   }
 
   async function fetchData() {
+    await PipelineService.syncAllProjectsToInvoices();
     try {
       const [invSnap, expSnap, revSnap, cliSnap] = await Promise.all([
         getDocs(collection(db, "invoices")),
@@ -201,12 +203,16 @@ export default function RevenuePage() {
     );
   }
   // Calculations
-  const paidInvoices = invoices.filter((i) => i.status === "paid");
-
-  const invoiceRevenue = paidInvoices.reduce(
-    (s, i) => s + (Number(i.total) || 0),
-    0,
-  );
+  const paidInvoices = invoices.filter((i) => i.status === "paid" || (Number(i.paidAmount) || 0) > 0);
+  // Cash collected from invoices (including full payments and advance/milestone installments)
+  const invoiceRevenue = invoices.reduce((s, i) => {
+    if (i.status === "paid") {
+      const amount = Number(i.total) || Number(i.paidAmount) || 0;
+      return s + convertToAED(amount, i.currency || "AED");
+    }
+    const partial = Number(i.paidAmount) || 0;
+    return s + convertToAED(partial, i.currency || "AED");
+  }, 0);
 
   const manualRevenueTotal = manualRev
     .filter((r) => r.status === "received")
@@ -217,9 +223,12 @@ export default function RevenuePage() {
 
   const totalRevenue = invoiceRevenue + manualRevenueTotal;
 
-  const totalPending = invoices
-    .filter((i) => i.status !== "paid")
-    .reduce((s, i) => s + (Number(i.total) || 0), 0);
+  // Outstanding receivables awaiting collection
+  const totalPending = invoices.reduce((s, i) => {
+    if (i.status === "paid") return s;
+    const remaining = i.remainingAmount !== undefined ? Number(i.remainingAmount) : Math.max(0, (Number(i.total) || 0) - (Number(i.paidAmount) || 0));
+    return s + convertToAED(remaining, i.currency || "AED");
+  }, 0);
   const totalExpenses = expenses.reduce(
     (s, e) => s + convertToAED(Number(e.amount) || 0, e.currency || "AED"),
     0,
@@ -231,13 +240,15 @@ export default function RevenuePage() {
 
   const year = new Date().getFullYear();
   const monthlyData = MONTHS.map((month, idx) => {
-    const invRev = paidInvoices
-
+    const invRev = invoices
       .filter((i) => {
-        const d = new Date(i.createdAt);
+        const d = new Date(i.updatedAt || i.createdAt);
         return d.getMonth() === idx && d.getFullYear() === year;
       })
-      .reduce((s, i) => s + (Number(i.total) || 0), 0);
+      .reduce((s, i) => {
+        const amt = i.status === "paid" ? (Number(i.total) || Number(i.paidAmount) || 0) : (Number(i.paidAmount) || 0);
+        return s + convertToAED(amt, i.currency || "AED");
+      }, 0);
 
     const manRev = manualRev
       .filter((r) => {

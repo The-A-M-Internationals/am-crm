@@ -316,6 +316,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       });
 
       setProject({ ...project, payments: updatedPayments, remaining: newRemaining });
+      await PipelineService.syncProjectFinancialsToInvoice(project.id, { ...project, payments: updatedPayments, paid: totalPaid, remaining: newRemaining });
       setPaymentForm({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
       setShowPaymentModal(false);
       setEditingPaymentId(null);
@@ -398,6 +399,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         updatedAt: new Date().toISOString()
       });
       setProject({ ...project, budget: b, due: d, paid: p, remaining: r });
+      await PipelineService.syncProjectFinancialsToInvoice(project.id, { ...project, budget: b, due: d, paid: p, remaining: r });
       setShowFinancialsModal(false);
     } catch (e) {
       console.error(e);

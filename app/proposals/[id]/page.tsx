@@ -13,6 +13,7 @@ import Sidebar from "@/components/sidebar";
 import { getMasterTemplate } from "@/lib/proposal-templates";
 import DynamicTemplate from "@/components/dynamic-template";
 import { PipelineService } from "@/lib/pipeline-service";
+import { exportElementToMultiPagePDF } from "@/lib/pdf-export";
 import SignatureCanvas from "react-signature-canvas";
 import { toast } from "@/components/ui/toast";
 
@@ -256,22 +257,16 @@ export default function ProposalDetailPage() {
   async function downloadPDF() {
     setDownloadingPDF(true);
     try {
-      const jsPDF = (await import("jspdf")).default;
-      const html2canvas = (await import("html2canvas")).default;
       const element = document.getElementById("proposal-document-area");
-      if (!element) return;
-      
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      if (!element) {
+        toast("Proposal document area not found", "error");
+        return;
+      }
       const safeName = (proposal?.company || proposal?.clientName || "Document").replace(/[^a-zA-Z0-9_-]/g, "_");
-      pdf.save(`Proposal_${safeName}.pdf`);
-      toast("PDF downloaded successfully", "success");
+      await exportElementToMultiPagePDF(element, `Proposal_${safeName}.pdf`);
+      toast("Full multi-page proposal PDF downloaded successfully!", "success");
     } catch (err) {
-      console.error(err);
+      console.error("PDF generation failed:", err);
       toast("Failed to generate PDF", "error");
     } finally {
       setDownloadingPDF(false);

@@ -329,6 +329,7 @@ export default function ProjectsPage() {
       let projectId = editing?.id;
       if (editing) {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
+        await PipelineService.syncProjectFinancialsToInvoice(editing.id, { id: editing.id, ...data });
         await PipelineService.syncProjectBlueprintAndInstructions(editing.id, {
           masterBlueprint: data.masterBlueprint,
           leadInstructions: data.leadInstructions,
@@ -342,6 +343,7 @@ export default function ProjectsPage() {
       } else {
         const docRef = await addDoc(collection(db, "projects"), { ...data, createdAt: now, updatedAt: now });
         projectId = docRef.id;
+        await PipelineService.syncProjectFinancialsToInvoice(projectId, { id: projectId, ...data });
         if (data.status === "in-progress") {
           await createTasksForProject(projectId, data);
         }

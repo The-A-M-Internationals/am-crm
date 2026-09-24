@@ -16,6 +16,8 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { PhoneInput } from "@/components/phone-input";
+import { PipelineService } from "@/lib/pipeline-service";
+import { exportElementToMultiPagePDF } from "@/lib/pdf-export";
 import { toast } from "@/components/ui/toast";
 
 const SERVICES = [
@@ -94,6 +96,7 @@ export default function InvoicePage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   async function fetchInvoices() {
+    await PipelineService.syncAllProjectsToInvoices();
     try {
       const [invSnap, cliSnap] = await Promise.all([
         getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"))),
@@ -349,32 +352,18 @@ export default function InvoicePage() {
 
   async function downloadPDF(inv: any) {
     try {
-      const jsPDF = (await import("jspdf")).default;
-      const html2canvas = (await import("html2canvas")).default;
       setPreview(inv);
       setShowPreview(true);
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 600));
       const element = document.getElementById("invoice-print-area");
       if (!element) return;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${inv.invoiceNumber || "Invoice"}.pdf`);
+      await exportElementToMultiPagePDF(element, `${inv.invoiceNumber || "Invoice"}.pdf`);
       setShowPreview(false);
+      toast("Invoice PDF downloaded successfully", "success");
     } catch (err) {
       console.error(err);
       setShowPreview(false);
+      toast("Failed to generate PDF", "error");
     }
   }
 
@@ -493,16 +482,14 @@ export default function InvoicePage() {
           {
             label: "Paid",
             value: `AED ${invoices
-              .filter((i) => i.status === "paid")
-              .reduce((s, i) => s + (Number(i.total) || 0), 0)
+              .reduce((s, i) => s + (i.status === "paid" ? (Number(i.total) || Number(i.paidAmount) || 0) : (Number(i.paidAmount) || 0)), 0)
               .toLocaleString()}`,
             color: "#065f46",
           },
           {
             label: "Outstanding",
             value: `AED ${invoices
-              .filter((i) => i.status !== "paid")
-              .reduce((s, i) => s + (Number(i.total) || 0), 0)
+              .reduce((s, i) => s + (i.status === "paid" ? 0 : (i.remainingAmount !== undefined ? Number(i.remainingAmount) : Math.max(0, (Number(i.total) || 0) - (Number(i.paidAmount) || 0)))), 0)
               .toLocaleString()}`,
             color: "#ef4444",
           },

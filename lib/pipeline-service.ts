@@ -1379,5 +1379,116 @@ export const PipelineService = {
 
     await batch.commit();
   }
+,
 
+  /**
+   * Automatically creates or synchronizes an Invoice whenever project financials are updated
+   * (Budget, Paid, Due, Remaining, Payments).
+   */
+  async syncProjectFinancialsToInvoice(projectId: string, projectData?: any) {
+    if (!projectId) return;
+    try {
+      let proj = projectData;
+      if (!proj || proj.budget === undefined) {
+        const pSnap = await getDoc(doc(db, "projects", projectId));
+        if (!pSnap.exists()) return;
+        proj = { id: pSnap.id, ...pSnap.data() };
+      }
+
+      const budget = Number(proj.budget) || 0;
+      const basePaid = Number(proj.paid) || 0;
+      const loggedPaid = Array.isArray(proj.payments)
+        ? proj.payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+        : 0;
+      const totalPaid = Math.max(basePaid, loggedPaid, (basePaid + loggedPaid > budget && budget > 0) ? Math.max(basePaid, loggedPaid) : basePaid + loggedPaid);
+      const remaining = Math.max(0, budget - totalPaid);
+      const isPaid = totalPaid >= budget && budget > 0;
+      const now = new Date().toISOString();
+
+      // Check if invoice already exists for this project
+      const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
+      const invSnap = await getDocs(invQ);
+
+      if (!invSnap.empty) {
+        // Update existing invoice
+        const invDoc = invSnap.docs[0];
+        const existingData = invDoc.data();
+        const invoiceTotal = budget > 0 ? budget : (Number(existingData.total) || 0);
+
+        await updateDoc(invDoc.ref, {
+          clientName: proj.clientName || existingData.clientName || "Client",
+          clientEmail: proj.clientEmail || existingData.clientEmail || "",
+          projectTitle: proj.title || existingData.projectTitle || "Project",
+          subtotal: invoiceTotal,
+          total: invoiceTotal,
+          paidAmount: totalPaid,
+          remainingAmount: remaining,
+          status: isPaid ? "paid" : "unpaid",
+          currency: proj.currency || existingData.currency || "AED",
+          updatedAt: now,
+        });
+      } else if (budget > 0 || totalPaid > 0) {
+        // Create new invoice automatically
+        const invoiceNumber = `AM-INV-${Math.floor(10000 + Math.random() * 90000)}`;
+        await addDoc(collection(db, "invoices"), {
+          invoiceNumber,
+          projectId: projectId,
+          projectTitle: proj.title || "Project",
+          clientId: proj.clientId || "",
+          clientName: proj.clientName || "Client",
+          clientEmail: proj.clientEmail || "",
+          clientPhone: proj.clientPhone || "",
+          clientAddress: proj.clientAddress || "",
+          service: proj.service || "web-development",
+          items: [
+            {
+              description: `Project Execution: ${proj.title || "Project"}`,
+              qty: 1,
+              rate: budget,
+              amount: budget,
+            }
+          ],
+          subtotal: budget,
+          tax: 0,
+          total: budget,
+          paidAmount: totalPaid,
+          remainingAmount: remaining,
+          currency: proj.currency || "AED",
+          status: isPaid ? "paid" : "unpaid",
+          notes: `Auto-generated from Project financials.`,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    } catch (err) {
+      console.error("Error in syncProjectFinancialsToInvoice:", err);
+    }
+  },
+
+  /**
+   * Scans all active projects and auto-syncs any project with budget/paid into Invoices
+   */
+  async syncAllProjectsToInvoices() {
+    try {
+      const projSnap = await getDocs(collection(db, "projects"));
+      const invSnap = await getDocs(collection(db, "invoices"));
+      const existingProjectIds = new Set<string>();
+      invSnap.forEach(d => {
+        const pId = d.data().projectId;
+        if (pId) existingProjectIds.add(pId);
+      });
+
+      for (const pDoc of projSnap.docs) {
+        const p = pDoc.data();
+        const budget = Number(p.budget) || 0;
+        const paid = Number(p.paid) || 0;
+        const loggedPaid = Array.isArray(p.payments) ? p.payments.reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0) : 0;
+        if ((budget > 0 || paid > 0 || loggedPaid > 0) && !existingProjectIds.has(pDoc.id)) {
+          await this.syncProjectFinancialsToInvoice(pDoc.id, { id: pDoc.id, ...p });
+        }
+      }
+    } catch (err) {
+      console.error("Error in syncAllProjectsToInvoices:", err);
+    }
+  }
 };
