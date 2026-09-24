@@ -369,13 +369,14 @@ export default function ProjectsPage() {
     }
     setDelegating(true);
     try {
-      const employee = members.find(m => m.uid === delegateForm.employeeIds);
+      const assignedMembers = members.filter(m => delegateForm.employeeIds.includes(m.uid));
+      const assignedNamesString = assignedMembers.map(m => m.name).join(", ") || "Team Member";
       const now = new Date().toISOString();
       await addDoc(collection(db, "tasks"), {
         title: delegateForm.title,
         description: delegateForm.instructions || `Task for project: ${delegateProject.title}`,
         assignedTo: delegateForm.employeeIds,
-        assignedToName: employee?.name || "Team Member",
+        assignedToName: assignedNamesString,
         assignedBy: crmUser?.uid || "System",
         clientId: delegateProject.clientId || "",
         clientName: delegateProject.clientName || "",

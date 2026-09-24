@@ -77,9 +77,10 @@ export default function TasksPage() {
   useEffect(() => {
     if (!crmUser) return;
     const tasksRef = collection(db, "tasks");
-    const tasksQuery = crmUser.role === "employee" || viewMode === "my-desk"
-      ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
-      : query(tasksRef);
+    const tasksQuery = query(tasksRef);
+    // legacy query:
+    // ? query(tasksRef, where("assignedTo", "==", crmUser.uid))
+    // : query(tasksRef);
 
     setTasks([]); // Clear tasks when switching view modes
     setLoading(true);
@@ -178,8 +179,10 @@ export default function TasksPage() {
     setSaving(true);
     try {
       const now = new Date().toISOString();
-      const member = members.find((m) => m.uid === form.assignedTo);
-      const payload = { ...form, assignedToName: member?.name ?? form.assignedToName, assignedBy: crmUser?.uid ?? "" };
+      const assignedMembers = members.filter((m) => Array.isArray(form.assignedTo) ? form.assignedTo.includes(m.uid) : form.assignedTo === m.uid);
+      const assignedNamesString = assignedMembers.map((m) => m.name).join(", ");
+      const member = assignedMembers[0];
+      const payload = { ...form, assignedToName: assignedNamesString || member?.name || form.assignedToName, assignedBy: crmUser?.uid ?? "" };
 
       if (editing) {
         await updateDoc(doc(db, "tasks", editing.id), payload);
@@ -270,6 +273,10 @@ export default function TasksPage() {
   }
 
   const filteredTasks = tasks.filter(t => {
+    if (crmUser?.role === "employee" || viewMode === "my-desk") {
+      const isAssigned = Array.isArray(t.assignedTo) ? t.assignedTo.includes(crmUser?.uid) : t.assignedTo === crmUser?.uid;
+      if (!isAssigned) return false;
+    }
     if (viewMode === "team") {
       if ((Array.isArray(t.assignedTo) ? t.assignedTo.includes(crmUser?.uid) : t.assignedTo === crmUser?.uid)) return false;
       if (t.relatedType === "lead") return false; // Hide all lead follow-ups from team view
@@ -450,11 +457,42 @@ export default function TasksPage() {
                           </div>
 
                           <div className="pl-2 mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5" title={task.assignedToName}>
+                            {(() => {
+                              const assignees = Array.isArray(task.assignedTo) ? task.assignedTo.filter(Boolean) : (task.assignedTo ? [task.assignedTo] : []);
+                              const names = assignees.map((uid: string) => members.find(m => m.uid === uid)?.name).filter(Boolean);
+                              const title = names.length > 0 ? names.join(", ") : (task.assignedToName || "Unassigned");
+                              if (assignees.length > 1) {
+                                return (
+                                  <div className="flex items-center -space-x-1.5" title={title}>
+                                    {assignees.slice(0, 3).map((uid: string) => {
+                                      const m = members.find(x => x.uid === uid);
+                                      return (
+                                        <div key={uid} className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border-2 border-white shadow-sm">
+                                          {(m?.name || "?").charAt(0).toUpperCase()}
+                                        </div>
+                                      );
+                                    })}
+                                    {assignees.length > 3 && (
+                                      <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[9px] font-bold border-2 border-white">
+                                        +{assignees.length - 3}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="flex items-center gap-1.5" title={title}>
+                                  <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border border-indigo-200">
+                                    {names[0]?.charAt(0).toUpperCase() || (task.assignedToName ? task.assignedToName.charAt(0) : "?")}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {false && <div className="flex items-center gap-1.5" title={task.assignedToName}>
                               <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black border border-indigo-200">
                                 {task.assignedToName ? task.assignedToName.charAt(0) : "?"}
                               </div>
-                            </div>
+                            </div>}
                             <div className="flex items-center gap-2">
                               {task.dueDate && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${isOverdue ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"}`}>

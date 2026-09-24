@@ -93,7 +93,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
 
   if (!task || !crmUser) return null;
 
-  const isAssignedEmployee = crmUser.uid === task.assignedTo;
+  const isAssignedEmployee = Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser.uid) : crmUser.uid === task.assignedTo;
   
   // Security Barrier
   if (crmUser.role === "employee" && !isAssignedEmployee) {

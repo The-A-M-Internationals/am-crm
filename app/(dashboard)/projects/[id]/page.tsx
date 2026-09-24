@@ -13,6 +13,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { PipelineService } from "@/lib/pipeline-service";
 import ProjectCompletedInvoiceModal from "@/components/ProjectCompletedInvoiceModal";
+import TaskMultiAssigneeMenu from "@/components/TaskMultiAssigneeMenu";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -489,13 +490,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     setDelegating(true);
     try {
       const now = new Date().toISOString();
-      const employee = users.find(u => u.uid === delegateForm.employeeIds);
+      const assignedEmployees = users.filter(u => delegateForm.employeeIds.includes(u.uid));
+      const assignedNames = assignedEmployees.map(u => u.name);
+      const assignedNamesString = assignedNames.join(", ") || "Team Member";
+      const employee = assignedEmployees[0];
       
       const payload = {
         title: delegateForm.title,
         description: delegateForm.instructions || `Task for project: ${project.title}`,
         assignedTo: delegateForm.employeeIds,
-        assignedToName: employee?.name || "Team Member",
+        assignedToName: assignedNamesString,
         assignedBy: crmUser?.uid || "System",
         clientId: project.clientId || "",
         clientName: project.clientName || "",
@@ -517,7 +521,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       const docRef = await addDoc(collection(db, "tasks"), payload);
       
       await addDoc(collection(db, "notifications"), {
-        userId: delegateForm.employeeIds,
+        userId: delegateForm.employeeIds[0] || "",
         title: "Task Assigned",
         message: `You were assigned a new task: ${delegateForm.title}`,
         link: `/tasks/${docRef.id}?tab=blueprints`,
@@ -601,7 +605,8 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   };
 
   async function updateTaskStatus(task: any, status: string) {
-    if (crmUser?.role === "admin" && task.assignedTo !== crmUser?.uid) {
+    const isAssigned = Array.isArray(task.assignedTo) ? task.assignedTo.includes(crmUser?.uid) : task.assignedTo === crmUser?.uid;
+    if (crmUser?.role === "admin" && !isAssigned) {
       toast("Action Restricted: Admins cannot update an employee's progress on their tasks.", "error");
       return;
     }
@@ -676,6 +681,120 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       console.error(e);
       toast("Failed to update instructions", "error");
     }
+  }
+
+  async function toggleTaskAssignee(task: any, employeeId: string) {
+    try {
+      const currentAssignees: string[] = Array.isArray(task.assignedTo)
+        ? [...task.assignedTo]
+        : (task.assignedTo ? [task.assignedTo] : []);
+      
+      let nextAssignees: string[];
+      const isRemoving = currentAssignees.includes(employeeId);
+      if (isRemoving) {
+        nextAssignees = currentAssignees.filter(id => id !== employeeId);
+      } else {
+        nextAssignees = [...currentAssignees, employeeId];
+      }
+
+      const assignedUsers = users.filter(u => nextAssignees.includes(u.uid));
+      const assignedNames = assignedUsers.map(u => u.name);
+      const assignedNamesString = assignedNames.join(", ");
+
+      await updateDoc(doc(db, "tasks", task.id), {
+        assignedTo: nextAssignees,
+        assignedToName: assignedNamesString,
+      });
+
+      setProjectTasks(prev => prev.map(t => {
+        if (t.id === task.id) {
+          return {
+            ...t,
+            assignedTo: nextAssignees,
+            assignedToName: assignedNamesString,
+          };
+        }
+        return t;
+      }));
+
+      if (selectedDrawerTask && selectedDrawerTask.id === task.id) {
+        setSelectedDrawerTask({
+          ...selectedDrawerTask,
+          assignedTo: nextAssignees,
+          assignedToName: assignedNamesString,
+        });
+      }
+
+      const emp = users.find(u => u.uid === employeeId);
+      if (!isRemoving) {
+        await addDoc(collection(db, "notifications"), {
+          userId: employeeId,
+          title: "Task Assigned",
+          message: `You were assigned to task: ${task.title}`,
+          link: `/tasks/${task.id}?tab=blueprints`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          type: "task-assigned"
+        });
+        toast(`Assigned ${emp?.name || "employee"} to task`, "success");
+      } else {
+        toast(`Removed ${emp?.name || "employee"} from task`, "info");
+      }
+    } catch (e) {
+      console.error(e);
+      toast("Failed to update task assignees", "error");
+    }
+  }
+
+  function renderTaskAvatars(task: any) {
+    const assignees = Array.isArray(task.assignedTo)
+      ? task.assignedTo.filter(Boolean)
+      : task.assignedTo
+      ? [task.assignedTo]
+      : [];
+    const assigneeNames = assignees.map((uid: string) => users.find(u => u.uid === uid)?.name).filter(Boolean);
+    const displayNames = assigneeNames.length > 0 ? assigneeNames.join(", ") : (task.assignedToName || "Unassigned");
+
+    if (assignees.length === 0) {
+      return (
+        <div 
+          className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center text-xs font-bold flex-shrink-0"
+          title="Unassigned"
+        >
+          ?
+        </div>
+      );
+    }
+
+    const AVATAR_COLORS = [
+      "bg-indigo-50 border-indigo-200 text-indigo-700",
+      "bg-emerald-50 border-emerald-200 text-emerald-700",
+      "bg-amber-50 border-amber-200 text-amber-700",
+      "bg-rose-50 border-rose-200 text-rose-700",
+      "bg-purple-50 border-purple-200 text-purple-700"
+    ];
+
+    return (
+      <div className="flex items-center -space-x-2 flex-shrink-0" title={`Assigned to: ${displayNames}`}>
+        {assignees.slice(0, 3).map((uid: string, idx: number) => {
+          const name = users.find(u => u.uid === uid)?.name || "Employee";
+          const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+          return (
+            <div
+              key={uid}
+              className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-black shadow-sm ${colorClass}`}
+            >
+              {name.charAt(0).toUpperCase()}
+            </div>
+          );
+        })}
+        {assignees.length > 3 && (
+          <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black shadow-sm">
+            +{assignees.length - 3}
+          </div>
+        )}
+      </div>
+    );
   }
 
   async function reallocateAsset(task: any, employeeId: string) {
@@ -1365,13 +1484,16 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                       >
                         {/* Left Section: Title, Priority, Micro-avatar */}
                         <div className="flex items-center space-x-4 flex-1 min-w-[200px] order-1">
-                          {/* Micro-avatar */}
-                          <div 
+                          {/* Micro-avatar stack */}
+                          {renderTaskAvatars(task)}
+                          {/*
                             className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0"
                             title={`Assigned to: ${task.assignedToName || "Unassigned"}`}
                           >
-                            {task.assignedToName?.charAt(0).toUpperCase() || "?"}
                           </div>
+
+                          {false && <div style={{ display: "none" }}>
+                          </div> */}
                           
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-bold text-slate-900 truncate" style={{ textDecoration: task.status === "completed" ? "line-through text-slate-400" : "none" }}>
@@ -1421,7 +1543,12 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                         <div className="flex items-center justify-end gap-2 flex-shrink-0 order-2 lg:order-3">
                           {(crmUser?.role === "admin" || crmUser?.role === "lead") && (
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                              <select
+                              <TaskMultiAssigneeMenu
+                                task={task}
+                                users={users}
+                                onToggleAssignee={toggleTaskAssignee}
+                              />
+                              {false && <select
                                 value={task.assignedTo || ""}
                                 onChange={(e) => reallocateAsset(task, e.target.value)}
                                 className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium px-3 h-9 outline-none focus:border-[#C9A84C] cursor-pointer shadow-sm w-32 flex-shrink-0"
@@ -1433,7 +1560,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
                                     <option key={u.uid} value={u.uid}>{u.name}</option>
                                   ))
                                 }
-                              </select>
+                              </select>}
                             </div>
                           )}
                           
@@ -2245,7 +2372,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       <AnimatePresence>
         {selectedDrawerTask && (() => {
           const isLeadOrAdmin = crmUser?.role === "admin" || crmUser?.role === "lead";
-          const isAssignedEmployee = crmUser?.uid === selectedDrawerTask.assignedTo;
+          const isAssignedEmployee = Array.isArray(selectedDrawerTask.assignedTo) ? selectedDrawerTask.assignedTo.includes(crmUser?.uid) : crmUser?.uid === selectedDrawerTask.assignedTo;
           
           const summary = selectedDrawerTask.projectSummary || (project as any)?.projectSummary || "No master brief provided by Admin.";
           const instructions = selectedDrawerTask.taskInstructions || selectedDrawerTask.description || "No specific instructions provided by Lead.";
