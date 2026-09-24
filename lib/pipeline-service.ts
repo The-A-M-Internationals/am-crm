@@ -165,58 +165,168 @@ export const PipelineService = {
   async syncLeadDetails(lead: Lead) {
     const batch = writeBatch(db);
     const email = normalizeEmail(lead.email);
+    const company = (lead.company || "").trim();
+    const name = (lead.name || "").trim();
+    const displayClientName = company ? (name ? `${company} (${name})` : company) : (name || "Client");
+    const now = new Date().toISOString();
 
+    // 1. Sync to Proposals (by fromLeadId, leadId, or email)
+    const propMap = new Map<string, any>();
+    if (lead.id) {
+      const qFromLead = query(collection(db, "proposals"), where("fromLeadId", "==", lead.id));
+      const snapFromLead = await getDocs(qFromLead);
+      snapFromLead.forEach(d => propMap.set(d.id, d.ref));
 
-    // 1. Sync to Proposals
-    const propQ = query(collection(db, "proposals"), where("fromLeadId", "==", lead.id));
-    const propSnap = await getDocs(propQ);
-    propSnap.forEach(d => {
-      batch.update(d.ref, {
-        clientName: lead.name,
+      const qLeadId = query(collection(db, "proposals"), where("leadId", "==", lead.id));
+      const snapLeadId = await getDocs(qLeadId);
+      snapLeadId.forEach(d => propMap.set(d.id, d.ref));
+    }
+    if (email) {
+      const qEmail = query(collection(db, "proposals"), where("clientEmail", "==", email));
+      const snapEmail = await getDocs(qEmail);
+      snapEmail.forEach(d => propMap.set(d.id, d.ref));
+    }
+
+    propMap.forEach((ref) => {
+      batch.update(ref, {
+        company: company || "",
+        clientName: displayClientName,
         clientEmail: email,
-        company: lead.company || lead.name,
         phone: lead.phone || "",
-        updatedAt: new Date().toISOString()
+        updatedAt: now,
       });
     });
 
-    // 2. Sync to Client if it exists
-    const clientQ = query(collection(db, "clients"), where("email", "==", email));
+    // 2. Sync to Clients (by fromLeadId, sourceLeadId, or email)
+    const clientMap = new Map<string, any>();
+    if (lead.id) {
+      const qFromLead = query(collection(db, "clients"), where("fromLeadId", "==", lead.id));
+      const snapFromLead = await getDocs(qFromLead);
+      snapFromLead.forEach(d => clientMap.set(d.id, d));
 
-    const clientSnap = await getDocs(clientQ);
+      const qSourceLead = query(collection(db, "clients"), where("sourceLeadId", "==", lead.id));
+      const snapSourceLead = await getDocs(qSourceLead);
+      snapSourceLead.forEach(d => clientMap.set(d.id, d));
+    }
+    if (email) {
+      const qEmail = query(collection(db, "clients"), where("email", "==", email));
+      const snapEmail = await getDocs(qEmail);
+      snapEmail.forEach(d => clientMap.set(d.id, d));
+    }
 
-    clientSnap.forEach((d) => {
+    const clientIds: string[] = [];
+    clientMap.forEach((d, cId) => {
+      clientIds.push(cId);
       const currentServices = d.data().services || [];
       const services =
         lead.service && !currentServices.includes(lead.service)
           ? [...currentServices, lead.service]
           : currentServices;
 
-      batch.update(doc(db, "clients", d.id), {
-        name: lead.name,
-        company: lead.company,
+      batch.update(doc(db, "clients", cId), {
+        name: name,
+        company: company || name,
+        email: email,
         phone: lead.phone || "",
         services: services,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       });
     });
+
+    // Cascade client changes to Projects, Tasks, and Invoices
+    for (const cId of clientIds) {
+      const projSnap = await getDocs(query(collection(db, "projects"), where("clientId", "==", cId)));
+      projSnap.forEach(pd => {
+        batch.update(pd.ref, {
+          clientName: company || name,
+          clientEmail: email,
+          updatedAt: now,
+        });
+      });
+
+      const taskSnap = await getDocs(query(collection(db, "tasks"), where("clientId", "==", cId)));
+      taskSnap.forEach(td => {
+        batch.update(td.ref, {
+          clientName: company || name,
+          updatedAt: now,
+        });
+      });
+
+      const invSnap = await getDocs(query(collection(db, "invoices"), where("clientId", "==", cId)));
+      invSnap.forEach(idoc => {
+        batch.update(idoc.ref, {
+          clientName: company || name,
+          clientEmail: email,
+          clientPhone: lead.phone || "",
+          updatedAt: now,
+        });
+      });
+    }
+
+    // 3. Sync to direct Lead Tasks
+    if (lead.id) {
+      const leadTasksSnap = await getDocs(
+        query(collection(db, "tasks"), where("relatedTo", "==", lead.id))
+      );
+      leadTasksSnap.forEach(td => {
+        batch.update(td.ref, {
+          clientName: company || name,
+          updatedAt: now,
+        });
+      });
+
+      // 4. Sync to Notes
+      const notesSnap = await getDocs(
+        query(collection(db, "notes"), where("relatedId", "==", lead.id))
+      );
+      notesSnap.forEach(nd => {
+        batch.update(nd.ref, {
+          relatedName: company ? (name ? `${company} (${name})` : company) : name,
+          updatedAt: now,
+        });
+      });
+    }
 
     await batch.commit();
   },
 
   /**
-   * Syncs Client profile details to Projects, Tasks, and Proposals dynamically.
+   * Syncs Client profile details to Leads, Projects, Tasks, Proposals, Invoices, and Notes.
    */
   async syncClientDetails(client: Client) {
     const batch = writeBatch(db);
-    const newName = client.name;
-    const newCompany = client.company || client.name;
+    const newName = (client.name || "").trim();
+    const newCompany = (client.company || client.name || "").trim();
+    const displayClientName = newCompany ? (newName ? `${newCompany} (${newName})` : newCompany) : (newName || "Client");
     const newEmail = normalizeEmail(client.email);
     const now = new Date().toISOString();
 
-    // 1. Update Projects
-    const projQ = query(collection(db, "projects"), where("clientId", "==", client.id));
-    const projSnap = await getDocs(projQ);
+    // 1. Sync to Leads
+    if (client.fromLeadId) {
+      batch.update(doc(db, "leads", client.fromLeadId), {
+        name: newName,
+        company: newCompany,
+        email: newEmail,
+        phone: client.phone || "",
+        updatedAt: now,
+      });
+    }
+    if (newEmail) {
+      const leadEmailSnap = await getDocs(query(collection(db, "leads"), where("email", "==", newEmail)));
+      leadEmailSnap.forEach(ld => {
+        if (ld.id !== client.fromLeadId) {
+          batch.update(ld.ref, {
+            name: newName,
+            company: newCompany,
+            phone: client.phone || "",
+            updatedAt: now,
+          });
+        }
+      });
+    }
+
+    // 2. Sync to Projects
+    const projSnap = await getDocs(query(collection(db, "projects"), where("clientId", "==", client.id)));
     projSnap.forEach(d => {
       const updateData: any = { 
         clientName: newCompany, 
@@ -232,65 +342,164 @@ export const PipelineService = {
       batch.update(d.ref, updateData);
     });
 
-    // 2. Update Tasks
-    const taskQ = query(collection(db, "tasks"), where("clientId", "==", client.id));
-    const taskSnap = await getDocs(taskQ);
+    // 3. Sync to Tasks
+    const taskSnap = await getDocs(query(collection(db, "tasks"), where("clientId", "==", client.id)));
     taskSnap.forEach(d => batch.update(d.ref, { clientName: newCompany, updatedAt: now }));
 
-    // 3. Update Proposals
-    const propQ = query(collection(db, "proposals"), where("clientId", "==", client.id));
-    const propSnap = await getDocs(propQ);
-    propSnap.forEach(d => batch.update(d.ref, { 
-      clientName: newName, 
-      clientEmail: newEmail, 
-      company: newCompany, 
-      phone: client.phone || "",
-      updatedAt: now
-    }));
+    // 4. Sync to Proposals
+    const propMap = new Map<string, any>();
+    const propClientSnap = await getDocs(query(collection(db, "proposals"), where("clientId", "==", client.id)));
+    propClientSnap.forEach(d => propMap.set(d.id, d.ref));
+    if (newEmail) {
+      const propEmailSnap = await getDocs(query(collection(db, "proposals"), where("clientEmail", "==", newEmail)));
+      propEmailSnap.forEach(d => propMap.set(d.id, d.ref));
+    }
+    propMap.forEach((ref) => {
+      batch.update(ref, {
+        clientName: displayClientName,
+        company: newCompany,
+        clientEmail: newEmail,
+        phone: client.phone || "",
+        updatedAt: now,
+      });
+    });
 
-    // 4. Update Invoices (if any)
-    const invQ = query(collection(db, "invoices"), where("clientId", "==", client.id));
-    const invSnap = await getDocs(invQ);
-    invSnap.forEach(d => batch.update(d.ref, {
-      clientName: newCompany,
-      clientEmail: newEmail,
-      clientPhone: client.phone || "",
-      clientAddress: client.address || "",
-      updatedAt: now
-    }));
+    // 5. Sync to Invoices
+    const invMap = new Map<string, any>();
+    const invClientSnap = await getDocs(query(collection(db, "invoices"), where("clientId", "==", client.id)));
+    invClientSnap.forEach(d => invMap.set(d.id, d.ref));
+    if (newEmail) {
+      const invEmailSnap = await getDocs(query(collection(db, "invoices"), where("clientEmail", "==", newEmail)));
+      invEmailSnap.forEach(d => invMap.set(d.id, d.ref));
+    }
+    invMap.forEach((ref) => {
+      batch.update(ref, {
+        clientName: newCompany,
+        clientEmail: newEmail,
+        clientPhone: client.phone || "",
+        clientAddress: client.address || "",
+        updatedAt: now,
+      });
+    });
+
+    // 6. Sync to Notes
+    const notesSnap = await getDocs(query(collection(db, "notes"), where("relatedId", "==", client.id)));
+    notesSnap.forEach(nd => {
+      batch.update(nd.ref, {
+        relatedName: newCompany,
+        updatedAt: now,
+      });
+    });
 
     await batch.commit();
   },
 
   /**
-   * Syncs Proposal details (name, company, email, phone) back to the Lead and Client dynamically.
+   * Syncs Proposal details (name, company, email, phone) back to the Lead, Client, Projects, Tasks.
    */
   async syncProposalDetails(proposal: any) {
     const batch = writeBatch(db);
     const email = normalizeEmail(proposal.clientEmail);
+    const company = (proposal.company || "").trim();
+    const name = (proposal.clientName || "").trim();
+    const displayClientName = company ? (name ? `${company} (${name})` : company) : (name || "Client");
     const now = new Date().toISOString();
 
-    // 1. Sync back to Lead (if fromLeadId exists)
+    // 1. Sync back to Lead (if fromLeadId exists or by email)
     if (proposal.fromLeadId) {
       batch.update(doc(db, "leads", proposal.fromLeadId), {
-        name: proposal.clientName,
-        company: proposal.company || proposal.clientName,
+        name: name,
+        company: company || name,
         email: email,
         phone: proposal.phone || "",
         updatedAt: now
       });
+    } else if (email) {
+      const leadSnap = await getDocs(query(collection(db, "leads"), where("email", "==", email)));
+      leadSnap.forEach(d => {
+        batch.update(d.ref, {
+          name: name,
+          company: company || name,
+          phone: proposal.phone || "",
+          updatedAt: now
+        });
+      });
     }
 
-    // 2. Sync back to Client (if exists by email)
-    const clientQ = query(collection(db, "clients"), where("email", "==", email));
-    const clientSnap = await getDocs(clientQ);
-    clientSnap.forEach(d => {
-      batch.update(d.ref, {
-        name: proposal.clientName,
-        company: proposal.company || proposal.clientName,
+    // 2. Sync back to Client (if clientId exists or by email)
+    const clientIds: string[] = [];
+    if (proposal.clientId) {
+      clientIds.push(proposal.clientId);
+      batch.update(doc(db, "clients", proposal.clientId), {
+        name: name,
+        company: company || name,
+        email: email,
         phone: proposal.phone || "",
         updatedAt: now
       });
+    } else if (email) {
+      const clientSnap = await getDocs(query(collection(db, "clients"), where("email", "==", email)));
+      clientSnap.forEach(d => {
+        clientIds.push(d.id);
+        batch.update(d.ref, {
+          name: name,
+          company: company || name,
+          phone: proposal.phone || "",
+          updatedAt: now
+        });
+      });
+    }
+
+    // Cascade to linked Projects & Tasks
+    for (const cId of clientIds) {
+      const projSnap = await getDocs(query(collection(db, "projects"), where("clientId", "==", cId)));
+      projSnap.forEach(pd => {
+        batch.update(pd.ref, {
+          clientName: company || name,
+          clientEmail: email,
+          updatedAt: now,
+        });
+      });
+
+      const taskSnap = await getDocs(query(collection(db, "tasks"), where("clientId", "==", cId)));
+      taskSnap.forEach(td => {
+        batch.update(td.ref, {
+          clientName: company || name,
+          updatedAt: now,
+        });
+      });
+    }
+
+    await batch.commit();
+  },
+
+  /**
+   * Syncs Project Master Blueprint, Lead Directives, and Title to all its tasks in real-time.
+   */
+  async syncProjectBlueprintAndInstructions(
+    projectId: string, 
+    updates: { masterBlueprint?: string; leadInstructions?: string; title?: string }
+  ) {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+
+    const projUpdate: any = { updatedAt: now };
+    if (updates.masterBlueprint !== undefined) projUpdate.masterBlueprint = updates.masterBlueprint;
+    if (updates.leadInstructions !== undefined) projUpdate.leadInstructions = updates.leadInstructions;
+    if (updates.title !== undefined) projUpdate.title = updates.title;
+
+    batch.update(doc(db, "projects", projectId), projUpdate);
+
+    // Cascade to all tasks related to this project
+    const taskQ = query(collection(db, "tasks"), where("relatedTo", "==", projectId));
+    const taskSnap = await getDocs(taskQ);
+
+    taskSnap.forEach(d => {
+      const taskUpdate: any = { updatedAt: now };
+      if (updates.masterBlueprint !== undefined) taskUpdate.masterBlueprint = updates.masterBlueprint;
+      if (updates.leadInstructions !== undefined) taskUpdate.leadInstructions = updates.leadInstructions;
+      if (updates.title !== undefined) taskUpdate.projectTitle = updates.title;
+      batch.update(d.ref, taskUpdate);
     });
 
     await batch.commit();

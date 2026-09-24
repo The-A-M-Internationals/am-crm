@@ -693,8 +693,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     }
     try {
       await updateDoc(doc(db, "projects", project.id), { masterBlueprint: blueprintValue });
+      await PipelineService.syncProjectBlueprintAndInstructions(project.id, { masterBlueprint: blueprintValue });
       setProject({ ...project, masterBlueprint: blueprintValue });
       setEditingBlueprint(false);
+      toast("Master Blueprint saved and synced to all project tasks.", "success");
     } catch (e) {
       console.error(e);
       toast("Failed to save master blueprint", "error");
@@ -705,8 +707,10 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
     if (!project) return;
     try {
       await updateDoc(doc(db, "projects", project.id), { leadInstructions: instructionsValue });
+      await PipelineService.syncProjectBlueprintAndInstructions(project.id, { leadInstructions: instructionsValue });
       setProject({ ...project, leadInstructions: instructionsValue });
       setEditingInstructions(false);
+      toast("Lead instructions saved and synced to all project tasks.", "success");
     } catch (e) {
       console.error(e);
       toast("Failed to save lead instructions", "error");

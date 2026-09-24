@@ -329,6 +329,11 @@ export default function ProjectsPage() {
       let projectId = editing?.id;
       if (editing) {
         await updateDoc(doc(db, "projects", editing.id), { ...data, updatedAt: now });
+        await PipelineService.syncProjectBlueprintAndInstructions(editing.id, {
+          masterBlueprint: data.masterBlueprint,
+          leadInstructions: data.leadInstructions,
+          title: data.title
+        });
         if (data.status === "in-progress") {
           await createTasksForProject(editing.id, data);
         } else if (data.status === "not-started") {

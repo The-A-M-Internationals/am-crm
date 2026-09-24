@@ -233,29 +233,8 @@ export default function ProposalDetailPage() {
       // Update Proposal
       await updateDoc(docRef, cleanedProposal);
       
-      // Sync dynamic data back to Client if linked
-      if (cleanedProposal.clientId) {
-        const clientRef = doc(db, "clients", cleanedProposal.clientId);
-        await updateDoc(clientRef, {
-          name: cleanedProposal.clientName,
-          company: cleanedProposal.company || cleanedProposal.clientName,
-          email: cleanedProposal.clientEmail,
-          phone: cleanedProposal.phone || "",
-          updatedAt: new Date().toISOString(),
-        });
-      }
-      
-      // Sync dynamic data back to Lead if linked (and not already synced to a client)
-      if (cleanedProposal.fromLeadId && !cleanedProposal.clientId) {
-        const leadRef = doc(db, "leads", cleanedProposal.fromLeadId);
-        await updateDoc(leadRef, {
-          name: cleanedProposal.clientName,
-          company: cleanedProposal.company || cleanedProposal.clientName,
-          email: cleanedProposal.clientEmail,
-          phone: cleanedProposal.phone || "",
-          updatedAt: new Date().toISOString(),
-        });
-      }
+      // Cascade sync across Leads, Clients, Projects, Tasks
+      await PipelineService.syncProposalDetails({ id, ...cleanedProposal });
       
       if (proposal.status !== "accepted" && proposal.status !== "rejected" && proposal.status !== "proposal") {
         const updatedState = { ...proposal, status: "proposal" as ProposalStatus };
@@ -594,7 +573,12 @@ export default function ProposalDetailPage() {
           {/* Top Info Bar */}
           <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/50">
             <div>
-              <h1 className="text-2xl font-black text-[#0D1B3E] tracking-tight">{proposal.clientName} Proposal</h1>
+              <h1 className="text-2xl font-black text-[#0D1B3E] tracking-tight">{proposal.company || proposal.clientName} Proposal</h1>
+              {proposal.company && proposal.clientName && proposal.company.trim().toLowerCase() !== proposal.clientName.trim().toLowerCase() && (
+                <div className="text-xs font-semibold text-slate-500 mt-0.5">
+                  Client Contact: {proposal.clientName}
+                </div>
+              )}
               <div className="flex items-center gap-3 mt-2">
                 <span className="px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border shadow-sm" style={{ background: st.bg, color: st.color, borderColor: st.border }}>{st.label}</span>
                 <span className="text-sm font-bold text-slate-600">{proposal.currency || "AED"} {proposal.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>

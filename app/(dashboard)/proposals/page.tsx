@@ -352,10 +352,15 @@ function ProposalsContent() {
                   {/* Left: Client & Core Info */}
                   <div className="flex items-center gap-5 flex-1 min-w-0">
                     <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-black text-xl shadow-sm" style={{ background: `var(--navy)` }}>
-                      {p.clientName?.charAt(0).toUpperCase() || "?"}
+                      {(p.company || p.clientName)?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold break-words break-all text-[#0D1B3E] group-hover:text-blue-700 transition-colors">{p.clientName}</h3>
+                      <h3 className="text-lg font-bold break-words break-all text-[#0D1B3E] group-hover:text-blue-700 transition-colors">{p.company || p.clientName}</h3>
+                      {p.company && p.clientName && p.company.trim().toLowerCase() !== p.clientName.trim().toLowerCase() && (
+                        <div className="text-xs font-semibold text-slate-600 mt-0.5">
+                          Contact: {p.clientName}
+                        </div>
+                      )}
                       <div className="text-sm text-slate-500 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span className="break-all">{p.clientEmail}</span>
                         {p.phone && (

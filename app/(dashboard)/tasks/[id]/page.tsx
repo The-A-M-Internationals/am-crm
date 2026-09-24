@@ -1,7 +1,6 @@
 "use client";
 import { Rocket, MessageSquare, Check, Target, Clipboard } from "lucide-react";
 
-
 import { useEffect, useState, useRef } from "react";
 import { doc, getDoc, onSnapshot, updateDoc, arrayUnion, getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -9,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/components/ui/toast";
+import { PipelineService } from "@/lib/pipeline-service";
 
 export default function TaskOperationalSheet({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -39,6 +39,12 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [parentProject, setParentProject] = useState<any>(null);
+  const [editingBlueprint, setEditingBlueprint] = useState(false);
+  const [blueprintText, setBlueprintText] = useState("");
+  const [savingBlueprint, setSavingBlueprint] = useState(false);
+  const [editingLeadInstructions, setEditingLeadInstructions] = useState(false);
+  const [leadInstructionsText, setLeadInstructionsText] = useState("");
+  const [savingLeadInstructions, setSavingLeadInstructions] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -55,16 +61,7 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
         const data = docSnap.data();
         setTask({ id: docSnap.id, ...data });
         
-        if (data.relatedTo) {
-          try {
-            const projDoc = await getDoc(doc(db, "projects", data.relatedTo));
-            if (projDoc.exists()) {
-              setParentProject(projDoc.data());
-            }
-          } catch (e) {
-            console.error("Failed to fetch parent project", e);
-          }
-        }
+        // Parent project is subscribed via real-time listener below
 
         let p = data.progress;
         if (p === undefined) {
@@ -80,7 +77,8 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
       }
       setLoading(false);
     });
-    return () => unsub();
+  
+  return () => unsub();
   }, [id, router]);
 
   useEffect(() => {
@@ -108,8 +106,8 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
     );
   }
 
-  const projectBlueprint = task.masterBlueprint || parentProject?.masterBlueprint || task.projectSummary || "";
-  const leadInstructions = task.leadInstructions || parentProject?.leadInstructions || "";
+  const projectBlueprint = parentProject?.masterBlueprint ?? task.masterBlueprint ?? parentProject?.projectSummary ?? task.projectSummary ?? "";
+  const leadInstructions = parentProject?.leadInstructions ?? task.leadInstructions ?? "";
   const taskInstructions = task.taskInstructions || task.description || "No specific instructions provided for this individual task.";
 
   const handleUpdateLog = async () => {
@@ -222,6 +220,52 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
     }
   };
 
+const handleSaveBlueprint = async () => {
+    if (!task) return;
+    setSavingBlueprint(true);
+    try {
+      if (task.relatedTo) {
+        await PipelineService.syncProjectBlueprintAndInstructions(task.relatedTo, {
+          masterBlueprint: blueprintText
+        });
+      } else {
+        await updateDoc(doc(db, "tasks", task.id), {
+          masterBlueprint: blueprintText
+        });
+      }
+      setEditingBlueprint(false);
+      toast("Master Blueprint updated and synchronized across all tasks.", "success");
+    } catch (e) {
+      console.error(e);
+      toast("Failed to update Master Blueprint", "error");
+    } finally {
+      setSavingBlueprint(false);
+    }
+  };
+
+  const handleSaveLeadInstructions = async () => {
+    if (!task) return;
+    setSavingLeadInstructions(true);
+    try {
+      if (task.relatedTo) {
+        await PipelineService.syncProjectBlueprintAndInstructions(task.relatedTo, {
+          leadInstructions: leadInstructionsText
+        });
+      } else {
+        await updateDoc(doc(db, "tasks", task.id), {
+          leadInstructions: leadInstructionsText
+        });
+      }
+      setEditingLeadInstructions(false);
+      toast("Lead Instructions updated and synchronized across all tasks.", "success");
+    } catch (e) {
+      console.error(e);
+      toast("Failed to update Lead Instructions", "error");
+    } finally {
+      setSavingLeadInstructions(false);
+    }
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen pb-10">
       <div className="max-w-[1000px] mx-auto p-6 md:p-8">
@@ -293,34 +337,104 @@ export default function TaskOperationalSheet({ params }: { params: { id: string 
             >
               <div className="space-y-6 flex-1 pr-2">
                 {/* Project Master Blueprint */}
-                {projectBlueprint && (
-                  <div>
-                    <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <div className="bg-amber-50/40 rounded-2xl border border-amber-200/80 p-6 shadow-sm group">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                       {"// Project Master Blueprint"}
                     </h4>
-                    <div className="bg-amber-50/60 p-6 rounded-2xl border border-amber-200/70 shadow-inner mb-6">
+                    {crmUser?.role === "admin" && !editingBlueprint && (
+                      <button
+                        onClick={() => { setBlueprintText(projectBlueprint); setEditingBlueprint(true); }}
+                        className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        {projectBlueprint ? "Edit Blueprint" : "Add Blueprint"}
+                      </button>
+                    )}
+                  </div>
+                  {editingBlueprint ? (
+                    <div className="space-y-3 mt-2">
+                      <textarea
+                        value={blueprintText}
+                        onChange={(e) => setBlueprintText(e.target.value)}
+                        rows={6}
+                        className="w-full p-4 rounded-xl border border-amber-300 bg-white text-slate-800 text-[14px] leading-relaxed outline-none focus:ring-2 focus:ring-amber-400"
+                        placeholder="Enter master blueprint architecture, phases, and milestones..."
+                      />
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => setEditingBlueprint(false)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-amber-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveBlueprint}
+                          disabled={savingBlueprint}
+                          className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm disabled:opacity-50"
+                        >
+                          {savingBlueprint ? "Saving..." : "Save & Sync Blueprint"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white/80 p-5 rounded-xl border border-amber-200/50">
                       <p className="text-[14px] text-slate-800 leading-loose whitespace-pre-wrap font-medium">
-                        {projectBlueprint}
+                        {projectBlueprint || "No Master Blueprint provided. Administrators can edit to define overarching project directives."}
                       </p>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Project Lead Dynamic Instructions */}
-                {leadInstructions && (
-                  <div>
-                    <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <div className="bg-purple-50/40 rounded-2xl border border-purple-200/80 p-6 shadow-sm group">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-black text-purple-600 uppercase tracking-widest flex items-center gap-2">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                       {"// Project Lead Directives & Standing Orders"}
                     </h4>
-                    <div className="bg-purple-50/60 p-6 rounded-2xl border border-purple-200/70 shadow-inner mb-6">
+                    {(crmUser?.role === "admin" || crmUser?.role === "lead") && !editingLeadInstructions && (
+                      <button
+                        onClick={() => { setLeadInstructionsText(leadInstructions); setEditingLeadInstructions(true); }}
+                        className="text-xs font-bold text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        {leadInstructions ? "Edit Directives" : "Add Directives"}
+                      </button>
+                    )}
+                  </div>
+                  {editingLeadInstructions ? (
+                    <div className="space-y-3 mt-2">
+                      <textarea
+                        value={leadInstructionsText}
+                        onChange={(e) => setLeadInstructionsText(e.target.value)}
+                        rows={6}
+                        className="w-full p-4 rounded-xl border border-purple-300 bg-white text-slate-800 text-[14px] leading-relaxed outline-none focus:ring-2 focus:ring-purple-400"
+                        placeholder="Enter dynamic instructions for the development and design team..."
+                      />
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => setEditingLeadInstructions(false)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-purple-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveLeadInstructions}
+                          disabled={savingLeadInstructions}
+                          className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-sm disabled:opacity-50"
+                        >
+                          {savingLeadInstructions ? "Saving..." : "Save & Sync Directives"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white/80 p-5 rounded-xl border border-purple-200/50">
                       <p className="text-[14px] text-purple-950 leading-loose whitespace-pre-wrap font-semibold">
-                        {leadInstructions}
+                        {leadInstructions || "No Project Lead Directives provided yet. Admins and Leads can add live directives here."}
                       </p>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Specific Task Instructions */}
                 <div>
