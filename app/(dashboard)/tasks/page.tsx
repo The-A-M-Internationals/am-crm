@@ -409,7 +409,7 @@ export default function TasksPage() {
                               router.push(`/tasks/${task.id}`);
                             }
                           }}
-                          className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all group relative overflow-hidden flex flex-col ${task.relatedType === 'lead' ? 'cursor-default' : 'cursor-pointer'}`}
+                          className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-[#C9A84C]/50 transition-all group relative overflow-hidden flex flex-col cursor-pointer`}
                         >
                           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: prio.color }} />
                           

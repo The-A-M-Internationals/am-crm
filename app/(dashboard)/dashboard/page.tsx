@@ -412,18 +412,22 @@ export default function DashboardPage() {
               {leads.filter(l => l.active !== false).slice(0, 5).map((lead: any) => {
                 const st = STAGE_CONFIG[lead.stage] ?? { color: "#7e22ce", bg: "#faf5ff", label: lead.stage || "Lead" };
                 return (
-                  <div key={lead.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white" style={{ background: "var(--navy)" }}>
+                  <Link 
+                    key={lead.id} 
+                    href={`/leads?id=${lead.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-[#C9A84C]/50 hover:shadow-md transition-all shadow-sm cursor-pointer group"
+                  >
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 text-white group-hover:scale-105 transition-transform" style={{ background: "var(--navy)" }}>
                       {lead.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{lead.name}</p>
+                      <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors" style={{ color: "var(--charcoal)" }}>{lead.name}</p>
                       <p className="text-xs truncate" style={{ color: "var(--slate)" }}>{lead.company}</p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold" style={{ background: st.bg, color: st.color }}>
                       {st.label}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -447,11 +451,23 @@ export default function DashboardPage() {
               {tasks.filter(t => !t.clientId || clients.some(c => c.id === t.clientId)).slice(0, 5).map((task: any) => {
                 const pColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
                 const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+                const taskHref = task.relatedType === "lead" && task.relatedTo
+                  ? `/leads?id=${task.relatedTo}`
+                  : task.taskType === "system" && task.relatedTo
+                  ? `/projects/${task.relatedTo}`
+                  : task.id
+                  ? `/tasks/${task.id}`
+                  : `/tasks`;
+
                 return (
-                  <div key={task.id} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-slate-200 transition-colors shadow-sm">
-                    <div className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
+                  <Link 
+                    key={task.id} 
+                    href={taskHref}
+                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-[#C9A84C]/50 hover:shadow-md transition-all shadow-sm cursor-pointer group"
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: pColors[task.priority] ?? "#9ca3af" }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: "var(--charcoal)" }}>{task.title}</p>
+                      <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors" style={{ color: "var(--charcoal)" }}>{task.title}</p>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5">
                         {task.clientName && (
                           <p className="text-xs flex items-center gap-1 truncate" style={{ color: "var(--slate)" }}>
@@ -470,7 +486,7 @@ export default function DashboardPage() {
                     <span className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md font-bold flex-shrink-0" style={{ background: `${pColors[task.priority] ?? "#9ca3af"}15`, color: pColors[task.priority] ?? "#9ca3af" }}>
                       {task.priority}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

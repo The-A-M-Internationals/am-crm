@@ -201,17 +201,21 @@ const EMPTY_FORM = {
 
 import { Suspense } from 'react';
 
-function LeadOpener({ leads, setViewingLead, viewingLead }: { leads: any[], setViewingLead: any, viewingLead: any }) {
+function LeadOpener({ leads, openEdit }: { leads: Lead[]; openEdit: (lead: Lead) => void }) {
   const searchParams = useSearchParams();
+  const openedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const id = searchParams.get("id");
-    if (id && leads.length > 0) {
-      const lead = leads.find(l => l.id === id);
-      if (lead && (!viewingLead || viewingLead.id !== id)) {
-        setViewingLead(lead);
+    const id = searchParams.get("id") || searchParams.get("leadId");
+    if (id && leads.length > 0 && openedRef.current !== id) {
+      const lead = leads.find((l) => l.id === id);
+      if (lead) {
+        openedRef.current = id;
+        openEdit(lead);
       }
     }
-  }, [searchParams, leads, viewingLead, setViewingLead]);
+  }, [searchParams, leads, openEdit]);
+
   return null;
 }
 
@@ -558,6 +562,9 @@ export default function LeadsPage() {
 
   return (
     <div className="p-8 h-screen flex flex-col overflow-hidden bg-[#f8f9fa]">
+      <Suspense fallback={null}>
+        <LeadOpener leads={leads} openEdit={openEdit} />
+      </Suspense>
       {/* Top Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
