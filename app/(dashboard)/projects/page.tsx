@@ -11,6 +11,7 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import ProjectCompletedInvoiceModal from "@/components/ProjectCompletedInvoiceModal";
 import { toast } from "@/components/ui/toast";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
@@ -97,6 +98,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [openProjectPanel, setOpenProjectPanel] = useState(false);
   const [activeDropdownProjectId, setActiveDropdownProjectId] = useState<string | null>(null);
+  const [completedInvoiceData, setCompletedInvoiceData] = useState<{ project: any; invoice: any } | null>(null);
 
   useEffect(() => {
     function openFromSidebar() {
@@ -348,6 +350,10 @@ export default function ProjectsPage() {
           await createTasksForProject(projectId, data);
         }
       }
+      if (data.status === "completed" && (!editing || editing.status !== "completed") && projectId) {
+        const inv = await PipelineService.getInvoiceForProject(projectId);
+        setCompletedInvoiceData({ project: { id: projectId, ...data }, invoice: inv });
+      }
       setShowModal(false);
     } finally { setSaving(false); }
   }
@@ -398,7 +404,7 @@ export default function ProjectsPage() {
 
 
   async function updateStatus(project: Project, status: ProjectStatus) {
-    await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
+    const res = await PipelineService.updateProjectStatus(project.id, status, crmUser?.uid ?? "");
     
     // Create tasks if moving to in-progress
     if (status === "in-progress") {
@@ -406,6 +412,10 @@ export default function ProjectsPage() {
     }
     
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status } : p));
+    if (status === "completed") {
+      const inv = res?.invoice || (await PipelineService.getInvoiceForProject(project.id));
+      setCompletedInvoiceData({ project: { ...project, status: "completed" }, invoice: inv });
+    }
   }
 
   // Do not hide projects just because a client is inactive
@@ -1109,6 +1119,13 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
+      <ProjectCompletedInvoiceModal
+        isOpen={!!completedInvoiceData}
+        onClose={() => setCompletedInvoiceData(null)}
+        project={completedInvoiceData?.project}
+        invoice={completedInvoiceData?.invoice}
+      />
 
       <style jsx>{`
         .form-label { display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px; }

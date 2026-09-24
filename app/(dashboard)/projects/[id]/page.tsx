@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { PipelineService } from "@/lib/pipeline-service";
+import ProjectCompletedInvoiceModal from "@/components/ProjectCompletedInvoiceModal";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -47,6 +48,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
   // Payment Log State
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().split('T')[0], method: "Bank Transfer", notes: "" });
   const [loggingPayment, setLoggingPayment] = useState(false);
+  const [completedInvoiceData, setCompletedInvoiceData] = useState<{ project: any; invoice: any } | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
 
@@ -604,7 +606,7 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       return;
     }
     try {
-      await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
+      const res = await PipelineService.handleTaskStatusUpdate(task, status, crmUser?.uid ?? "");
       
       const isCompleted = status === "completed" || status === "done";
       const dbStatus = status === "done" ? "completed" : status;
@@ -615,8 +617,27 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
       
       // Auto-refresh project to get the latest status if it was changed by PipelineService
       fetchProject();
+      if (res?.projectCompleted && project) {
+        setCompletedInvoiceData({ project: { ...project, status: "completed" }, invoice: res.invoice });
+      }
     } catch (e) {
       console.error(e);
+      toast("Failed to update status", "error");
+    }
+  }
+
+  async function handleProjectStatusChange(newStatus: ProjectStatus) {
+    if (!project) return;
+    try {
+      const res = await PipelineService.updateProjectStatus(project.id, newStatus, crmUser?.uid ?? "");
+      setProject({ ...project, status: newStatus });
+      toast(`Project status updated to ${newStatus.replace("-", " ")}`, "success");
+      if (newStatus === "completed") {
+        const inv = res?.invoice || (await PipelineService.getInvoiceForProject(project.id));
+        setCompletedInvoiceData({ project: { ...project, status: "completed" }, invoice: inv });
+      }
+    } catch (err) {
+      console.error(err);
       toast("Failed to update status", "error");
     }
   }
@@ -820,7 +841,22 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold" style={{ color: "#0D1B3E", fontFamily: "var(--font-playfair)" }}>{project.title}</h1>
-            <span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+            {crmUser?.role === "admin" ? (
+              <select
+                value={project.status}
+                onChange={(e) => handleProjectStatusChange(e.target.value as ProjectStatus)}
+                className="badge cursor-pointer outline-none border transition-all text-xs font-semibold"
+                style={{ background: st.bg, color: st.color, borderColor: st.color }}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+            )}
           </div>
           <p className="text-sm font-medium" style={{ color: "#6b7280" }}>{project.clientName}</p>
         </div>
@@ -2511,6 +2547,13 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           </div>
         )}
       </AnimatePresence>
+
+      <ProjectCompletedInvoiceModal
+        isOpen={!!completedInvoiceData}
+        onClose={() => setCompletedInvoiceData(null)}
+        project={completedInvoiceData?.project}
+        invoice={completedInvoiceData?.invoice}
+      />
     </div>
   );
 }

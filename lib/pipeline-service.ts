@@ -1076,10 +1076,16 @@ export const PipelineService = {
       });
 
       // Also trigger invoice drafting if manually completed
-      await this.draftInvoiceForProject(projectId, userId, batch);
+
     }
 
     await batch.commit();
+    let invoice = null;
+    if (status === "completed") {
+      await this.syncProjectFinancialsToInvoice(projectId);
+      invoice = await this.getInvoiceForProject(projectId);
+    }
+    return { success: true, invoice };
   },
 
   /**
@@ -1104,6 +1110,7 @@ export const PipelineService = {
       updatedAt: now
     });
 
+    let projectCompleted = false;
     if (task.relatedType === "project" && task.relatedTo) {
       const projRef = doc(db, "projects", task.relatedTo);
       const projSnap = await getDoc(projRef);
@@ -1124,7 +1131,8 @@ export const PipelineService = {
 
           if (allOtherTasksCompleted) {
             batch.update(projRef, { status: "completed", updatedAt: now });
-            await this.draftInvoiceForProject(task.relatedTo, userId, batch);
+            projectCompleted = true;
+
           } else if (pData.status === "not-started") {
              batch.update(projRef, { status: "in-progress", updatedAt: now });
           }
@@ -1135,6 +1143,12 @@ export const PipelineService = {
     }
 
     await batch.commit();
+    let completedInvoice = null;
+    if (projectCompleted && task.relatedTo) {
+      await this.syncProjectFinancialsToInvoice(task.relatedTo);
+      completedInvoice = await this.getInvoiceForProject(task.relatedTo);
+    }
+    return { success: true, projectCompleted, invoice: completedInvoice };
   },
 
   /**
@@ -1382,8 +1396,30 @@ export const PipelineService = {
     invSnap.forEach(d => batch.delete(d.ref));
 
     await batch.commit();
-  }
-,
+  },
+
+  /**
+   * Retrieves the current Invoice associated with a Project.
+   */
+  async getInvoiceForProject(projectId: string) {
+    if (!projectId) return null;
+    try {
+      const invQ = query(collection(db, "invoices"), where("projectId", "==", projectId));
+      const snap = await getDocs(invQ);
+      if (!snap.empty) {
+        return { id: snap.docs[0].id, ...snap.docs[0].data() };
+      }
+      const detRef = doc(db, "invoices", `proj_inv_${projectId}`);
+      const detSnap = await getDoc(detRef);
+      if (detSnap.exists()) {
+        return { id: detSnap.id, ...detSnap.data() };
+      }
+      return null;
+    } catch (err) {
+      console.error("Error in getInvoiceForProject:", err);
+      return null;
+    }
+  },
 
   /**
    * Automatically creates or synchronizes an Invoice whenever project financials are updated
