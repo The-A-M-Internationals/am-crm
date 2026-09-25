@@ -12,6 +12,7 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { PhoneInput } from "@/components/phone-input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/components/ui/toast";
+import { CURRENCY_OPTIONS, formatCurrencyAmount, getCurrencySymbol } from "@/lib/currencies";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
   { key: "lead",     label: "Lead",     color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
@@ -196,6 +197,8 @@ const EMPTY_FORM = {
   service: "web-development" as ServiceTag,
   stage: "lead" as LeadStage,
   lifecycleStatus: "Not Contacted",
+  dealValue: "",
+  currency: "AED",
   followUpDate: "", notes: "", source: "", nextAction: "",
 };
 
@@ -245,7 +248,8 @@ export default function LeadsPage() {
 
   // Deal Won Modal State
   const [wonModalLead, setWonModalLead] = useState<Lead | null>(null);
-  const [wonAmount, setWonAmount] = useState<string>("5000");
+  const [wonAmount, setWonAmount] = useState<string>("");
+  const [wonCurrency, setWonCurrency] = useState<string>("AED");
   const [wonDate, setWonDate] = useState<string>("");
   const [wonNotes, setWonNotes] = useState<string>("");
   const [isSubmittingWon, setIsSubmittingWon] = useState<boolean>(false);
@@ -279,7 +283,7 @@ export default function LeadsPage() {
   function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setShowModal(true); }
   function openEdit(lead: Lead) {
     setEditing(lead);
-    setForm({ name: lead.name, company: lead.company, email: lead.email, phone: lead.phone ?? "", service: lead.service, stage: lead.stage, lifecycleStatus: (lead as any).lifecycleStatus || "Not Contacted", followUpDate: lead.followUpDate ?? "", notes: lead.notes ?? "", source: lead.source ?? "", nextAction: (lead as any).nextAction ?? "" });
+    setForm({ name: lead.name, company: lead.company, email: lead.email, phone: lead.phone ?? "", service: lead.service, stage: lead.stage, lifecycleStatus: (lead as any).lifecycleStatus || "Not Contacted", dealValue: lead.dealValue !== undefined ? String(lead.dealValue) : (lead.wonAmount !== undefined ? String(lead.wonAmount) : ""), currency: lead.currency || "AED", followUpDate: lead.followUpDate ?? "", notes: lead.notes ?? "", source: lead.source ?? "", nextAction: (lead as any).nextAction ?? "" });
     setIsCustomAction(false);
     setShowModal(true);
   }
@@ -299,10 +303,14 @@ export default function LeadsPage() {
       let leadId: string;
 
       if (editing) {
-        await updateDoc(doc(db, "leads", editing.id), { ...form, updatedAt: now });
+        const parsedDealValue = form.dealValue !== "" ? parseFloat(String(form.dealValue).replace(/,/g, "")) : undefined;
+        const savePayload: any = { ...form, dealValue: parsedDealValue !== undefined && !isNaN(parsedDealValue) ? parsedDealValue : null, currency: form.currency || "AED", updatedAt: now };
+        await updateDoc(doc(db, "leads", editing.id), savePayload);
         leadId = editing.id;
       } else {
-        const leadRef = await addDoc(collection(db, "leads"), { ...form, assignedTo: crmUser?.uid ?? "", createdAt: now, updatedAt: now, active: true });
+        const parsedDealValue = form.dealValue !== "" ? parseFloat(String(form.dealValue).replace(/,/g, "")) : undefined;
+        const savePayload: any = { ...form, dealValue: parsedDealValue !== undefined && !isNaN(parsedDealValue) ? parsedDealValue : null, currency: form.currency || "AED", createdAt: now, updatedAt: now };
+        const leadRef = await addDoc(collection(db, "leads"), { ...savePayload, assignedTo: crmUser?.uid ?? "", active: true });
         leadId = leadRef.id;
       }
 
@@ -394,7 +402,8 @@ export default function LeadsPage() {
     if (stage === "won") {
       setWonModalLead(lead);
       const initialAmt = lead.dealValue ?? lead.wonAmount ?? "";
-      setWonAmount(initialAmt ? String(initialAmt) : "5000");
+      setWonAmount(initialAmt ? String(initialAmt) : "");
+      setWonCurrency(lead.currency || "AED");
       setWonDate(new Date().toISOString().split("T")[0]);
       setWonNotes(lead.wonNotes || "");
       return;
@@ -426,9 +435,11 @@ export default function LeadsPage() {
       const amtNum = wonAmount ? parseFloat(wonAmount.replace(/,/g, "")) : undefined;
       await PipelineService.markAsWon(wonModalLead, {
         amount: amtNum,
+        currency: wonCurrency,
         wonDate: wonDate || new Date().toISOString(),
         wonNotes: wonNotes.trim(),
       });
+      setLeads(prev => prev.map(l => l.id === wonModalLead.id ? { ...l, stage: "won", dealValue: amtNum, wonAmount: amtNum, currency: wonCurrency, wonDate: wonDate || new Date().toISOString(), wonNotes: wonNotes.trim() } : l));
       toast(`Deal marked as Won! (${wonModalLead.company})`, "success");
       setWonModalLead(null);
     } catch (error: any) {
@@ -555,6 +566,17 @@ export default function LeadsPage() {
     .filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()));
 
   // Summary Metrics
+  const wonLeadsList = leads.filter(l => l.stage === "won");
+  const wonTotalsByCurrency = wonLeadsList.reduce((acc: Record<string, number>, l) => {
+    const curr = l.currency || "AED";
+    const val = Number(l.wonAmount || l.dealValue) || 0;
+    acc[curr] = (acc[curr] || 0) + val;
+    return acc;
+  }, {});
+  const wonCurrencies = Object.keys(wonTotalsByCurrency);
+  const totalWonDisplay = wonCurrencies.length > 0
+    ? wonCurrencies.map(c => formatCurrencyAmount(wonTotalsByCurrency[c], c)).join(" + ")
+    : null;
   const totalLeads = leads.length;
   const inProgress = leads.filter(l => l.active !== false && l.stage !== "won" && l.stage !== "lost").length;
   const wonLeads = leads.filter(l => l.stage === "won").length;
@@ -598,7 +620,14 @@ export default function LeadsPage() {
         <div className="bg-white rounded-xl p-4 flex-1 border border-slate-200/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Won Leads</p>
-            <p className="text-2xl font-black text-emerald-900">{wonLeads}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-emerald-900">{wonLeads}</p>
+              {totalWonDisplay && (
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 truncate max-w-[140px]" title={totalWonDisplay}>
+                  {totalWonDisplay}
+                </span>
+              )}
+            </div>
           </div>
           <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-xl"><Trophy className="inline-block w-4 h-4 shrink-0 mr-1" /></div>
         </div>
@@ -746,13 +775,21 @@ export default function LeadsPage() {
                             <div className="flex items-center justify-between px-2.5 py-1.5 bg-emerald-50/90 rounded-lg border border-emerald-200/60 mb-3">
                               <div className="flex items-center gap-1.5 text-xs font-black text-emerald-800">
                                 <Trophy className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>${Number(lead.wonAmount || lead.dealValue).toLocaleString()}</span>
+                                <span>{formatCurrencyAmount(lead.wonAmount || lead.dealValue, lead.currency)}</span>
                               </div>
                               {lead.wonDate && (
                                 <span className="text-[10px] font-bold text-emerald-700/80">
                                   {new Date(lead.wonDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                 </span>
                               )}
+                            </div>
+                          )}
+
+                          {/* Active Stage Deal Value Pill */}
+                          {lead.stage !== "won" && lead.stage !== "lost" && (lead.dealValue || lead.wonAmount) && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-200/70 mb-3 text-xs font-bold text-slate-700">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Val:</span>
+                              <span>{formatCurrencyAmount(lead.dealValue || lead.wonAmount, lead.currency)}</span>
                             </div>
                           )}
 
@@ -964,6 +1001,37 @@ export default function LeadsPage() {
                   </select>
                 </div>
               </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Estimated Deal Value</label>
+                  <div className="flex rounded-xl border border-slate-200 overflow-hidden focus-within:border-blue-500 transition-all bg-white shadow-sm">
+                    <span className="px-3 py-2 bg-slate-50 text-slate-500 text-xs font-bold border-r border-slate-200 flex items-center select-none">
+                      {getCurrencySymbol(form.currency)}
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="w-full px-3 py-2 text-sm font-bold text-slate-900 outline-none bg-transparent placeholder-slate-400"
+                      placeholder="e.g. 25000"
+                      value={form.dealValue}
+                      onChange={e => setForm({ ...form, dealValue: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Currency</label>
+                  <select
+                    className="form-input text-xs font-bold"
+                    value={form.currency}
+                    onChange={e => setForm({ ...form, currency: e.target.value })}
+                  >
+                    {CURRENCY_OPTIONS.map(c => (
+                      <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
             </div>
 
@@ -1102,28 +1170,45 @@ export default function LeadsPage() {
               {/* Form Body */}
               <div className="px-6 py-5 space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-                  {/* Amount Field */}
+                  {/* Amount & Currency Field */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                      Add amount (US Dollar (USD))
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
-                        $
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-600">
+                        Deal Won Amount
+                      </label>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        {wonCurrency}
                       </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        placeholder="5000"
-                        value={wonAmount}
-                        onChange={(e) => setWonAmount(e.target.value)}
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm font-bold outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder-slate-400"
-                        autoFocus
-                      />
+                    </div>
+                    <div className="flex rounded-lg border border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20 overflow-hidden transition-all bg-white shadow-sm">
+                      <select
+                        value={wonCurrency}
+                        onChange={(e) => setWonCurrency(e.target.value)}
+                        className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer transition-colors max-w-[110px]"
+                      >
+                        {CURRENCY_OPTIONS.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code} ({c.symbol})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative flex-1 flex items-center">
+                        <span className="pl-3 text-sm font-bold text-slate-400 select-none">
+                          {getCurrencySymbol(wonCurrency)}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="e.g. 25000"
+                          value={wonAmount}
+                          onChange={(e) => setWonAmount(e.target.value)}
+                          className="w-full pl-2 pr-3 py-2 bg-transparent text-slate-900 text-sm font-bold outline-none placeholder-slate-400"
+                          autoFocus
+                        />
+                      </div>
                     </div>
                   </div>
-
                   {/* Actual Close Date Pill with Working Interactive Dropdown */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">

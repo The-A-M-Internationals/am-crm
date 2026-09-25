@@ -234,6 +234,7 @@ export const PipelineService = {
         email: email,
         phone: lead.phone || "",
         services: services,
+        ...(lead.currency ? { currency: lead.currency } : {}),
         updatedAt: now,
       });
     });
@@ -517,7 +518,7 @@ export const PipelineService = {
    * Note: Leads DO NOT become Clients here. Only accepted proposals create clients.
    * If a client record somehow exists for this email, it will be deactivated to ensure state consistency.
    */
-  async markAsWon(lead: Lead, details?: { amount?: number | string; wonDate?: string; wonNotes?: string }) {
+  async markAsWon(lead: Lead, details?: { amount?: number | string; wonDate?: string; wonNotes?: string; currency?: string }) {
     const batch = writeBatch(db);
     const now = new Date().toISOString();
     const email = normalizeEmail(lead.email);
@@ -532,6 +533,7 @@ export const PipelineService = {
       leadUpdate.dealValue = !isNaN(numVal) ? numVal : details.amount;
       leadUpdate.wonAmount = !isNaN(numVal) ? numVal : details.amount;
     }
+    if (details?.currency || lead.currency) leadUpdate.currency = details?.currency || lead.currency;
     if (details?.wonDate) leadUpdate.wonDate = details.wonDate;
     if (details?.wonNotes !== undefined) leadUpdate.wonNotes = details.wonNotes;
 
@@ -558,7 +560,7 @@ export const PipelineService = {
         services: lead.service ? [lead.service] : [],
         status: "active",
         active: true,
-        currency: "AED",
+        currency: details?.currency || lead.currency || "AED",
         fromLeadId: lead.id,
         createdAt: lead.createdAt || now,
         updatedAt: now,
@@ -574,6 +576,7 @@ export const PipelineService = {
           status: "active",
           active: true,
           fromLeadId: lead.id,
+          currency: details?.currency || lead.currency || clientDoc.data()?.currency || "AED",
           updatedAt: now,
         });
       });
@@ -602,6 +605,9 @@ export const PipelineService = {
         batch.update(leadRef, {
           stage: "won",
           active: true,
+          dealValue: Number(propDoc.data()?.total) > 0 ? Number(propDoc.data()?.total) : (leadDoc.data()?.dealValue ?? 0),
+          wonAmount: Number(propDoc.data()?.total) > 0 ? Number(propDoc.data()?.total) : (leadDoc.data()?.wonAmount ?? 0),
+          currency: propDoc.data()?.currency || leadDoc.data()?.currency || "AED",
           updatedAt: now,
         });
       }
@@ -911,6 +917,7 @@ export const PipelineService = {
         clientEmail: email,
         phone: lead.phone || "",
         service: lead.service,
+        currency: lead.currency || "AED",
         status: "draft", // Explicitly set default state to Draft
         items: [],
         subtotal: 0,

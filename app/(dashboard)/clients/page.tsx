@@ -12,6 +12,7 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { useRouter, useSearchParams } from "next/navigation";
 import CreateProjectModal from "@/components/CreateProjectModal";
 import { toast } from "@/components/ui/toast";
+import { CURRENCY_OPTIONS as CURRENCIES } from "@/lib/currencies";
 
 const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] = [
   { key: "digital-marketing", label: "Digital Marketing", bg: "#dbeafe", text: "#1e40af" },
@@ -25,12 +26,6 @@ const SERVICES: { key: ServiceTag; label: string; bg: string; text: string }[] =
   { key: "other",             label: "Other",             bg: "#f3f4f6", text: "#374151" },
 ];
 
-const CURRENCIES = [
-  { code: "AED", label: "AED (Dirham)" },
-  { code: "USD", label: "USD (Dollar)" },
-  { code: "INR", label: "INR (Rupee)" },
-
-];
 
 const EMPTY_FORM = {
   name: "", company: "", email: "", phone: "",

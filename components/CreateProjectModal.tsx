@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { ServiceTag, ProjectStatus } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toast";
+import { CURRENCY_OPTIONS as CURRENCIES } from "@/lib/currencies";
 
 const STATUSES: { key: ProjectStatus; label: string; color: string; bg: string }[] = [
   { key: "not-started", label: "Not Started", color: "#6b7280", bg: "#f9fafb" },
@@ -41,13 +42,6 @@ const SERVICE_TECH_STACKS: Record<string, string[]> = {
 
 const DEFAULT_STACK = ["Next.js", "Three.js", "Tailwind", "Node.js", "Firestore", "GSAP"];
 
-const CURRENCIES = [
-  { code: "AED", label: "AED (Dirham)" },
-  { code: "USD", label: "USD (Dollar)" },
-  { code: "INR", label: "INR (Rupee)" },
-  { code: "EUR", label: "EUR (Euro)" },
-  { code: "GBP", label: "GBP (Pound)" },
-];
 
 const EMPTY_FORM = {
   clientId: "", clientName: "", title: "", service: "web-development" as ServiceTag,

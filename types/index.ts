@@ -64,6 +64,7 @@ export interface Lead {
   nextAction?: string;
   dealValue?: number;
   wonAmount?: number;
+  currency?: string;
   wonDate?: string;
   wonNotes?: string;
   lostReason?: string;
