@@ -1,28 +1,20 @@
-export interface CurrencyOption {
-  code: string;
-  symbol: string;
-  label: string;
-}
+export const PRIMARY_CURRENCIES = ["AED", "USD", "INR"] as const;
 
-export const CURRENCY_OPTIONS: CurrencyOption[] = [
-  { code: "AED", symbol: "AED", label: "AED (UAE Dirham)" },
-  { code: "USD", symbol: "$",   label: "USD (US Dollar)" },
-  { code: "INR", symbol: "₹",   label: "INR (Indian Rupee)" },
-  { code: "EUR", symbol: "€",   label: "EUR (Euro)" },
-  { code: "GBP", symbol: "£",   label: "GBP (British Pound)" },
-  { code: "SAR", symbol: "SAR", label: "SAR (Saudi Riyal)" },
-  { code: "QAR", symbol: "QAR", label: "QAR (Qatari Riyal)" },
-  { code: "OMR", symbol: "OMR", label: "OMR (Omani Rial)" },
-  { code: "KWD", symbol: "KWD", label: "KWD (Kuwaiti Dinar)" },
-  { code: "CAD", symbol: "CA$", label: "CAD (Canadian Dollar)" },
-  { code: "AUD", symbol: "AU$", label: "AUD (Australian Dollar)" },
-  { code: "SGD", symbol: "SG$", label: "SGD (Singapore Dollar)" },
+export const CURRENCY_OPTIONS = [
+  { code: "AED", symbol: "AED", label: "AED" },
+  { code: "USD", symbol: "$",   label: "USD" },
+  { code: "INR", symbol: "₹",   label: "INR" },
 ];
 
-export function getCurrencySymbol(code?: string): string {
-  if (!code) return "AED";
-  const found = CURRENCY_OPTIONS.find((c) => c.code.toUpperCase() === code.toUpperCase());
-  return found ? found.symbol : code.toUpperCase();
+export const CURRENCIES = CURRENCY_OPTIONS;
+
+export function getCurrencySymbol(currency?: string): string {
+  const code = (currency || "AED").trim().toUpperCase();
+  if (code === "USD") return "$";
+  if (code === "INR") return "₹";
+  if (code === "EUR") return "€";
+  if (code === "GBP") return "£";
+  return code;
 }
 
 export function formatCurrencyAmount(
@@ -34,11 +26,9 @@ export function formatCurrencyAmount(
   if (isNaN(num)) return String(amount);
 
   const formattedNum = num.toLocaleString();
-  const code = (currency || "AED").toUpperCase();
-  const symbol = getCurrencySymbol(code);
+  const code = (currency || "AED").trim().toUpperCase() || "AED";
 
-  if (symbol === "$" || symbol === "₹" || symbol === "€" || symbol === "£") {
-    return `${symbol}${formattedNum}`;
-  }
+  if (code === "USD") return `$${formattedNum}`;
+  if (code === "INR") return `₹${formattedNum}`;
   return `${code} ${formattedNum}`;
 }

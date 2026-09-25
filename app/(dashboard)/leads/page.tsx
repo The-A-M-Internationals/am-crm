@@ -12,7 +12,7 @@ import { PipelineService } from "@/lib/pipeline-service";
 import { PhoneInput } from "@/components/phone-input";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/components/ui/toast";
-import { CURRENCY_OPTIONS, formatCurrencyAmount, getCurrencySymbol } from "@/lib/currencies";
+import { PRIMARY_CURRENCIES, formatCurrencyAmount } from "@/lib/currencies";
 
 const STAGES: { key: LeadStage; label: string; color: string; bg: string; border: string }[] = [
   { key: "lead",     label: "Lead",     color: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
@@ -250,6 +250,8 @@ export default function LeadsPage() {
   const [wonModalLead, setWonModalLead] = useState<Lead | null>(null);
   const [wonAmount, setWonAmount] = useState<string>("");
   const [wonCurrency, setWonCurrency] = useState<string>("AED");
+  const [isWonCustomCurrency, setIsWonCustomCurrency] = useState<boolean>(false);
+  const [isFormCustomCurrency, setIsFormCustomCurrency] = useState<boolean>(false);
   const [wonDate, setWonDate] = useState<string>("");
   const [wonNotes, setWonNotes] = useState<string>("");
   const [isSubmittingWon, setIsSubmittingWon] = useState<boolean>(false);
@@ -280,8 +282,10 @@ export default function LeadsPage() {
     return () => unsubscribe();
   }, []);
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setShowModal(true); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setIsCustomAction(false); setIsFormCustomCurrency(false); setShowModal(true); }
   function openEdit(lead: Lead) {
+    const leadCurr = (lead.currency || "AED").toUpperCase();
+    setIsFormCustomCurrency(!PRIMARY_CURRENCIES.includes(leadCurr as any));
     setEditing(lead);
     setForm({ name: lead.name, company: lead.company, email: lead.email, phone: lead.phone ?? "", service: lead.service, stage: lead.stage, lifecycleStatus: (lead as any).lifecycleStatus || "Not Contacted", dealValue: lead.dealValue !== undefined ? String(lead.dealValue) : (lead.wonAmount !== undefined ? String(lead.wonAmount) : ""), currency: lead.currency || "AED", followUpDate: lead.followUpDate ?? "", notes: lead.notes ?? "", source: lead.source ?? "", nextAction: (lead as any).nextAction ?? "" });
     setIsCustomAction(false);
@@ -404,6 +408,8 @@ export default function LeadsPage() {
       const initialAmt = lead.dealValue ?? lead.wonAmount ?? "";
       setWonAmount(initialAmt ? String(initialAmt) : "");
       setWonCurrency(lead.currency || "AED");
+      const wCurr = (lead.currency || "AED").toUpperCase();
+      setIsWonCustomCurrency(!PRIMARY_CURRENCIES.includes(wCurr as any));
       setWonDate(new Date().toISOString().split("T")[0]);
       setWonNotes(lead.wonNotes || "");
       return;
@@ -1004,32 +1010,62 @@ export default function LeadsPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2">
                   <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Estimated Deal Value</label>
-                  <div className="flex rounded-xl border border-slate-200 overflow-hidden focus-within:border-blue-500 transition-all bg-white shadow-sm">
-                    <span className="px-3 py-2 bg-slate-50 text-slate-500 text-xs font-bold border-r border-slate-200 flex items-center select-none">
-                      {getCurrencySymbol(form.currency)}
-                    </span>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      className="w-full px-3 py-2 text-sm font-bold text-slate-900 outline-none bg-transparent placeholder-slate-400"
-                      placeholder="e.g. 25000"
-                      value={form.dealValue}
-                      onChange={e => setForm({ ...form, dealValue: e.target.value })}
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    className="form-input text-sm font-bold text-slate-900 placeholder-slate-400"
+                    placeholder="e.g. 25000"
+                    value={form.dealValue}
+                    onChange={e => setForm({ ...form, dealValue: e.target.value })}
+                  />
                 </div>
                 <div>
-                  <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Currency</label>
-                  <select
-                    className="form-input text-xs font-bold"
-                    value={form.currency}
-                    onChange={e => setForm({ ...form, currency: e.target.value })}
-                  >
-                    {CURRENCY_OPTIONS.map(c => (
-                      <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Currency</label>
+                    {isFormCustomCurrency && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFormCustomCurrency(false);
+                          setForm({ ...form, currency: "AED" });
+                        }}
+                        className="text-[10px] text-blue-600 hover:underline font-bold"
+                      >
+                        Presets
+                      </button>
+                    )}
+                  </div>
+                  {isFormCustomCurrency ? (
+                    <input
+                      type="text"
+                      placeholder="e.g. EUR"
+                      value={form.currency}
+                      maxLength={6}
+                      onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })}
+                      className="form-input text-xs font-bold uppercase"
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      className="form-input text-xs font-bold"
+                      value={PRIMARY_CURRENCIES.includes(form.currency?.toUpperCase() as any) ? form.currency.toUpperCase() : "custom"}
+                      onChange={e => {
+                        if (e.target.value === "custom") {
+                          setIsFormCustomCurrency(true);
+                          setForm({ ...form, currency: "" });
+                        } else {
+                          setIsFormCustomCurrency(false);
+                          setForm({ ...form, currency: e.target.value });
+                        }
+                      }}
+                    >
+                      <option value="AED">AED</option>
+                      <option value="USD">USD</option>
+                      <option value="INR">INR</option>
+                      <option value="custom">Other (Type)...</option>
+                    </select>
+                  )}
                 </div>
               </div>
               <div><label className="form-label text-xs font-bold uppercase tracking-wide text-slate-500">Notes</label><textarea className="form-input resize-none" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any additional notes..." /></div>
@@ -1177,36 +1213,65 @@ export default function LeadsPage() {
                         Deal Won Amount
                       </label>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        {wonCurrency}
+                        {wonCurrency || "AED"}
                       </span>
                     </div>
                     <div className="flex rounded-lg border border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/20 overflow-hidden transition-all bg-white shadow-sm">
-                      <select
-                        value={wonCurrency}
-                        onChange={(e) => setWonCurrency(e.target.value)}
-                        className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer transition-colors max-w-[110px]"
-                      >
-                        {CURRENCY_OPTIONS.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.code} ({c.symbol})
-                          </option>
-                        ))}
-                      </select>
-                      <div className="relative flex-1 flex items-center">
-                        <span className="pl-3 text-sm font-bold text-slate-400 select-none">
-                          {getCurrencySymbol(wonCurrency)}
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="e.g. 25000"
-                          value={wonAmount}
-                          onChange={(e) => setWonAmount(e.target.value)}
-                          className="w-full pl-2 pr-3 py-2 bg-transparent text-slate-900 text-sm font-bold outline-none placeholder-slate-400"
-                          autoFocus
-                        />
-                      </div>
+                      {/* Currency Selector (AED, USD, INR or Typable) */}
+                      {isWonCustomCurrency ? (
+                        <div className="flex items-center bg-slate-50 border-r border-slate-200 px-2 py-1">
+                          <input
+                            type="text"
+                            placeholder="CUR"
+                            value={wonCurrency}
+                            maxLength={6}
+                            onChange={(e) => setWonCurrency(e.target.value.toUpperCase())}
+                            className="w-16 uppercase font-bold text-xs bg-white border border-slate-300 rounded px-1.5 py-1 outline-none text-slate-800 focus:border-emerald-600"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            title="Choose from AED, USD, INR"
+                            onClick={() => {
+                              setIsWonCustomCurrency(false);
+                              setWonCurrency("AED");
+                            }}
+                            className="ml-1 text-slate-400 hover:text-slate-700 text-xs px-1 font-bold"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          value={PRIMARY_CURRENCIES.includes(wonCurrency?.toUpperCase() as any) ? wonCurrency.toUpperCase() : "custom"}
+                          onChange={(e) => {
+                            if (e.target.value === "custom") {
+                              setIsWonCustomCurrency(true);
+                              setWonCurrency("");
+                            } else {
+                              setIsWonCustomCurrency(false);
+                              setWonCurrency(e.target.value);
+                            }
+                          }}
+                          className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer transition-colors max-w-[125px]"
+                        >
+                          <option value="AED">AED</option>
+                          <option value="USD">USD</option>
+                          <option value="INR">INR</option>
+                          <option value="custom">Other (Type)...</option>
+                        </select>
+                      )}
+                      {/* Pure number input with NO extra symbols */}
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="e.g. 25000"
+                        value={wonAmount}
+                        onChange={(e) => setWonAmount(e.target.value)}
+                        className="w-full px-3 py-2 bg-transparent text-slate-900 text-sm font-bold outline-none placeholder-slate-400"
+                        autoFocus={!isWonCustomCurrency}
+                      />
                     </div>
                   </div>
                   {/* Actual Close Date Pill with Working Interactive Dropdown */}
